@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 130" role="img" aria-label="Webooza logo">
+  <style>
+    .t { font-family: "Avenir Next", "Nunito", "Trebuchet MS", system-ui, sans-serif; font-weight: 700; font-size: 64px; letter-spacing: -1.5px; fill: #0e1330; }
+  </style>
+  <text class="t" x="184" y="88" text-anchor="end">web</text>
+  <text class="t" x="252" y="88" text-anchor="start">za</text>
+  <circle cx="206" cy="72" r="14" fill="none" stroke="#2b3fd6" stroke-width="8"/>
+  <circle cx="228" cy="72" r="14" fill="none" stroke="#ffffff" stroke-width="15"/>
+  <circle cx="228" cy="72" r="14" fill="none" stroke="#ffb400" stroke-width="8"/>
+</svg>

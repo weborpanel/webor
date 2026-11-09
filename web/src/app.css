@@ -1,0 +1,55 @@
+@import '#lib/colors.css';
+
+:root {
+	color-scheme: light;
+	--page: var(--wbz-chalk);
+	--text: var(--wbz-ink);
+	--muted: var(--wbz-muted);
+	--accent: var(--wbz-ultramarine);
+	--accent-2: var(--wbz-marigold);
+	--surface: #ffffff;
+	--font: 'Nunito', 'Avenir Next', 'Trebuchet MS', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		color-scheme: dark;
+		--page: #0a0e24;
+		--text: #eef1fa;
+		--muted: var(--wbz-muted-dark);
+		--accent: var(--wbz-ultramarine-light);
+		--surface: var(--wbz-ink);
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	min-height: 100%;
+}
+
+body {
+	font-family: var(--font);
+	color: var(--text);
+	background:
+		radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--wbz-ultramarine) 18%, transparent), transparent 60%),
+		radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--wbz-marigold) 16%, transparent), transparent 55%),
+		linear-gradient(180deg, var(--page), color-mix(in srgb, var(--page) 88%, var(--wbz-ink)));
+	line-height: 1.55;
+}
+
+a {
+	color: var(--accent);
+	text-decoration-thickness: 1.5px;
+	text-underline-offset: 0.18em;
+}
+
+a:hover {
+	color: color-mix(in srgb, var(--accent) 80%, var(--text));
+}

@@ -1,0 +1,27 @@
+version: 1
+panel:
+  domain: panel.example.com
+  port: 0
+sites:
+  - name: example.com
+    aliases: [www.example.com]
+    type: static
+    root: public
+    build_command: npm install && npm run build
+    limits:
+      disk_quota: 2G
+      log_max: 200M
+  - name: api.example.com
+    type: app
+    exec: ./bin/server
+    socket_activation: true
+    idle_timeout: 15m
+    env_file: .env
+    database: postgres
+    cache: valkey
+    limits:
+      memory_max: 256M
+    cron:
+      - name: nightly-cleanup
+        schedule: 0 3 * * *
+        exec: ./bin/cleanup
