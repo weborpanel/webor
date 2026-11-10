@@ -14,13 +14,29 @@ func TestCreateSiteUserValidates(t *testing.T) {
 	if resp.OK {
 		t.Fatal("expected validation failure")
 	}
-	if resp.Error == "not implemented" {
-		t.Fatalf("expected validation error, got %q", resp.Error)
+	if resp.Error == "" {
+		t.Fatal("expected error message")
 	}
+}
 
-	args, _ = json.Marshal(ipc.CreateSiteUserArgs{Domain: "example.com"})
-	resp = h(ipc.Request{ID: "2", Operation: ipc.OpCreateSiteUser, Args: args}, ipc.PeerCred{})
-	if resp.Error != "not implemented" {
-		t.Fatalf("want not implemented, got %q", resp.Error)
+func TestWriteUnitFileValidates(t *testing.T) {
+	h := ipc.DefaultHandlers()[ipc.OpWriteUnitFile]
+	args, _ := json.Marshal(ipc.WriteUnitFileArgs{
+		Domain:  "example.com",
+		Unit:    "../evil.service",
+		Content: "[Unit]\nDescription=x\n",
+	})
+	resp := h(ipc.Request{ID: "1", Operation: ipc.OpWriteUnitFile, Args: args}, ipc.PeerCred{})
+	if resp.OK {
+		t.Fatal("expected validation failure")
+	}
+}
+
+func TestReloadCaddyValidates(t *testing.T) {
+	h := ipc.DefaultHandlers()[ipc.OpReloadCaddy]
+	args, _ := json.Marshal(ipc.ReloadCaddyArgs{ConfigPath: "/tmp/evil.json"})
+	resp := h(ipc.Request{ID: "1", Operation: ipc.OpReloadCaddy, Args: args}, ipc.PeerCred{})
+	if resp.OK {
+		t.Fatal("expected validation failure")
 	}
 }

@@ -1,0 +1,138 @@
+# VirtualBox lab — Debian 13 (netinst)
+
+Lab VM for Webooza Milestone 0 spikes (helper, Caddy, systemd). Not production.
+
+**Snapshot:** take a clean snapshot after this setup (before installing Caddy/Go extras you may want to roll back).
+
+## Credentials (lab only)
+
+| Item | Value |
+| ---- | ----- |
+| Guest user | `webooza` |
+| Password | `789456` |
+| Root password | same lab password if you set it during install |
+| Hostname | `debian` (or as installed) |
+
+Do not reuse this password outside the local VM.
+
+## VM settings
+
+- OS: **Debian 13 (Trixie) amd64 netinst** ISO  
+  https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/
+- RAM: 2 GB (or more)
+- CPUs: 2
+- Disk: ~20 GB
+- Network: **NAT**
+- Port forwarding (Adapter 1 → Advanced → Port Forwarding):
+
+| Name | Protocol | Host IP | Host Port | Guest IP | Guest Port |
+| ---- | -------- | ------- | --------- | -------- | ---------- |
+| ssh  | TCP      | *(blank)* | **2222** | *(blank)* | **22** |
+| http | TCP      | *(blank)* | **8080** | *(blank)* | **8080** |  (optional, for Spike A probe)
+
+### Installer choices
+
+- No desktop environment (server-style)
+- **SSH server** enabled
+- Standard system utilities enabled
+- Create user `webooza` with password above
+
+## SSH access
+
+### From Windows PowerShell (works with NAT forward)
+
+```powershell
+ssh -p 2222 webooza@127.0.0.1
+```
+
+### From WSL
+
+Linux `ssh` to `127.0.0.1:2222` often fails (WSL and Windows do not share localhost). Use Windows OpenSSH instead:
+
+```bash
+ssh.exe -p 2222 webooza@127.0.0.1
+```
+
+Optional: enable WSL mirrored networking in `%UserProfile%\.wslconfig`:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+Then `wsl --shutdown`, reopen WSL, and retry `ssh -p 2222 webooza@127.0.0.1`.
+
+The guest NAT address is typically `10.0.2.15`; host appears as `10.0.2.2`. Do not expect the guest on your LAN IP unless you switch to Bridged networking.
+
+## sudo
+
+```bash
+sudo usermod -aG sudo webooza
+```
+
+Log out of SSH and log back in, then:
+
+```bash
+groups          # includes sudo
+sudo whoami     # root
+```
+
+## Shared folder (repo from the host)
+
+Share the Webooza checkout so the guest does not need rsync.
+
+1. VirtualBox → Devices → Shared Folders → Add  
+   - **Folder Path:** Windows path to the repo, e.g. `C:\Coding\webooza` or a copy synced from WSL  
+     Prefer a real Windows path over `\\wsl$\...` if mounts are flaky.  
+   - **Folder Name:** `webooza`  
+   - Auto-mount: yes  
+   - Make permanent: yes  
+
+2. On the guest:
+
+```bash
+sudo apt update
+sudo apt install -y virtualbox-guest-utils
+# If that is too old for your VirtualBox version, install Guest Additions from the CD instead.
+
+sudo usermod -aG vboxsf webooza
+```
+
+3. **Fully disconnect SSH and reconnect** (group membership only applies to new sessions).
+
+```bash
+groups | grep vboxsf
+ls /media/sf_webooza
+```
+
+`newgrp vboxsf` only fixes the **current** shell; you should not need it after a fresh login.
+
+Optional symlink:
+
+```bash
+ln -s /media/sf_webooza ~/webooza
+```
+
+### Permissions note
+
+Mount is typically `root:vboxsf` mode `770`. Without `vboxsf` membership, only root can `ls` the folder.
+
+## Quiet apt (if using the DVD leftover)
+
+If `apt update` complains about `cdrom://`:
+
+```bash
+sudo sed -i '/^deb cdrom:/s/^/# /' /etc/apt/sources.list
+sudo apt update
+```
+
+## After the clean snapshot
+
+1. Install Go + Caddy on the guest (see [docs/spikes/caddy-admin-api.md](../spikes/caddy-admin-api.md)).
+2. Work from `/media/sf_webooza` (or `~/webooza`).
+3. Run Spike A harness from the guest against local Caddy.
+4. Host-only Docker smoke test remains available: `./scripts/spike-caddy-docker.sh` (does not replace systemd spikes).
+
+## Restore
+
+VirtualBox → Snapshots → restore the clean snapshot taken after SSH, sudo, shared folder, and Guest Additions work.

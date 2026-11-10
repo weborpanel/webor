@@ -1,0 +1,24 @@
+{
+  "admin": {
+    "listen": "0.0.0.0:2019"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [":8080"],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "this_handler_does_not_exist",
+                  "body": "should-fail\n"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

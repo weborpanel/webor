@@ -1,0 +1,11 @@
+# Smoke-test Spike A (Caddy admin API) without a full systemd VM.
+# Not a substitute for site-user / cgroup / socket-activation tests.
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "2019:2019"
+      - "8080:8080"
+    volumes:
+      - ./Caddyfile.bootstrap.json:/etc/caddy/caddy.json:ro
+    command: ["caddy", "run", "--config", "/etc/caddy/caddy.json"]

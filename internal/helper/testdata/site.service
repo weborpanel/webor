@@ -1,0 +1,13 @@
+[Unit]
+Description=Webooza spike site unit for example.com
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+RemainAfterExit=yes
+User=wbz_example_com
+Group=wbz_example_com
+
+[Install]
+WantedBy=multi-user.target
