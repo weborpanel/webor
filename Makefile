@@ -25,8 +25,8 @@ BINS := webooza webooza-helper wbz
 help:
 	@echo "Webooza lab Makefile"
 	@echo
-	@echo "  make web           build Svelte UI into internal/ui/dist (embedded)"
-	@echo "  make build         make web + build binaries into $(BIN_DIR)"
+	@echo "  make web           build Svelte UI into internal/ui/dist (needs Node >= 22.17)"
+	@echo "  make build         build Go binaries into $(BIN_DIR) (uses embedded UI)"
 	@echo "  make test          go test ./..."
 	@echo "  make lab-start     start helper + caddy + panel (systemd-run)"
 	@echo "  make lab-stop      stop lab units"
@@ -47,7 +47,8 @@ web:
 	@if [ ! -f internal/ui/dist/index.html ]; then cp internal/ui/dist/200.html internal/ui/dist/index.html; fi
 	@echo "UI embedded assets ready in internal/ui/dist"
 
-build: web
+build:
+	@test -f internal/ui/dist/200.html || { echo "missing embedded UI; run: make web"; exit 1; }
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/webooza ./cmd/webooza
 	go build -o $(BIN_DIR)/webooza-helper ./cmd/webooza-helper
