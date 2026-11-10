@@ -2,6 +2,8 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
+*Progress note (2026-11-10): Milestone 0 spikes A–C are done and verified on a Debian 13 VirtualBox lab VM. See §7 Milestone 0 checklist below. Remaining M0 exit work: one static site from `config.yaml` behind Caddy (staging cert optional in lab).*
+
 ## 1. Product scope
 
 **Pitch:** a lightweight, non-Docker hosting panel for a VPS owner who wants to run several sites and apps: static sites (with automated build commands), native Node/Go/Rust apps and optional rootless containers, with automatic SSL, per-site isolation and cron. Mail comes later.
@@ -40,12 +42,12 @@ The GitHub organization is already secured. Names below follow the Webooza brand
 
 **Setup tasks before the first commit**
 
-1. Register the domain (installer URL and docs site depend on it).
-2. Reserve the same name on npm, PyPI, crates.io and GHCR, using placeholder packages.
-3. Choose the license. A permissive license (Apache-2.0 or MIT) maximises adoption. AGPL-3.0 stops others from offering a closed hosted version. Decide before the first commit, because changing later is painful.
-4. Add `SECURITY.md` with a private vulnerability reporting route, since the project ships a root helper.
-5. Run a trademark search, paying attention to similar-sounding names such as Wowza.
-6. Enable branch protection, required CI and enforced 2FA for the organization.
+1. Register the domain (installer URL and docs site depend on it). — open
+2. Reserve the same name on npm, PyPI, crates.io and GHCR, using placeholder packages. — open
+3. Choose the license. — **done: Apache-2.0**
+4. Add `SECURITY.md` with a private vulnerability reporting route, since the project ships a root helper. — **done**
+5. Run a trademark search, paying attention to similar-sounding names such as Wowza. — open
+6. Enable branch protection, required CI and enforced 2FA for the organization. — open (CI workflow exists in-repo; org protection still pending)
 
 ## 3. Key technical decisions
 
@@ -133,15 +135,22 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 0: Foundations and spikes (weeks 1 to 2)
 
+**Status:** in progress (spikes complete; exit criterion not yet met)
+
 **Deliverables**
 
-- Repository, CI and the VM development environment
-- Config schema v1 with validation, and SQLite migrations
-- Helper with IPC and three operations (create site user, write unit file, reload Caddy)
-- Spike A: Caddy driven through its admin API with validate-then-reload and last-good rollback
-- Spike B: socket activation with a Go app and a Node app, with `systemd-socket-proxyd` as the fallback, plus connection-warmup validation
-- Spike C: step-up approval prototype (console `wbz approve`)
-- Frontend framework decision (SvelteKit)
+- [x] Repository, CI and the VM development environment (Debian 13 netinst + shared folder; Docker smoke for Caddy only)
+- [x] Config schema v1 with validation, and SQLite migrations
+- [x] Helper with IPC and three operations (create site user, write unit file, reload Caddy) — verified on VM
+- [x] Spike A: Caddy admin API validate → reload → last-good rollback — decision `docs/decisions/0001-caddy-admin-api.md`
+- [x] Spike B: socket activation (Go + Node) + `systemd-socket-proxyd` fallback + warmup — decision `docs/decisions/0002-socket-activation.md`
+- [x] Spike C: step-up approval prototype (`wbz approve`, root peercred) — decision `docs/decisions/0003-step-up-approval.md`
+- [x] Frontend framework decision (SvelteKit static shell under `web/`)
+
+**Still open for M0 exit**
+
+- [ ] From a config file, one static site served by Caddy in the VM (staging cert if DNS available; self-signed/HTTP lab path otherwise)
+- Lab notes: `docs/dev/virtualbox-debian13.md`, `docs/spikes/`
 
 **Exit criteria:** from a config file, one static site is served by Caddy with a staging certificate in the VM, and each spike has a written decision.
 
@@ -326,9 +335,9 @@ These are targets to validate in Milestone 6, not measured results.
 
 ## 15. Open questions
 
-1. License: permissive (Apache-2.0 or MIT) or AGPL-3.0.
-2. Run Caddy as a separate process (planned) or embed it later to ship one binary.
-3. How far git-based builds go in v1: build command only, or language presets.
-4. Final supported OS list.
-5. Domain, package-name and trademark checks for Webooza.
-6. Confirm what "PQPM" refers to. It is assumed to be a PM2-style process manager, replaced here by systemd.
+1. License: permissive (Apache-2.0 or MIT) or AGPL-3.0. — **resolved: Apache-2.0**
+2. Run Caddy as a separate process (planned) or embed it later to ship one binary. — separate process for v1 (Spike A)
+3. How far git-based builds go in v1: build command only, or language presets. — open
+4. Final supported OS list. — open (lab is Debian 13; plan still targets Debian 12+ / Ubuntu 22.04+)
+5. Domain, package-name and trademark checks for Webooza. — open
+6. Confirm what "PQPM" refers to. — **resolved:** PQPM is a PM2-style user process manager; Webooza uses **systemd** as the site supervisor (PQPM not integrated for v1)
