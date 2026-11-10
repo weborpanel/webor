@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-10): Milestone 0 complete. Milestone 1 nearly complete in lab: static `public/` hosting, auth, DNS checklist + cert gating flag, site dashboard, isolation/OOM unit coverage. Remaining for M1 exit on a real VPS: green DNS → HTTPS, live build OOM. Optional: fuller add-site wizard.*
+*Progress note (2026-11-10): Milestone 0 complete. Milestone 1 lab-complete: static `public/` hosting, auth, DNS checklist + cert gating, embedded panel UI (setup/login/sites/dashboard), isolation/OOM unit coverage. Remaining for full M1 exit on a real VPS: green DNS → HTTPS, live build OOM.*
 
 ## 1. Product scope
 
@@ -164,7 +164,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 1: Core hosting and build pipelines (weeks 3 to 5)
 
-**Status:** in progress
+**Status:** lab complete (VPS HTTPS / live OOM still deferred)
 
 **Deliverables**
 
@@ -173,7 +173,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [x] Domain checklist model (A, AAAA, CNAME, CAA warn) — `internal/dnscheck`
 - [x] DNS checker: public + authoritative A, CAA via miekg/dns; `GET /api/sites/{name}/dns` + `can_issue_certificate` gating (live HTTPS enablement still VPS-deferred)
 - [x] Authentication: setup token, admin account, sessions, TOTP, login rate limiting (`internal/auth`, `/api/auth/*`)
-- [~] UI: login + sites (upload + DNS checklist) + per-site dashboard; full wizard still open
+- [x] UI: setup + login + sites (upload + DNS checklist) + per-site dashboard next-steps; embedded in `webooza` via `go:embed` (`make web`)
 - [x] Build MemoryMax/timeout wired in `RunBuild` (unit-tested; live cgroup OOM on VPS list)
 - [x] File-isolation test scaffold (`test/isolation`, root/linux) — private logs not readable across site users
 

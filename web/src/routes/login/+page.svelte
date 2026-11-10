@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
 	let email = $state('');
@@ -6,6 +7,21 @@
 	let totp = $state('');
 	let error = $state('');
 	let submitting = $state(false);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+			const data = (await res.json().catch(() => ({}))) as {
+				ok?: boolean;
+				needs_setup?: boolean;
+			};
+			if (res.ok && data.ok && data.needs_setup) {
+				await goto('/setup');
+			}
+		} catch {
+			// Keep login form available if status is unreachable
+		}
+	});
 
 	async function onSubmit(e: Event) {
 		e.preventDefault();
@@ -71,6 +87,8 @@
 		{/if}
 		<button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Continue'}</button>
 	</form>
+
+	<p class="setup-link"><a href="/setup">First-run setup</a></p>
 </section>
 
 <style>
@@ -89,6 +107,11 @@
 	p {
 		margin: 0 0 1.75rem;
 		color: var(--muted);
+	}
+
+	.setup-link {
+		margin: 1.25rem 0 0;
+		font-size: 0.92rem;
 	}
 
 	.error {

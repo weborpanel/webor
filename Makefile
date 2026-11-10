@@ -19,13 +19,14 @@ CADDY_UNIT  ?= webooza-caddy-lab
 
 BINS := webooza webooza-helper wbz
 
-.PHONY: help build clean test \
+.PHONY: help web build clean test \
 	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset
 
 help:
 	@echo "Webooza lab Makefile"
 	@echo
-	@echo "  make build         build webooza, webooza-helper, wbz into $(BIN_DIR)"
+	@echo "  make web           build Svelte UI into internal/ui/dist (embedded)"
+	@echo "  make build         make web + build binaries into $(BIN_DIR)"
 	@echo "  make test          go test ./..."
 	@echo "  make lab-start     start helper + caddy + panel (systemd-run)"
 	@echo "  make lab-stop      stop lab units"
@@ -36,7 +37,17 @@ help:
 	@echo "  make lab-reset     wipe $(LAB_STATE) (new setup token on next start)"
 	@echo "  make clean         remove $(BIN_DIR)"
 
-build:
+web:
+	cd web && npm ci && npm run build
+	rm -rf internal/ui/dist
+	mkdir -p internal/ui/dist
+	cp -a web/build/. internal/ui/dist/
+	@test -f internal/ui/dist/200.html
+	# SPA mode may not emit index.html; / should still load the fallback shell.
+	@if [ ! -f internal/ui/dist/index.html ]; then cp internal/ui/dist/200.html internal/ui/dist/index.html; fi
+	@echo "UI embedded assets ready in internal/ui/dist"
+
+build: web
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/webooza ./cmd/webooza
 	go build -o $(BIN_DIR)/webooza-helper ./cmd/webooza-helper
@@ -86,8 +97,9 @@ lab-start: build lab-dirs
 	@echo
 	@echo "Setup token (if first run):"
 	@sudo journalctl -u $(PANEL_UNIT) -n 30 --no-pager | grep -F 'setup token' || true
-	@echo "Panel:  http://127.0.0.1:8787/healthz  (host via VBox NAT)"
-	@echo "Site:   curl -H 'Host: example.com' http://127.0.0.1:8080/"
+	@echo "Panel UI: http://127.0.0.1:8787/  (host via VBox NAT :8787)"
+	@echo "Health:   http://127.0.0.1:8787/healthz"
+	@echo "Site:     curl -H 'Host: example.com' http://127.0.0.1:8080/"
 
 lab-stop:
 	sudo systemctl stop $(PANEL_UNIT) $(HELPER_UNIT) $(CADDY_UNIT) 2>/dev/null || true

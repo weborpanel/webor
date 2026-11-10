@@ -1,3 +1,23 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+			const data = (await res.json().catch(() => ({}))) as {
+				ok?: boolean;
+				needs_setup?: boolean;
+			};
+			if (res.ok && data.ok && data.needs_setup) {
+				await goto('/setup');
+			}
+		} catch {
+			// Keep home available if status is unreachable
+		}
+	});
+</script>
+
 <svelte:head>
 	<title>Webooza</title>
 </svelte:head>

@@ -100,8 +100,31 @@
 			<p class="error" role="alert">{error}</p>
 		{/if}
 
+		<section class="next">
+			<h2>Next steps</h2>
+			<ol>
+				<li>
+					<strong>Upload files</strong> into <code>{root}/</code> —
+					<a href="/sites">open the Sites page</a> and use the upload form for this domain.
+				</li>
+				<li>
+					<strong>Run DNS checklist</strong> — point the domain at this VPS, then check below.
+				</li>
+				<li>
+					<strong>Certificate gating</strong> —
+					{#if !dnsChecked}
+						run the DNS check to see whether HTTPS can be issued.
+					{:else if dnsCanCert}
+						DNS is ready for certificate issuance.
+					{:else}
+						DNS is not ready for HTTPS yet — fix failing records first.
+					{/if}
+				</li>
+			</ol>
+		</section>
+
 		<div class="actions">
-			<a class="button" href="/sites">Upload files</a>
+			<a class="button" href="/sites">Upload files on Sites</a>
 			<button type="button" disabled={dnsLoading} onclick={checkDNS}>
 				{dnsLoading ? 'Checking DNS…' : 'Check DNS'}
 			</button>
@@ -146,6 +169,11 @@
 		font-weight: 800;
 	}
 
+	h2 {
+		margin: 0 0 0.75rem;
+		font-size: 1.15rem;
+	}
+
 	header p {
 		margin: 0;
 		color: var(--muted);
@@ -158,6 +186,22 @@
 	.error {
 		color: #b42318;
 		font-weight: 600;
+	}
+
+	.next {
+		margin: 1.5rem 0 0;
+	}
+
+	ol {
+		margin: 0;
+		padding-left: 1.25rem;
+		display: grid;
+		gap: 0.65rem;
+		color: var(--muted);
+	}
+
+	ol strong {
+		color: var(--text);
 	}
 
 	.actions {

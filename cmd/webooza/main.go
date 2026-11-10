@@ -13,6 +13,7 @@ import (
 	"github.com/webooza/webooza/internal/auth"
 	"github.com/webooza/webooza/internal/config"
 	"github.com/webooza/webooza/internal/helper"
+	"github.com/webooza/webooza/internal/ui"
 	"github.com/webooza/webooza/internal/version"
 )
 
@@ -62,14 +63,7 @@ func main() {
 	})
 	srv.MountAuth(mux)
 	srv.MountSites(mux)
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintf(w, "webooza %s — panel UI not embedded yet\n", version.Version)
-	})
+	mux.Handle("/", ui.Handler())
 
 	log.Printf("webooza %s listening on %s (state=%s config=%s)", version.Version, *listen, *stateDir, *configPath)
 	if err := http.ListenAndServe(*listen, mux); err != nil {

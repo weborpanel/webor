@@ -31,8 +31,8 @@ SvelteKit shell). Not production-ready.
 
 ```
 cmd/           webooza, webooza-helper, wbz
-internal/      config, reconcile, providers, build, dnscheck, auth, audit, ipc
-web/           SvelteKit frontend (static export; embedded later)
+internal/      config, reconcile, providers, build, dnscheck, auth, audit, ipc, ui
+web/           SvelteKit frontend (static export; embedded via make web)
 install/       install script stub and systemd unit templates
 brand/         logo SVGs and color tokens
 docs/          development plan and spike decisions
@@ -41,14 +41,16 @@ test/          isolation and e2e tests (later)
 
 ## Development
 
-Requires Go 1.23+ and Node 20+.
+Requires Go matching `go.mod` and Node 20+.
 
 ```bash
-go test ./...
-cd web && npm install && npm run check && npm run build
+make test
+make build          # builds UI into internal/ui/dist, then Go binaries
+# On the Debian lab VM:
+make lab-start      # helper + caddy + panel on :8787 / :8080
 ```
 
-See [docs/plan.md](docs/plan.md) for the full roadmap.
+See [docs/plan.md](docs/plan.md) for the full roadmap and [docs/dev/virtualbox-debian13.md](docs/dev/virtualbox-debian13.md) for the VM lab.
 
 ## License
 

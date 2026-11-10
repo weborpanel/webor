@@ -56,16 +56,28 @@
 		}
 	}
 
+	function isValidHostname(domain: string): boolean {
+		// Lowercase hostname: letters/digits/hyphen/dot, at least one dot
+		return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain);
+	}
+
 	async function addSite(e: Event) {
 		e.preventDefault();
-		submitting = true;
 		error = '';
+		const domain = name.trim().toLowerCase();
+		name = domain;
+		if (!isValidHostname(domain)) {
+			error =
+				'Enter a valid domain hostname (lowercase letters, digits, hyphens, and at least one dot), e.g. example.com';
+			return;
+		}
+		submitting = true;
 		try {
 			const res = await fetch('/api/sites', {
 				method: 'POST',
 				credentials: 'same-origin',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name, type: 'static' })
+				body: JSON.stringify({ name: domain, type: 'static' })
 			});
 			const data = (await res.json().catch(() => ({}))) as {
 				ok?: boolean;
@@ -76,10 +88,7 @@
 				error = data.error || 'Could not add site';
 				return;
 			}
-			if (data.warning) error = data.warning;
-			selected = name;
-			name = '';
-			await load();
+			await goto(`/sites/${encodeURIComponent(domain)}`);
 		} catch {
 			error = 'Could not reach the panel API';
 		} finally {

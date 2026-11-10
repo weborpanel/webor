@@ -128,10 +128,18 @@ sudo apt update
 
 ## After the clean snapshot
 
-1. Install Go + Caddy on the guest (see [docs/spikes/caddy-admin-api.md](../spikes/caddy-admin-api.md)).
-2. Work from `/media/sf_webooza` (or `~/webooza`).
-3. Run Spike A harness from the guest against local Caddy.
-4. Host-only Docker smoke test remains available: `./scripts/spike-caddy-docker.sh` (does not replace systemd spikes).
+1. Install Go (official tarball matching `go.mod`), Caddy (Cloudsmith), Node/npm, make, and `gh` on the guest.
+2. Prefer an isolated checkout: `gh repo clone webooza/webooza ~/webooza` (shared folder optional).
+3. Lab panel stack from the guest:
+
+```bash
+cd ~/webooza
+make lab-start   # builds UI + binaries, starts helper/caddy/panel
+```
+
+Open on the host via NAT forwards: `http://127.0.0.1:8787/` (panel UI), `http://127.0.0.1:8787/healthz`, and sites on `:8080` with a `Host` header.
+
+4. Spike harnesses remain documented under `docs/spikes/`. Host-only Docker smoke: `./scripts/spike-caddy-docker.sh` (does not replace systemd spikes).
 
 ## Restore
 
