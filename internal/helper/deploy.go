@@ -9,18 +9,21 @@ import (
 	"github.com/webooza/webooza/internal/sites"
 )
 
-// DeployStaticZip extracts zipPath into a new release for domain and activates it.
+// DeployStaticZip extracts a zip into the site's public/ document root.
 // zipPath must be under the site tmp dir or /var/lib/webooza/uploads/.
 func (o *Ops) DeployStaticZip(domain, zipPath string) (string, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	if err := validateDeployZipPath(domain, zipPath); err != nil {
 		return "", err
 	}
-	id, err := deploy.StaticZip(domain, zipPath, deploy.StaticZipOptions{})
-	if err != nil {
+	if err := sites.EnsurePublicDir(domain); err != nil {
 		return "", err
 	}
-	return id, nil
+	pub := sites.Public(domain)
+	if err := deploy.ExtractZip(zipPath, pub); err != nil {
+		return "", err
+	}
+	return pub, nil
 }
 
 func validateDeployZipPath(domain, zipPath string) error {
@@ -31,7 +34,6 @@ func validateDeployZipPath(domain, zipPath string) error {
 	allowed := []string{
 		sites.Tmp(domain) + string(filepath.Separator),
 		filepath.Join("/var/lib/webooza/uploads", domain) + string(filepath.Separator),
-		"/var/lib/webooza/uploads/",
 	}
 	ok := false
 	for _, prefix := range allowed {
@@ -40,7 +42,6 @@ func validateDeployZipPath(domain, zipPath string) error {
 			break
 		}
 	}
-	// Also allow the uploads dir file directly under domain subdir exact file.
 	if !ok {
 		return fmt.Errorf("zip_path %q not under allowed upload directories", clean)
 	}

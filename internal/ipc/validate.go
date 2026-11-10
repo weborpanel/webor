@@ -131,6 +131,28 @@ func validateMemoryMax(v string) error {
 	return nil
 }
 
+// ValidateWritePublicFileArgs validates WritePublicFile arguments.
+func ValidateWritePublicFileArgs(a WritePublicFileArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	p := strings.TrimSpace(a.Path)
+	if p == "" {
+		return fmt.Errorf("path is required")
+	}
+	if strings.Contains(p, "..") || strings.HasPrefix(p, "/") || strings.Contains(p, `\`) {
+		return fmt.Errorf("invalid path")
+	}
+	full := filepath.Join(sitesRoot, strings.ToLower(a.Domain), "public", p)
+	if err := ValidateSitePath(a.Domain, full); err != nil {
+		return err
+	}
+	if len(a.Content) > 5*1024*1024 {
+		return fmt.Errorf("content exceeds 5 MiB")
+	}
+	return nil
+}
+
 // ValidateDeployStaticZipArgs validates DeployStaticZip arguments.
 func ValidateDeployStaticZipArgs(a DeployStaticZipArgs) error {
 	if err := ValidateDomain(a.Domain); err != nil {

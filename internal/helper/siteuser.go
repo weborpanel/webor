@@ -7,7 +7,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/webooza/webooza/internal/sites"
 )
@@ -22,9 +21,8 @@ func SiteRoot(domain string) string {
 	return sites.Root(domain)
 }
 
-// CreateSiteUser creates (or reconciles) the per-site Linux user and directories.
-// New sites get a releases/ tree with public → active release. Existing M0
-// public/ directories are left in place.
+// CreateSiteUser creates (or reconciles) the per-site Linux user and a public/
+// document root (Virtualmin-style). Users upload HTML into public/.
 func (o *Ops) CreateSiteUser(domain string) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	username := sites.Username(domain)
@@ -51,24 +49,14 @@ func (o *Ops) CreateSiteUser(domain string) error {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", root, err)
 	}
-	for _, d := range []string{sites.Logs(domain), sites.Tmp(domain), sites.ReleasesDir(domain)} {
-		mode := os.FileMode(0o750)
-		if err := os.MkdirAll(d, mode); err != nil {
+	for _, d := range []string{sites.Logs(domain), sites.Tmp(domain)} {
+		if err := os.MkdirAll(d, 0o750); err != nil {
 			return fmt.Errorf("mkdir %s: %w", d, err)
 		}
-		_ = os.Chmod(d, mode)
+		_ = os.Chmod(d, 0o750)
 	}
-
-	if _, err := sites.EnsureReleaseLayout(domain, time.Now().UTC()); err != nil {
-		return fmt.Errorf("release layout: %w", err)
-	}
-
-	// Ensure public is world-traversable/readable for Caddy (file_server).
-	pub := sites.Public(domain)
-	if fi, err := os.Lstat(pub); err == nil {
-		if fi.Mode()&os.ModeSymlink == 0 && fi.IsDir() {
-			_ = os.Chmod(pub, 0o755)
-		}
+	if err := sites.EnsurePublicDir(domain); err != nil {
+		return fmt.Errorf("public dir: %w", err)
 	}
 
 	u, err := user.Lookup(username)
@@ -82,6 +70,32 @@ func (o *Ops) CreateSiteUser(domain string) error {
 	if err := os.Chmod(root, 0o755); err != nil {
 		return err
 	}
+	_ = os.Chmod(sites.Public(domain), 0o755)
+	return nil
+}
+
+// WritePublicFile writes a file under the site's public/ document root.
+func (o *Ops) WritePublicFile(domain, relPath string, data []byte) error {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	full, err := sites.ResolvePublicPath(domain, relPath)
+	if err != nil {
+		return err
+	}
+	if err := sites.EnsurePublicDir(domain); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return err
+	}
+	tmp := full + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, full); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	_ = os.Chmod(full, 0o644)
 	return nil
 }
 
@@ -104,11 +118,11 @@ func (o *Ops) DeleteSiteUser(domain string, deleteData bool) error {
 	}
 
 	clean := filepath.Clean(root)
-	if clean != root && !strings.HasPrefix(clean, filepath.Clean(sites.RootDir)+string(filepath.Separator)) {
-		return fmt.Errorf("refusing to delete unexpected path %q", root)
-	}
 	if clean == filepath.Clean(sites.RootDir) || clean == "/" {
 		return fmt.Errorf("refusing to delete sites root")
+	}
+	if !strings.HasPrefix(clean, filepath.Clean(sites.RootDir)+string(filepath.Separator)) {
+		return fmt.Errorf("refusing to delete unexpected path %q", root)
 	}
 	if err := os.RemoveAll(clean); err != nil {
 		return fmt.Errorf("remove %s: %w", clean, err)

@@ -7,7 +7,7 @@
 	<h1>Webooza</h1>
 	<p>A lightweight hosting panel for one VPS and several sites — static builds, native apps, automatic SSL, without Docker.</p>
 	<p class="cta">
-		<a class="button" href="/login">Open panel</a>
+		<a class="button" href="/sites">Open panel</a>
 	</p>
 </section>
 

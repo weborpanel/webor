@@ -24,6 +24,7 @@ func Handlers(ops *helper.Ops, store *auth.Store) map[string]HandlerFunc {
 	h := map[string]HandlerFunc{
 		OpCreateSiteUser:  makeCreateSiteUser(ops),
 		OpDeleteSiteUser:  makeDeleteSiteUser(ops, store),
+		OpWritePublicFile: makeWritePublicFile(ops),
 		OpDeployStaticZip: makeDeployStaticZip(ops),
 		OpRunBuild:        makeRunBuild(ops),
 		OpWriteUnitFile:   makeWriteUnitFile(ops),
@@ -121,6 +122,26 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
+func makeWritePublicFile(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args WritePublicFileArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateWritePublicFileArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		if err := ops.WritePublicFile(args.Domain, args.Path, []byte(args.Content)); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{
+			ID:      req.ID,
+			OK:      true,
+			Message: fmt.Sprintf("wrote public/%s for %s", args.Path, args.Domain),
+		}
+	}
+}
+
 func makeDeployStaticZip(ops *helper.Ops) HandlerFunc {
 	return func(req Request, _ PeerCred) Response {
 		var args DeployStaticZipArgs
@@ -130,14 +151,14 @@ func makeDeployStaticZip(ops *helper.Ops) HandlerFunc {
 		if err := ValidateDeployStaticZipArgs(args); err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
-		id, err := ops.DeployStaticZip(args.Domain, args.ZipPath)
+		pub, err := ops.DeployStaticZip(args.Domain, args.ZipPath)
 		if err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
 		return Response{
 			ID:      req.ID,
 			OK:      true,
-			Message: fmt.Sprintf("deployed release %s for %s", id, args.Domain),
+			Message: fmt.Sprintf("extracted zip into %s", pub),
 		}
 	}
 }

@@ -39,6 +39,9 @@ type Site struct {
 	Aliases          []string          `yaml:"aliases,omitempty"`
 	Type             string            `yaml:"type"` // static | app | container
 	Root             string            `yaml:"root,omitempty"`
+	Git              string            `yaml:"git,omitempty"`     // clone URL
+	GitRef           string            `yaml:"git_ref,omitempty"` // branch/tag
+	SourceDir        string            `yaml:"source_dir,omitempty"`
 	BuildCommand     string            `yaml:"build_command,omitempty"`
 	Exec             string            `yaml:"exec,omitempty"`
 	SocketActivation bool              `yaml:"socket_activation,omitempty"`

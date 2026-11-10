@@ -25,6 +25,7 @@
 			</picture>
 		</a>
 		<nav>
+			<a href="/sites">Sites</a>
 			<a href="/login">Log in</a>
 		</nav>
 	</header>
@@ -57,6 +58,12 @@
 		display: block;
 		height: auto;
 		max-width: min(180px, 48vw);
+	}
+
+	nav {
+		display: flex;
+		gap: 1.1rem;
+		align-items: center;
 	}
 
 	nav a {

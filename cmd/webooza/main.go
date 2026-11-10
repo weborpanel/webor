@@ -17,6 +17,7 @@ import (
 func main() {
 	listen := flag.String("listen", "127.0.0.1:8787", "HTTP listen address")
 	stateDir := flag.String("state-dir", config.DefaultStateDir, "runtime state directory")
+	configPath := flag.String("config", api.DefaultConfigPath, "desired-state config.yaml path")
 	flag.Parse()
 
 	db, err := config.OpenDB(*stateDir)
@@ -34,7 +35,7 @@ func main() {
 		log.Printf("first-run setup token (save this): %s", tok)
 	}
 
-	srv := &api.Server{Account: acct, Issuer: "Webooza"}
+	srv := &api.Server{Account: acct, Issuer: "Webooza", ConfigPath: *configPath}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -45,6 +46,7 @@ func main() {
 		})
 	})
 	srv.MountAuth(mux)
+	srv.MountSites(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
@@ -54,7 +56,7 @@ func main() {
 		fmt.Fprintf(w, "webooza %s — panel UI not embedded yet\n", version.Version)
 	})
 
-	log.Printf("webooza %s listening on %s (state=%s)", version.Version, *listen, *stateDir)
+	log.Printf("webooza %s listening on %s (state=%s config=%s)", version.Version, *listen, *stateDir, *configPath)
 	if err := http.ListenAndServe(*listen, mux); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

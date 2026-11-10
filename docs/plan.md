@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-10): Milestone 0 complete on the Debian 13 lab VM. Milestone 1 in progress: site lifecycle/deploy/build/DNS checklist, and panel auth (setup token, sessions, TOTP, rate limit, login UI). Still open: git pull, CAA/auth NS, site list/wizard/dashboard.*
+*Progress note (2026-11-10): Milestone 0 complete on the Debian 13 lab VM. Milestone 1 in progress. **Static sites are Virtualmin-style:** add domain → serve `/srv/sites/<domain>/public/`; upload files (or zip) into that folder. Git clone/deploy for static is deferred (comes later with apps/proxy/creds). Still open: CAA/auth NS + cert gating, dashboard polish.*
 
 ## 1. Product scope
 
@@ -169,11 +169,11 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 **Deliverables**
 
 - [x] Site model: create and delete, per-site Linux user and directories, release layout with atomic `public`/`current` symlinks (Caddy still serves `public/` only)
-- [~] Static deploys: zip → new release + atomic activate (`DeployStaticZip`); build queue + `RunBuild` (systemd-run limits) in place; git pull still open
+- [x] Static hosting model: add site → `public/` document root; upload files / optional zip into `public/` (no git for static; git deferred with apps)
 - [x] Domain checklist model (A, AAAA, CNAME, CAA warn) — `internal/dnscheck`
 - [ ] DNS checker querying authoritative nameservers and public resolvers (system A/AAAA/CNAME/NS done; CAA + auth NS pending), certificate issuance gated on pass
 - [x] Authentication: setup token, admin account, sessions, TOTP, login rate limiting (`internal/auth`, `/api/auth/*`)
-- [~] UI: login form posts to `/api/auth/login` (dev proxy); site list / add-site wizard / dashboard still open
+- [~] UI: login + site list/add/remove + file upload to `public/`; wizard/dashboard still open
 
 **Exit criteria:** a user can add a domain, add the records at their DNS provider, watch the checks turn green, and see the site live over HTTPS. A build that runs out of memory fails safely. File-isolation tests pass.
 

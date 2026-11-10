@@ -9,12 +9,17 @@ import (
 	"time"
 
 	"github.com/webooza/webooza/internal/auth"
+	"github.com/webooza/webooza/internal/helper"
 )
 
 // Server holds panel API dependencies.
 type Server struct {
-	Account *auth.Account
-	Issuer  string // TOTP issuer label
+	Account    *auth.Account
+	Issuer     string // TOTP issuer label
+	ConfigPath string // desired-state YAML; empty = DefaultConfigPath
+	// Ops runs privileged site filesystem ops. Lab/dev may use helper.Ops
+	// directly; production should go through webooza-helper IPC later.
+	Ops *helper.Ops
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, v any) {

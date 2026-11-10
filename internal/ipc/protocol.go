@@ -10,6 +10,7 @@ const DefaultSocketPath = "/run/webooza/helper.sock"
 const (
 	OpCreateSiteUser  = "CreateSiteUser"
 	OpDeleteSiteUser  = "DeleteSiteUser"
+	OpWritePublicFile = "WritePublicFile"
 	OpDeployStaticZip = "DeployStaticZip"
 	OpRunBuild        = "RunBuild"
 	OpWriteUnitFile   = "WriteUnitFile"
@@ -47,7 +48,14 @@ type DeleteSiteUserArgs struct {
 	ApprovalID string `json:"approval_id,omitempty"`
 }
 
-// DeployStaticZipArgs deploys a zip as a new static release.
+// WritePublicFileArgs writes a file under /srv/sites/<domain>/public/.
+type WritePublicFileArgs struct {
+	Domain  string `json:"domain"`
+	Path    string `json:"path"` // relative path under public/, e.g. index.html
+	Content string `json:"content"`
+}
+
+// DeployStaticZipArgs extracts a zip into the site's public/ directory.
 type DeployStaticZipArgs struct {
 	Domain  string `json:"domain"`
 	ZipPath string `json:"zip_path"`

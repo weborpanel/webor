@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/webooza/webooza/internal/deploy"
 	"github.com/webooza/webooza/internal/sites"
@@ -81,7 +80,7 @@ func TestExtractZipRejectsTraversal(t *testing.T) {
 	}
 }
 
-func TestStaticZipActivate(t *testing.T) {
+func TestStaticZipIntoPublic(t *testing.T) {
 	prev := sites.RootDir
 	sites.RootDir = t.TempDir()
 	t.Cleanup(func() { sites.RootDir = prev })
@@ -90,35 +89,15 @@ func TestStaticZipActivate(t *testing.T) {
 	dir := t.TempDir()
 	zp := filepath.Join(dir, "a.zip")
 	writeZip(t, zp, map[string]string{"index.html": "v1"})
-	id, err := deploy.StaticZip(domain, zp, deploy.StaticZipOptions{
-		Now:       time.Date(2026, 11, 10, 16, 0, 0, 0, time.UTC),
-		SkipChown: true,
-	})
+	pub, err := deploy.StaticZip(domain, zp, deploy.StaticZipOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id != "20261110T160000Z" {
-		t.Fatalf("id=%q", id)
+	if pub != sites.Public(domain) {
+		t.Fatalf("pub=%q", pub)
 	}
 	body, err := os.ReadFile(filepath.Join(sites.Public(domain), "index.html"))
 	if err != nil || string(body) != "v1" {
-		t.Fatalf("body=%q err=%v", body, err)
-	}
-
-	zp2 := filepath.Join(dir, "b.zip")
-	writeZip(t, zp2, map[string]string{"index.html": "v2"})
-	id2, err := deploy.StaticZip(domain, zp2, deploy.StaticZipOptions{
-		Now:       time.Date(2026, 11, 10, 16, 0, 1, 0, time.UTC),
-		SkipChown: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if id2 == id {
-		t.Fatal("expected new release id")
-	}
-	body, err = os.ReadFile(filepath.Join(sites.Public(domain), "index.html"))
-	if err != nil || string(body) != "v2" {
 		t.Fatalf("body=%q err=%v", body, err)
 	}
 }
