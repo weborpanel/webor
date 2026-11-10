@@ -19,6 +19,20 @@
 	let uploadFile = $state<FileList | null>(null);
 	let uploading = $state(false);
 
+	type DnsItem = {
+		record: string;
+		host: string;
+		want?: string;
+		got?: string;
+		status: string;
+		detail?: string;
+	};
+	let dnsItems = $state<DnsItem[]>([]);
+	let dnsOK = $state<boolean | null>(null);
+	let dnsCanCert = $state(false);
+	let dnsLoading = $state(false);
+	let expectedA = $state('');
+
 	async function load() {
 		loading = true;
 		error = '';
@@ -121,6 +135,35 @@
 		}
 	}
 
+	async function checkDNS() {
+		if (!selected) return;
+		dnsLoading = true;
+		error = '';
+		try {
+			const q = expectedA.trim() ? `?a=${encodeURIComponent(expectedA.trim())}` : '';
+			const res = await fetch(`/api/sites/${encodeURIComponent(selected)}/dns${q}`, {
+				credentials: 'same-origin'
+			});
+			const data = (await res.json()) as {
+				ok?: boolean;
+				error?: string;
+				can_issue_certificate?: boolean;
+				reports?: { ok: boolean; items: DnsItem[] }[];
+			};
+			if (!res.ok || !data.ok) {
+				error = data.error || 'DNS check failed';
+				return;
+			}
+			dnsItems = data.reports?.[0]?.items || [];
+			dnsOK = data.reports?.[0]?.ok ?? null;
+			dnsCanCert = !!data.can_issue_certificate;
+		} catch {
+			error = 'Could not reach the panel API';
+		} finally {
+			dnsLoading = false;
+		}
+	}
+
 	onMount(load);
 </script>
 
@@ -187,6 +230,38 @@
 			</label>
 			<button type="submit" disabled={uploading}>{uploading ? 'Uploading…' : 'Upload'}</button>
 		</form>
+
+		<div class="dns">
+			<h2>DNS checklist · {selected}</h2>
+			<p class="muted">Point the domain at this VPS, then run the check. Certificate issuance waits for a green A record.</p>
+			<label>
+				<span>Expected A (optional override)</span>
+				<input bind:value={expectedA} placeholder="203.0.113.10" />
+			</label>
+			<button type="button" disabled={dnsLoading} onclick={checkDNS}>
+				{dnsLoading ? 'Checking…' : 'Check DNS'}
+			</button>
+			{#if dnsOK !== null}
+				<p class={['dns-summary', dnsCanCert ? 'good' : 'bad']}>
+					{dnsCanCert ? 'Ready for certificate issuance' : 'Not ready — fix failing records first'}
+				</p>
+				<table>
+					<thead>
+						<tr><th>Record</th><th>Status</th><th>Want</th><th>Got</th></tr>
+					</thead>
+					<tbody>
+						{#each dnsItems as item, i (item.record + item.host + i)}
+							<tr>
+								<td>{item.record}</td>
+								<td class={item.status}>{item.status}</td>
+								<td>{item.want || '—'}</td>
+								<td>{item.got || item.detail || '—'}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
+		</div>
 	{/if}
 </section>
 
@@ -317,5 +392,53 @@
 		border: 1px solid color-mix(in srgb, #b42318 35%, transparent);
 		padding: 0.45rem 0.85rem;
 		font-size: 0.85rem;
+	}
+
+	.dns {
+		display: grid;
+		gap: 0.75rem;
+		max-width: 36rem;
+	}
+
+	.dns-summary {
+		font-weight: 700;
+	}
+
+	.dns-summary.good {
+		color: #067647;
+	}
+
+	.dns-summary.bad {
+		color: #b42318;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.9rem;
+	}
+
+	th,
+	td {
+		text-align: left;
+		padding: 0.45rem 0.35rem;
+		border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+		vertical-align: top;
+	}
+
+	td.pass {
+		color: #067647;
+		font-weight: 700;
+	}
+
+	td.fail {
+		color: #b42318;
+		font-weight: 700;
+	}
+
+	td.warn,
+	td.skip {
+		color: #b54708;
+		font-weight: 700;
 	}
 </style>

@@ -2,14 +2,15 @@ package dnscheck
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"strings"
 )
 
-// System uses the process default resolver (and optional preferred servers later).
+// System uses the OS default resolver for A/AAAA/CNAME/NS and a public DNS
+// client (1.1.1.1) for CAA via miekg/dns.
 type System struct {
-	R *net.Resolver
+	R   *net.Resolver
+	CAA *Client // optional override for CAA / raw queries
 }
 
 func (s *System) resolver() *net.Resolver {
@@ -19,20 +20,19 @@ func (s *System) resolver() *net.Resolver {
 	return net.DefaultResolver
 }
 
-func (s *System) LookupA(ctx context.Context, host string) ([]net.IP, error) {
-	ips, err := s.resolver().LookupIP(ctx, "ip4", host)
-	if err != nil {
-		return nil, err
+func (s *System) caaClient() *Client {
+	if s != nil && s.CAA != nil {
+		return s.CAA
 	}
-	return ips, nil
+	return &Client{Server: "1.1.1.1:53"}
+}
+
+func (s *System) LookupA(ctx context.Context, host string) ([]net.IP, error) {
+	return s.resolver().LookupIP(ctx, "ip4", host)
 }
 
 func (s *System) LookupAAAA(ctx context.Context, host string) ([]net.IP, error) {
-	ips, err := s.resolver().LookupIP(ctx, "ip6", host)
-	if err != nil {
-		return nil, err
-	}
-	return ips, nil
+	return s.resolver().LookupIP(ctx, "ip6", host)
 }
 
 func (s *System) LookupCNAME(ctx context.Context, host string) (string, error) {
@@ -40,7 +40,7 @@ func (s *System) LookupCNAME(ctx context.Context, host string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return cname, nil
+	return strings.TrimSuffix(cname, "."), nil
 }
 
 func (s *System) LookupNS(ctx context.Context, host string) ([]string, error) {
@@ -56,10 +56,5 @@ func (s *System) LookupNS(ctx context.Context, host string) ([]string, error) {
 }
 
 func (s *System) LookupCAA(ctx context.Context, host string) ([]CAA, error) {
-	// net.Resolver has no CAA helper; use LookupTXT-style raw via LookupIP is wrong.
-	// Prefer miekg/dns later; for M1 use a best-effort Resolver.Lookup with net package
-	// unavailable — return empty without error so checklist can warn when RequireCAA.
-	_ = ctx
-	_ = host
-	return nil, fmt.Errorf("CAA lookup via system resolver not implemented yet; use Fake in tests")
+	return s.caaClient().LookupCAA(ctx, host)
 }

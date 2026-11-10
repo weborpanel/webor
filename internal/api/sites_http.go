@@ -1,15 +1,18 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/webooza/webooza/internal/config"
 	"github.com/webooza/webooza/internal/helper"
+	"github.com/webooza/webooza/internal/reconcile"
 )
 
 // DefaultConfigPath is the production desired-state file.
@@ -38,6 +41,7 @@ func (s *Server) MountSites(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/sites", s.handleAddSite)
 	mux.HandleFunc("DELETE /api/sites/{name}", s.handleDeleteSite)
 	mux.HandleFunc("PUT /api/sites/{name}/files/{path...}", s.handlePutSiteFile)
+	mux.HandleFunc("GET /api/sites/{name}/dns", s.handleSiteDNS)
 }
 
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {
@@ -130,16 +134,39 @@ func (s *Server) handleAddSite(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 500, err.Error())
 		return
 	}
-	// Best-effort: create Linux user + public/ when the panel can (lab/root).
+	warnings := []string{}
 	if err := s.ops().CreateSiteUser(site.Name); err != nil {
-		s.writeJSON(w, 200, map[string]any{
-			"ok":      true,
-			"name":    site.Name,
-			"warning": "saved config but CreateSiteUser failed: " + err.Error(),
-		})
-		return
+		warnings = append(warnings, "CreateSiteUser: "+err.Error())
+	} else if err := s.applyCaddy(cfg); err != nil {
+		warnings = append(warnings, "caddy reload: "+err.Error())
 	}
-	s.writeJSON(w, 200, map[string]any{"ok": true, "name": site.Name, "root": "public"})
+	out := map[string]any{"ok": true, "name": site.Name, "root": "public"}
+	if len(warnings) > 0 {
+		out["warning"] = strings.Join(warnings, "; ")
+	}
+	s.writeJSON(w, 200, out)
+}
+
+func (s *Server) applyCaddy(cfg *config.Config) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	opt := reconcile.StaticApplyOptions{
+		CaddyConfigPath: s.CaddyConfigPath,
+		HTTPListen:      s.HTTPListen,
+		DisableHTTPS:    s.DisableHTTPS,
+		SeedIndex:       true,
+	}
+	if opt.CaddyConfigPath == "" {
+		opt.CaddyConfigPath = "/etc/webooza/caddy.json"
+	}
+	if opt.HTTPListen == "" {
+		opt.HTTPListen = ":8080"
+	}
+	// Default lab behaviour: HTTPS off until DNS gating enables it.
+	if !s.DisableHTTPS && len(s.ExpectedA) == 0 {
+		opt.DisableHTTPS = true
+	}
+	return reconcile.ApplyStaticSites(ctx, cfg, s.ops(), opt)
 }
 
 func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +202,9 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 	if err := config.Save(s.configPath(), cfg); err != nil {
 		s.writeErr(w, 500, err.Error())
 		return
+	}
+	if len(cfg.Sites) > 0 {
+		_ = s.applyCaddy(cfg)
 	}
 	s.writeJSON(w, 200, map[string]any{"ok": true})
 }

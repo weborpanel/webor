@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/webooza/webooza/internal/auth"
+	"github.com/webooza/webooza/internal/dnscheck"
 	"github.com/webooza/webooza/internal/helper"
 )
 
@@ -20,6 +21,17 @@ type Server struct {
 	// Ops runs privileged site filesystem ops. Lab/dev may use helper.Ops
 	// directly; production should go through webooza-helper IPC later.
 	Ops *helper.Ops
+
+	// DNS is the resolver used for site checklists (tests inject Fake).
+	DNS dnscheck.Resolver
+	// ExpectedA / ExpectedAAAA are the VPS addresses sites should point at.
+	ExpectedA    []string
+	ExpectedAAAA []string
+
+	// Caddy apply options used after site create/delete (best-effort).
+	CaddyConfigPath string
+	HTTPListen      string
+	DisableHTTPS    bool // lab / until DNS passes
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, v any) {
