@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-10): Milestone 0 spikes A–C are done and verified on a Debian 13 VirtualBox lab VM. See §7 Milestone 0 checklist below. Remaining M0 exit work: one static site from `config.yaml` behind Caddy (staging cert optional in lab).*
+*Progress note (2026-11-10): Milestone 0 foundations complete on the Debian 13 lab VM — spikes A–C done, and a static site from `config.yaml` is served by Caddy (HTTP `:8080`, HTTPS disabled in lab; staging ACME deferred until DNS/domain). See §7.*
 
 ## 1. Product scope
 
@@ -135,7 +135,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 0: Foundations and spikes (weeks 1 to 2)
 
-**Status:** in progress (spikes complete; exit criterion not yet met)
+**Status:** complete for lab (staging ACME cert deferred until a real domain/DNS)
 
 **Deliverables**
 
@@ -146,13 +146,10 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [x] Spike B: socket activation (Go + Node) + `systemd-socket-proxyd` fallback + warmup — decision `docs/decisions/0002-socket-activation.md`
 - [x] Spike C: step-up approval prototype (`wbz approve`, root peercred) — decision `docs/decisions/0003-step-up-approval.md`
 - [x] Frontend framework decision (SvelteKit static shell under `web/`)
+- [x] Static site from `config.yaml` served by Caddy on the VM (`cmd/spike-m0-static`, lab HTTP / Host header; see `docs/spikes/m0-static-site.md`)
 
-**Still open for M0 exit**
-
-- [ ] From a config file, one static site served by Caddy in the VM (staging cert if DNS available; self-signed/HTTP lab path otherwise)
-- Lab notes: `docs/dev/virtualbox-debian13.md`, `docs/spikes/`
-
-**Exit criteria:** from a config file, one static site is served by Caddy with a staging certificate in the VM, and each spike has a written decision.
+**Exit criteria:** from a config file, one static site is served by Caddy with a staging certificate in the VM, and each spike has a written decision.  
+**Lab note:** staging certificate not exercised yet (no public DNS); HTTPS disable + file_server path verified instead.
 
 ### Milestone 1: Core hosting and build pipelines (weeks 3 to 5)
 

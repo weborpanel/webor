@@ -1,0 +1,8 @@
+version: 1
+panel:
+  port: 0
+sites:
+  - name: example.com
+    aliases: [www.example.com]
+    type: static
+    root: public

@@ -6,48 +6,28 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strings"
-	"unicode"
+
+	"github.com/webooza/webooza/internal/sites"
 )
-
-const sitesRoot = "/srv/sites"
-
-var nonUser = regexp.MustCompile(`[^a-z0-9_]`)
 
 // SiteUsername derives a Linux username from a domain (max 32 chars).
 func SiteUsername(domain string) string {
-	d := strings.ToLower(strings.TrimSpace(domain))
-	d = strings.ReplaceAll(d, ".", "_")
-	d = strings.ReplaceAll(d, "-", "_")
-	d = nonUser.ReplaceAllString(d, "_")
-	d = strings.Trim(d, "_")
-	if d == "" {
-		d = "site"
-	}
-	if !unicode.IsLetter(rune(d[0])) {
-		d = "s_" + d
-	}
-	name := "wbz_" + d
-	if len(name) > 32 {
-		name = name[:32]
-		name = strings.TrimRight(name, "_")
-	}
-	return name
+	return sites.Username(domain)
 }
 
 // SiteRoot returns /srv/sites/<domain>.
 func SiteRoot(domain string) string {
-	return filepath.Join(sitesRoot, strings.ToLower(strings.TrimSpace(domain)))
+	return sites.Root(domain)
 }
 
 // CreateSiteUser creates (or reconciles) the per-site Linux user and directories.
 func (o *Ops) CreateSiteUser(domain string) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
-	username := SiteUsername(domain)
-	root := SiteRoot(domain)
+	username := sites.Username(domain)
+	root := sites.Root(domain)
 
-	if err := os.MkdirAll(sitesRoot, 0o755); err != nil {
+	if err := os.MkdirAll(sites.RootDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir sites root: %w", err)
 	}
 
@@ -90,7 +70,6 @@ func (o *Ops) CreateSiteUser(domain string) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("chown %s: %w (%s)", root, err, strings.TrimSpace(string(out)))
 	}
-	// Re-apply traverse/read bits after chown (site root + public stay world-traversable for Caddy).
 	if err := os.Chmod(root, 0o755); err != nil {
 		return err
 	}
