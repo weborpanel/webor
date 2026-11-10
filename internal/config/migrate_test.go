@@ -18,6 +18,9 @@ func TestOpenDBAndMigrate(t *testing.T) {
 	if err := db.QueryRow(`SELECT version FROM schema_migrations WHERE version = 1`).Scan(&version); err != nil {
 		t.Fatalf("migration 1 missing: %v", err)
 	}
+	if err := db.QueryRow(`SELECT version FROM schema_migrations WHERE version = 2`).Scan(&version); err != nil {
+		t.Fatalf("migration 2 missing: %v", err)
+	}
 
 	var n int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='audit_events'`).Scan(&n); err != nil {

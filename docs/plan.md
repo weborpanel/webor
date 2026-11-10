@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-10): Milestone 0 complete on the Debian 13 lab VM. Milestone 1 in progress: release layout, delete-with-approval, zip deploy, global build queue/`RunBuild`, and DNS checklist. Still open: git pull deploys, CAA/auth NS, panel auth, UI.*
+*Progress note (2026-11-10): Milestone 0 complete on the Debian 13 lab VM. Milestone 1 in progress: site lifecycle/deploy/build/DNS checklist, and panel auth (setup token, sessions, TOTP, rate limit, login UI). Still open: git pull, CAA/auth NS, site list/wizard/dashboard.*
 
 ## 1. Product scope
 
@@ -172,8 +172,8 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [~] Static deploys: zip → new release + atomic activate (`DeployStaticZip`); build queue + `RunBuild` (systemd-run limits) in place; git pull still open
 - [x] Domain checklist model (A, AAAA, CNAME, CAA warn) — `internal/dnscheck`
 - [ ] DNS checker querying authoritative nameservers and public resolvers (system A/AAAA/CNAME/NS done; CAA + auth NS pending), certificate issuance gated on pass
-- [ ] Authentication: setup token, admin account, sessions, TOTP, login rate limiting
-- [ ] UI: login, site list, add-site wizard, site dashboard with status and certificate expiry
+- [x] Authentication: setup token, admin account, sessions, TOTP, login rate limiting (`internal/auth`, `/api/auth/*`)
+- [~] UI: login form posts to `/api/auth/login` (dev proxy); site list / add-site wizard / dashboard still open
 
 **Exit criteria:** a user can add a domain, add the records at their DNS provider, watch the checks turn green, and see the site live over HTTPS. A build that runs out of memory fails safely. File-isolation tests pass.
 

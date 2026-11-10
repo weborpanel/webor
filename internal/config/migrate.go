@@ -39,6 +39,46 @@ CREATE TABLE approvals (
 );
 `,
 	},
+	{
+		version: 2,
+		name:    "002_auth",
+		sql: `
+CREATE TABLE admin_users (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  totp_secret TEXT NOT NULL DEFAULT '',
+  totp_confirmed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE setup_tokens (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  token_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  used_at TEXT
+);
+
+CREATE TABLE sessions (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  expires_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ip TEXT NOT NULL DEFAULT '',
+  user_agent TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE login_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL,
+  attempted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ok INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX login_attempts_key_ts ON login_attempts (key, attempted_at);
+`,
+	},
 }
 
 // Migrate applies all pending schema migrations in order.

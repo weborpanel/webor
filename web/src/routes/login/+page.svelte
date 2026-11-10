@@ -1,7 +1,35 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+
 	let email = $state('');
 	let password = $state('');
 	let totp = $state('');
+	let error = $state('');
+	let submitting = $state(false);
+
+	async function onSubmit(e: Event) {
+		e.preventDefault();
+		error = '';
+		submitting = true;
+		try {
+			const res = await fetch('/api/auth/login', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'same-origin',
+				body: JSON.stringify({ email, password, totp })
+			});
+			const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+			if (!res.ok || !data.ok) {
+				error = data.error || 'Login failed';
+				return;
+			}
+			await goto('/');
+		} catch {
+			error = 'Could not reach the panel API';
+		} finally {
+			submitting = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -10,14 +38,9 @@
 
 <section class="login">
 	<h1>Log in</h1>
-	<p>Admin sign-in will land here. Authentication is not wired up yet.</p>
+	<p>Sign in with the admin account created during first-run setup.</p>
 
-	<form
-		method="post"
-		onsubmit={(e) => {
-			e.preventDefault();
-		}}
-	>
+	<form method="post" onsubmit={onSubmit}>
 		<label>
 			<span>Email</span>
 			<input type="email" name="email" autocomplete="username" bind:value={email} required />
@@ -43,7 +66,10 @@
 				placeholder="000000"
 			/>
 		</label>
-		<button type="submit">Continue</button>
+		{#if error}
+			<p class="error" role="alert">{error}</p>
+		{/if}
+		<button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Continue'}</button>
 	</form>
 </section>
 
@@ -63,6 +89,12 @@
 	p {
 		margin: 0 0 1.75rem;
 		color: var(--muted);
+	}
+
+	.error {
+		margin: 0;
+		color: #b42318;
+		font-weight: 600;
 	}
 
 	form {
@@ -103,7 +135,12 @@
 		cursor: pointer;
 	}
 
-	button:hover {
+	button:hover:not(:disabled) {
 		filter: brightness(1.05);
+	}
+
+	button:disabled {
+		opacity: 0.7;
+		cursor: wait;
 	}
 </style>

@@ -12,5 +12,11 @@ export default defineConfig({
 			},
 			adapter: adapter()
 		})
-	]
+	],
+	server: {
+		proxy: {
+			'/api': 'http://127.0.0.1:8787',
+			'/healthz': 'http://127.0.0.1:8787'
+		}
+	}
 });
