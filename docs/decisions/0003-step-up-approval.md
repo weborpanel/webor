@@ -1,6 +1,6 @@
 # Spike C: Step-up approval
 
-**Status:** pending
+**Status:** accepted
 
 ## Context
 
@@ -11,10 +11,24 @@ exact operation and arguments.
 
 ## Decision
 
-_Pending spike._ Prototype console approval through `wbz approve`, with the
-helper verifying the approval (not the web process).
+1. Approvals live in the helper’s SQLite state DB (`approvals` table), not in
+   the panel process memory.
+2. Flow:
+   - Panel/helper `RequestApproval` creates a pending row bound to
+     `operation` + canonical JSON args (TTL default 5 minutes).
+   - Console `wbz approve <id>` runs as **root** and calls helper `Approve`,
+     which accepts only `SO_PEERCRED` uid 0.
+   - The dangerous operation includes `approval_id`; the helper
+     `Consume`s the row (must be approved, unexpired, unused, args match),
+     then performs the work.
+3. Spike stand-in op: `DangerousDemo` (noop after a successful consume).
+4. The web UI must never be able to call `Approve`; only console/`wbz` as root.
 
 ## Consequences
 
-_To be filled after the spike._ Shapes the approval table, IPC protocol, and
-`wbz` CLI in Milestone 3.
+- Milestone 3 wires real approval-class ops (install packages, delete site
+  data, firewall) to the same consume path.
+- Audit log should record request / approve / consume (follow-up).
+- TOTP step-up can sit alongside console approve later; console remains the
+  break-glass path if the panel is fully compromised.
+- Runbook: [`docs/spikes/step-up-approval.md`](../spikes/step-up-approval.md).

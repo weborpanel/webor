@@ -6,24 +6,29 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/webooza/webooza/internal/auth"
 	"github.com/webooza/webooza/internal/helper"
 )
 
-// DefaultHandlers returns the Milestone 0 allowlist handlers using production ops.
+// DefaultHandlers returns handlers without an approval store (tests / limited).
 func DefaultHandlers() map[string]HandlerFunc {
-	return Handlers(helper.DefaultOps())
+	return Handlers(helper.DefaultOps(), nil)
 }
 
-// Handlers wires validated IPC operations to helper.Ops.
-func Handlers(ops *helper.Ops) map[string]HandlerFunc {
+// Handlers wires validated IPC operations to helper.Ops and optional approvals.
+func Handlers(ops *helper.Ops, store *auth.Store) map[string]HandlerFunc {
 	if ops == nil {
 		ops = helper.DefaultOps()
 	}
-	return map[string]HandlerFunc{
+	h := map[string]HandlerFunc{
 		OpCreateSiteUser: makeCreateSiteUser(ops),
 		OpWriteUnitFile:  makeWriteUnitFile(ops),
 		OpReloadCaddy:    makeReloadCaddy(ops),
+		OpRequestApproval: makeRequestApproval(store),
+		OpApprove:         makeApprove(store),
+		OpDangerousDemo:   makeDangerousDemo(store),
 	}
+	return h
 }
 
 func makeCreateSiteUser(ops *helper.Ops) HandlerFunc {

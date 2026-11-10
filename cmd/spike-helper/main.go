@@ -12,11 +12,12 @@ import (
 
 func main() {
 	socket := flag.String("socket", ipc.DefaultSocketPath, "helper Unix socket")
-	op := flag.String("op", "", "CreateSiteUser | WriteUnitFile | ReloadCaddy")
+	op := flag.String("op", "", "CreateSiteUser | WriteUnitFile | ReloadCaddy | DangerousDemo | ...")
 	domain := flag.String("domain", "", "site domain")
 	unit := flag.String("unit", "", "unit basename for WriteUnitFile")
 	contentPath := flag.String("content", "", "unit file path to read for WriteUnitFile")
 	configPath := flag.String("config", "", "Caddy JSON path for ReloadCaddy")
+	approvalID := flag.String("approval-id", "", "approval id for DangerousDemo")
 	flag.Parse()
 
 	if *op == "" {
@@ -36,6 +37,8 @@ func main() {
 		args = ipc.WriteUnitFileArgs{Domain: *domain, Unit: *unit, Content: string(body)}
 	case ipc.OpReloadCaddy:
 		args = ipc.ReloadCaddyArgs{ConfigPath: *configPath}
+	case ipc.OpDangerousDemo:
+		args = ipc.DangerousDemoArgs{Domain: *domain, ApprovalID: *approvalID}
 	default:
 		fatal(fmt.Errorf("unknown op %q", *op))
 	}
