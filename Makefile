@@ -50,8 +50,12 @@ clean:
 	rm -rf $(BIN_DIR)
 
 lab-dirs:
-	sudo mkdir -p /run/webooza /var/lib/webooza /etc/webooza /srv/sites \
-		$(LAB_STATE)/state $(LAB_STATE)/etc
+	sudo mkdir -p /run/webooza /var/lib/webooza /etc/webooza /srv/sites
+	# Lab state lives under /tmp and must stay user-writable (not root).
+	@if [ -d "$(LAB_STATE)" ] && [ ! -w "$(LAB_STATE)" ]; then \
+		sudo chown -R "$$USER:$$USER" "$(LAB_STATE)"; \
+	fi
+	mkdir -p $(LAB_STATE)/state $(LAB_STATE)/etc
 	@if [ ! -f $(CADDY_JSON) ]; then \
 		sudo cp internal/providers/caddy/testdata/good.json $(CADDY_JSON); \
 	fi
