@@ -195,7 +195,7 @@
 						onclick={() => (selected = site.name)}
 					>
 						<strong>{site.name}</strong>
-						<span class="meta">{site.root || 'public'}/</span>
+						<span class="meta">{site.root || 'public'}/ · <a href={`/sites/${encodeURIComponent(site.name)}`} onclick={(e) => e.stopPropagation()}>dashboard</a></span>
 					</button>
 					<button type="button" class="danger" onclick={() => removeSite(site.name)}>Remove</button>
 				</li>

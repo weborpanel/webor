@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-10): Milestone 0 complete on the Debian 13 lab VM. Milestone 1 in progress. Static sites are Virtualmin-style (`public/` uploads). DNS checklist includes public + authoritative A and CAA (miekg/dns); cert issuance gated on checklist OK. Still open: wire HTTPS enablement to green DNS on a real VPS, dashboard polish.*
+*Progress note (2026-11-10): Milestone 0 complete. Milestone 1 nearly complete in lab: static `public/` hosting, auth, DNS checklist + cert gating flag, site dashboard, isolation/OOM unit coverage. Remaining for M1 exit on a real VPS: green DNS → HTTPS, live build OOM. Optional: fuller add-site wizard.*
 
 ## 1. Product scope
 
@@ -173,9 +173,12 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [x] Domain checklist model (A, AAAA, CNAME, CAA warn) — `internal/dnscheck`
 - [x] DNS checker: public + authoritative A, CAA via miekg/dns; `GET /api/sites/{name}/dns` + `can_issue_certificate` gating (live HTTPS enablement still VPS-deferred)
 - [x] Authentication: setup token, admin account, sessions, TOTP, login rate limiting (`internal/auth`, `/api/auth/*`)
-- [~] UI: login + sites (upload + DNS checklist); wizard/dashboard still open
+- [~] UI: login + sites (upload + DNS checklist) + per-site dashboard; full wizard still open
+- [x] Build MemoryMax/timeout wired in `RunBuild` (unit-tested; live cgroup OOM on VPS list)
+- [x] File-isolation test scaffold (`test/isolation`, root/linux) — private logs not readable across site users
 
-**Exit criteria:** a user can add a domain, add the records at their DNS provider, watch the checks turn green, and see the site live over HTTPS. A build that runs out of memory fails safely. File-isolation tests pass.
+**Exit criteria:** a user can add a domain, add the records at their DNS provider, watch the checks turn green, and see the site live over HTTPS. A build that runs out of memory fails safely. File-isolation tests pass.  
+**Lab note:** HTTPS issuance and live OOM still on §6 Deferred to real VPS.
 
 ### Milestone 2: Native apps, socket activation and jobs (weeks 6 to 8)
 
