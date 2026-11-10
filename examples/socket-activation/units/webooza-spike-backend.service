@@ -1,0 +1,12 @@
+[Unit]
+Description=Webooza Spike B non-activated backend
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/webooza-spike/spike-socket-backend
+Environment=WBZ_SOCK=/run/webooza-spike/backend.sock
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

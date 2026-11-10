@@ -1,0 +1,13 @@
+[Unit]
+Description=Webooza Spike B Node app (socket activated)
+Requires=webooza-spike-node.socket
+After=webooza-spike-node.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /usr/local/lib/webooza-spike/node-app/server.js
+Restart=no
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Webooza Spike B systemd-socket-proxyd fallback
+Requires=webooza-spike-proxy.socket webooza-spike-backend.service
+After=webooza-spike-proxy.socket webooza-spike-backend.service
+
+[Service]
+Type=simple
+# Forwards activated connections to the always-on backend Unix socket.
+ExecStart=/lib/systemd/systemd-socket-proxyd /run/webooza-spike/backend.sock
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
