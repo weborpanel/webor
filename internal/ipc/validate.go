@@ -88,6 +88,82 @@ func ValidateCreateSiteUserArgs(a CreateSiteUserArgs) error {
 	return ValidateDomain(a.Domain)
 }
 
+// ValidateDeleteSiteUserArgs validates DeleteSiteUser arguments.
+func ValidateDeleteSiteUserArgs(a DeleteSiteUserArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	if a.DeleteData && strings.TrimSpace(a.ApprovalID) == "" {
+		return fmt.Errorf("approval_id is required when delete_data is true")
+	}
+	return nil
+}
+
+// ValidateRunBuildArgs validates RunBuild arguments.
+func ValidateRunBuildArgs(a RunBuildArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	cmd := strings.TrimSpace(a.Command)
+	if cmd == "" {
+		return fmt.Errorf("command is required")
+	}
+	if len(cmd) > 8*1024 {
+		return fmt.Errorf("command too long")
+	}
+	if a.TimeoutSec < 0 || a.TimeoutSec > 3600 {
+		return fmt.Errorf("timeout_sec out of range")
+	}
+	if a.MemoryMax != "" {
+		if err := validateMemoryMax(a.MemoryMax); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateMemoryMax(v string) error {
+	v = strings.TrimSpace(v)
+	ok, _ := regexp.MatchString(`(?i)^[0-9]+[KMG]?$`, v)
+	if !ok {
+		return fmt.Errorf("invalid memory_max %q", v)
+	}
+	return nil
+}
+
+// ValidateDeployStaticZipArgs validates DeployStaticZip arguments.
+func ValidateDeployStaticZipArgs(a DeployStaticZipArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	p := filepath.Clean(strings.TrimSpace(a.ZipPath))
+	if p == "" || p == "." {
+		return fmt.Errorf("zip_path is required")
+	}
+	if !filepath.IsAbs(p) {
+		return fmt.Errorf("zip_path must be absolute")
+	}
+	if strings.ToLower(filepath.Ext(p)) != ".zip" {
+		return fmt.Errorf("zip_path must end in .zip")
+	}
+	domain := strings.ToLower(a.Domain)
+	allowedPrefixes := []string{
+		filepath.Join(sitesRoot, domain, "tmp") + string(filepath.Separator),
+		filepath.Join("/var/lib/webooza/uploads", domain) + string(filepath.Separator),
+	}
+	ok := false
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("zip_path %q not under allowed upload directories", p)
+	}
+	return nil
+}
+
 // ValidateWriteUnitFileArgs validates WriteUnitFile arguments.
 func ValidateWriteUnitFileArgs(a WriteUnitFileArgs) error {
 	if err := ValidateDomain(a.Domain); err != nil {

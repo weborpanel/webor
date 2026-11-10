@@ -7,6 +7,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/webooza/webooza/internal/sites"
 )
@@ -22,6 +23,8 @@ func SiteRoot(domain string) string {
 }
 
 // CreateSiteUser creates (or reconciles) the per-site Linux user and directories.
+// New sites get a releases/ tree with public → active release. Existing M0
+// public/ directories are left in place.
 func (o *Ops) CreateSiteUser(domain string) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	username := sites.Username(domain)
@@ -45,21 +48,27 @@ func (o *Ops) CreateSiteUser(domain string) error {
 		}
 	}
 
-	dirs := []string{
-		root,
-		filepath.Join(root, "public"),
-		filepath.Join(root, "logs"),
-		filepath.Join(root, "tmp"),
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", root, err)
 	}
-	for _, d := range dirs {
+	for _, d := range []string{sites.Logs(domain), sites.Tmp(domain), sites.ReleasesDir(domain)} {
 		mode := os.FileMode(0o750)
-		if d == root || strings.HasSuffix(d, string(filepath.Separator)+"public") {
-			mode = 0o755
-		}
 		if err := os.MkdirAll(d, mode); err != nil {
 			return fmt.Errorf("mkdir %s: %w", d, err)
 		}
 		_ = os.Chmod(d, mode)
+	}
+
+	if _, err := sites.EnsureReleaseLayout(domain, time.Now().UTC()); err != nil {
+		return fmt.Errorf("release layout: %w", err)
+	}
+
+	// Ensure public is world-traversable/readable for Caddy (file_server).
+	pub := sites.Public(domain)
+	if fi, err := os.Lstat(pub); err == nil {
+		if fi.Mode()&os.ModeSymlink == 0 && fi.IsDir() {
+			_ = os.Chmod(pub, 0o755)
+		}
 	}
 
 	u, err := user.Lookup(username)
@@ -73,8 +82,36 @@ func (o *Ops) CreateSiteUser(domain string) error {
 	if err := os.Chmod(root, 0o755); err != nil {
 		return err
 	}
-	if err := os.Chmod(filepath.Join(root, "public"), 0o755); err != nil {
-		return err
+	return nil
+}
+
+// DeleteSiteUser removes the per-site Linux user. When deleteData is true the
+// site directory tree under /srv/sites/<domain> is removed as well.
+func (o *Ops) DeleteSiteUser(domain string, deleteData bool) error {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	username := sites.Username(domain)
+	root := sites.Root(domain)
+
+	if _, err := user.Lookup(username); err == nil {
+		cmd := exec.Command("userdel", username)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("userdel %s: %w (%s)", username, err, strings.TrimSpace(string(out)))
+		}
+	}
+
+	if !deleteData {
+		return nil
+	}
+
+	clean := filepath.Clean(root)
+	if clean != root && !strings.HasPrefix(clean, filepath.Clean(sites.RootDir)+string(filepath.Separator)) {
+		return fmt.Errorf("refusing to delete unexpected path %q", root)
+	}
+	if clean == filepath.Clean(sites.RootDir) || clean == "/" {
+		return fmt.Errorf("refusing to delete sites root")
+	}
+	if err := os.RemoveAll(clean); err != nil {
+		return fmt.Errorf("remove %s: %w", clean, err)
 	}
 	return nil
 }

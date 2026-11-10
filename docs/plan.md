@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-10): Milestone 0 foundations complete on the Debian 13 lab VM — spikes A–C done, and a static site from `config.yaml` is served by Caddy (HTTP `:8080`, HTTPS disabled in lab; staging ACME deferred until DNS/domain). See §7.*
+*Progress note (2026-11-10): Milestone 0 complete on the Debian 13 lab VM. Milestone 1 in progress: release layout, delete-with-approval, zip deploy, global build queue/`RunBuild`, and DNS checklist. Still open: git pull deploys, CAA/auth NS, panel auth, UI.*
 
 ## 1. Product scope
 
@@ -129,6 +129,17 @@ docs/
 | Security | Fuzz the helper's validators, run `govulncheck` and dependency scanning, review the helper allowlist each milestone |
 | Release rehearsal | A small 1 GB VPS on at least two providers before each release |
 
+**Deferred to real VPS** (lab VM / NAT cannot fully exercise these; check off when a public IP + domain are available):
+
+- [ ] Let's Encrypt **staging** certificate for a real domain (M0 exit residual)
+- [ ] Public DNS checklist end-to-end: A/AAAA at registrar → checker green → Caddy issues cert
+- [ ] Authoritative NS + CAA lookups against live nameservers (not only the fake resolver)
+- [ ] HTTP-01 / TLS-ALPN challenge path from the public internet (ports 80/443)
+- [ ] PTR / forward-confirmed reverse DNS for the installer suggestions (M3)
+- [ ] Build OOM kill under real cgroup pressure on a 1 GB machine
+- [ ] Idle memory footprint target (~150 MB panel+Caddy+helper) on a 1 GB VPS
+- [ ] Cross-provider rehearsal (at least two providers) before each release
+
 ## 7. Roadmap
 
 The milestones add up to about 16 weeks of focused work. For one developer, add a 25 to 30 percent buffer for debugging, security review and rework, and plan for roughly 20 to 22 weeks. Each milestone has exit criteria, and the next one does not start until they are met.
@@ -149,18 +160,20 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [x] Static site from `config.yaml` served by Caddy on the VM (`cmd/spike-m0-static`, lab HTTP / Host header; see `docs/spikes/m0-static-site.md`)
 
 **Exit criteria:** from a config file, one static site is served by Caddy with a staging certificate in the VM, and each spike has a written decision.  
-**Lab note:** staging certificate not exercised yet (no public DNS); HTTPS disable + file_server path verified instead.
+**Lab note:** staging certificate deferred — see §6 “Deferred to real VPS”. Lab verified HTTP `:8080` + `Host` header + `file_server` instead.
 
 ### Milestone 1: Core hosting and build pipelines (weeks 3 to 5)
 
+**Status:** in progress
+
 **Deliverables**
 
-- Site model: create and delete, per-site Linux user and directories, Caddy read access to `public/` only
-- Static deploys: zip upload and git pull, with optional build command execution under the build model in section 4, and atomic release symlinks
-- Domain objects and the record checklist (A, AAAA, CNAME, CAA warnings)
-- DNS checker querying authoritative nameservers and public resolvers, with certificate issuance gated on a passing check
-- Authentication: setup token, admin account, sessions, TOTP, login rate limiting
-- UI: login, site list, add-site wizard, site dashboard with status and certificate expiry
+- [x] Site model: create and delete, per-site Linux user and directories, release layout with atomic `public`/`current` symlinks (Caddy still serves `public/` only)
+- [~] Static deploys: zip → new release + atomic activate (`DeployStaticZip`); build queue + `RunBuild` (systemd-run limits) in place; git pull still open
+- [x] Domain checklist model (A, AAAA, CNAME, CAA warn) — `internal/dnscheck`
+- [ ] DNS checker querying authoritative nameservers and public resolvers (system A/AAAA/CNAME/NS done; CAA + auth NS pending), certificate issuance gated on pass
+- [ ] Authentication: setup token, admin account, sessions, TOTP, login rate limiting
+- [ ] UI: login, site list, add-site wizard, site dashboard with status and certificate expiry
 
 **Exit criteria:** a user can add a domain, add the records at their DNS provider, watch the checks turn green, and see the site live over HTTPS. A build that runs out of memory fails safely. File-isolation tests pass.
 

@@ -67,3 +67,32 @@ func TestValidateReloadCaddyArgs(t *testing.T) {
 		t.Fatal("expected rejection")
 	}
 }
+
+func TestValidateDeployStaticZipArgs(t *testing.T) {
+	if err := ipc.ValidateDeployStaticZipArgs(ipc.DeployStaticZipArgs{
+		Domain:  "example.com",
+		ZipPath: "/srv/sites/example.com/tmp/site.zip",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipc.ValidateDeployStaticZipArgs(ipc.DeployStaticZipArgs{
+		Domain:  "example.com",
+		ZipPath: "/tmp/evil.zip",
+	}); err == nil {
+		t.Fatal("expected path rejection")
+	}
+}
+
+func TestValidateDeleteSiteUserArgs(t *testing.T) {
+	if err := ipc.ValidateDeleteSiteUserArgs(ipc.DeleteSiteUserArgs{Domain: "example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipc.ValidateDeleteSiteUserArgs(ipc.DeleteSiteUserArgs{Domain: "example.com", DeleteData: true}); err == nil {
+		t.Fatal("expected approval_id requirement")
+	}
+	if err := ipc.ValidateDeleteSiteUserArgs(ipc.DeleteSiteUserArgs{
+		Domain: "example.com", DeleteData: true, ApprovalID: "abc",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}

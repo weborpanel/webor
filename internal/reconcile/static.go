@@ -61,6 +61,9 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, 
 			rootName = "public"
 		}
 		pub := filepath.Join(sites.Root(site.Name), rootName)
+		if rootName == "public" {
+			pub = sites.Public(site.Name)
+		}
 		if opt.SeedIndex {
 			if err := seedIndex(pub, opt.IndexBody); err != nil {
 				return fmt.Errorf("seed %s: %w", site.Name, err)

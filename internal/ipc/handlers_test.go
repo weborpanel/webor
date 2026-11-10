@@ -40,3 +40,19 @@ func TestReloadCaddyValidates(t *testing.T) {
 		t.Fatal("expected validation failure")
 	}
 }
+
+func TestDeleteSiteUserRequiresApprovalForData(t *testing.T) {
+	h := ipc.DefaultHandlers()[ipc.OpDeleteSiteUser]
+	args, _ := json.Marshal(ipc.DeleteSiteUserArgs{Domain: "example.com", DeleteData: true})
+	resp := h(ipc.Request{ID: "1", Operation: ipc.OpDeleteSiteUser, Args: args}, ipc.PeerCred{})
+	if resp.OK {
+		t.Fatal("expected approval_id requirement")
+	}
+}
+
+func TestDeleteSiteUserWithoutDataNoApprovalStore(t *testing.T) {
+	// Validation passes; apply will fail without root/user — but args must be accepted.
+	if err := ipc.ValidateDeleteSiteUserArgs(ipc.DeleteSiteUserArgs{Domain: "example.com", DeleteData: false}); err != nil {
+		t.Fatal(err)
+	}
+}
