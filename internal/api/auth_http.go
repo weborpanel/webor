@@ -32,6 +32,9 @@ type Server struct {
 	CaddyConfigPath string
 	HTTPListen      string
 	DisableHTTPS    bool // lab / until DNS passes
+
+	// UploadsDir stages deploy binaries (default /var/lib/webooza/uploads).
+	UploadsDir string
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, v any) {
@@ -62,8 +65,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSON(w, 200, map[string]any{
-		"ok":           true,
-		"needs_setup":  !has,
+		"ok":            true,
+		"needs_setup":   !has,
 		"authenticated": s.sessionOK(r) != nil,
 	})
 }

@@ -42,6 +42,8 @@ func (s *Server) MountSites(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/sites/{name}", s.handleDeleteSite)
 	mux.HandleFunc("PUT /api/sites/{name}/files/{path...}", s.handlePutSiteFile)
 	mux.HandleFunc("GET /api/sites/{name}/dns", s.handleSiteDNS)
+	mux.HandleFunc("POST /api/sites/{name}/deploy", s.handleDeployBinary)
+	mux.HandleFunc("POST /api/sites/{name}/deploy/git", s.handleDeployGit)
 }
 
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {

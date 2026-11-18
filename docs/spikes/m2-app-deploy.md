@@ -6,7 +6,11 @@ activates the new binary, probes the site Unix socket, and rolls back to the
 previous release if the probe fails.
 
 Helper ops: `DeployAppBinary`, `DeployAppGit` (clone/fetch + limited build + binary deploy).  
-IPC: `DeployAppBinary`, `DeployAppGit`.
+IPC: `DeployAppBinary`, `DeployAppGit`.  
+Panel API (auth session):
+
+- `POST /api/sites/{name}/deploy` — multipart field `file` (binary → `/var/lib/webooza/uploads/{name}/server`)
+- `POST /api/sites/{name}/deploy/git` — JSON `{git_url, git_ref?, build_command?, artifact?, memory_max?, timeout_sec?}`
 
 ## On the Debian VM
 
