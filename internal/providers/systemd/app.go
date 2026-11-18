@@ -116,7 +116,8 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 	var sk strings.Builder
 	fmt.Fprintf(&sk, "[Unit]\n")
 	fmt.Fprintf(&sk, "Description=Webooza app socket %s\n", site.Name)
-	fmt.Fprintf(&sk, "PartOf=%s\n", svcName)
+	// Do not PartOf= the service: stopping the app for idle/wake must leave
+	// the listening socket up so the next request can activate it again.
 	fmt.Fprintf(&sk, "\n[Socket]\n")
 	fmt.Fprintf(&sk, "ListenStream=%s\n", sock)
 	fmt.Fprintf(&sk, "SocketMode=0666\n")

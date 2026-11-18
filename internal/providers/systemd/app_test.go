@@ -43,6 +43,9 @@ func TestRenderAppUnitsSocketActivated(t *testing.T) {
 	if !strings.Contains(units.Socket, "ListenStream="+sockPath) {
 		t.Fatalf("socket missing ListenStream:\n%s", units.Socket)
 	}
+	if strings.Contains(units.Socket, "PartOf=") {
+		t.Fatalf("socket must not PartOf service (breaks wake-on-request):\n%s", units.Socket)
+	}
 }
 
 func TestRenderAppUnitsAlwaysOn(t *testing.T) {

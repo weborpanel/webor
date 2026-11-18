@@ -139,6 +139,8 @@ lab-app: build lab-dirs
 		-disable-https
 	@echo "--- wake-on-request ---"
 	@sudo systemctl stop webooza-app-app-example-com.service 2>/dev/null || true
+	@systemctl is-active --quiet webooza-app-app-example-com.socket || sudo systemctl start webooza-app-app-example-com.socket
+	@echo -n "socket:  "; systemctl is-active webooza-app-app-example-com.socket || true
 	@echo -n "service before: "; systemctl is-active webooza-app-app-example-com.service || true
-	@curl -sS -H 'Host: app.example.com' http://127.0.0.1:8080/ | head -c 200; echo
+	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/; echo
 	@echo -n "service after:  "; systemctl is-active webooza-app-app-example-com.service || true
