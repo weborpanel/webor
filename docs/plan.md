@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-18): Milestone 0–1 lab-complete. Milestone 2 started: per-site app systemd socket+service renderer, Caddy unix reverse_proxy, lab apply (`make lab-app` / `docs/spikes/m2-app-socket.md`). Still open in M2: deploys UI, idle-stop tuning, proxyd productization, journal viewer, cron, resource monitoring. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
+*Progress note (2026-11-18): Milestone 0–1 lab-complete. Milestone 2 in progress: app socket activation (`make lab-app`) and app binary deploy with probe rollback (`make lab-deploy` / `docs/spikes/m2-app-deploy.md`; helper + IPC). Still open in M2: deploy UI, idle-stop tuning, proxyd productization, journal viewer, cron, resource monitoring. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
 
 ## 1. Product scope
 
@@ -182,13 +182,13 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 2: Native apps, socket activation and jobs (weeks 6 to 8)
 
-**Status:** in progress (slice 1: unit render + socket activation + Caddy proxy)
+**Status:** in progress (slice 2: binary/git deploy helper + IPC + lab rollback smoke)
 
 **Deliverables**
 
 - [x] App unit rendering: per-site user service, systemd hardening subset, env file, Unix socket (`internal/providers/systemd`)
 - [~] Socket activation with wake-on-request (lab verified); idle stop / scale-to-zero and proxyd fallback still open; always-on mode rendered when `socket_activation: false`
-- [ ] Deploys: upload a binary, or pull git and run a build command with resource limits. Atomic symlinks and automatic rollback on a failed health check
+- [~] Deploys: helper `DeployAppBinary` / `DeployAppGit` with atomic `current`+`bin/server` symlinks and probe rollback (`make lab-deploy`); UI upload/git flow still open
 - [ ] Logs: journald viewer through the helper with live tail, and per-unit size limits
 - [ ] Cron and long-running jobs: per-site timers from cron-style schedules, long-running jobs as services, run-now, history, status and failure flags
 - [ ] Resource monitoring: CPU, memory and disk usage from cgroups and filesystem checks

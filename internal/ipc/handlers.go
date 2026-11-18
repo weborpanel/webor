@@ -26,6 +26,8 @@ func Handlers(ops *helper.Ops, store *auth.Store) map[string]HandlerFunc {
 		OpDeleteSiteUser:  makeDeleteSiteUser(ops, store),
 		OpWritePublicFile: makeWritePublicFile(ops),
 		OpDeployStaticZip: makeDeployStaticZip(ops),
+		OpDeployAppBinary: makeDeployAppBinary(ops),
+		OpDeployAppGit:    makeDeployAppGit(ops),
 		OpRunBuild:        makeRunBuild(ops),
 		OpWriteUnitFile:   makeWriteUnitFile(ops),
 		OpReloadCaddy:     makeReloadCaddy(ops),
@@ -159,6 +161,56 @@ func makeDeployStaticZip(ops *helper.Ops) HandlerFunc {
 			ID:      req.ID,
 			OK:      true,
 			Message: fmt.Sprintf("extracted zip into %s", pub),
+		}
+	}
+}
+
+func makeDeployAppBinary(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args DeployAppBinaryArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateDeployAppBinaryArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		res, err := ops.DeployAppBinary(ctx, args.Domain, args.BinaryPath)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{
+			ID:      req.ID,
+			OK:      true,
+			Message: fmt.Sprintf("deployed release %s → %s", res.ReleaseID, res.Binary),
+		}
+	}
+}
+
+func makeDeployAppGit(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args DeployAppGitArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateDeployAppGitArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		timeout := 65 * time.Minute
+		if args.TimeoutSec > 0 {
+			timeout = time.Duration(args.TimeoutSec+30) * time.Second
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		res, err := ops.DeployAppGit(ctx, args.Domain, args.GitURL, args.GitRef, args.BuildCommand, args.Artifact, args.MemoryMax, args.TimeoutSec)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{
+			ID:      req.ID,
+			OK:      true,
+			Message: fmt.Sprintf("git deploy release %s → %s", res.ReleaseID, res.Binary),
 		}
 	}
 }

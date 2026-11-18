@@ -41,6 +41,30 @@ func TestReloadCaddyValidates(t *testing.T) {
 	}
 }
 
+func TestDeployAppBinaryValidates(t *testing.T) {
+	h := ipc.DefaultHandlers()[ipc.OpDeployAppBinary]
+	args, _ := json.Marshal(ipc.DeployAppBinaryArgs{
+		Domain:     "app.example.com",
+		BinaryPath: "/tmp/evil",
+	})
+	resp := h(ipc.Request{ID: "1", Operation: ipc.OpDeployAppBinary, Args: args}, ipc.PeerCred{})
+	if resp.OK {
+		t.Fatal("expected validation failure")
+	}
+}
+
+func TestDeployAppGitValidates(t *testing.T) {
+	h := ipc.DefaultHandlers()[ipc.OpDeployAppGit]
+	args, _ := json.Marshal(ipc.DeployAppGitArgs{
+		Domain: "app.example.com",
+		GitURL: "file:///tmp/x",
+	})
+	resp := h(ipc.Request{ID: "1", Operation: ipc.OpDeployAppGit, Args: args}, ipc.PeerCred{})
+	if resp.OK {
+		t.Fatal("expected validation failure")
+	}
+}
+
 func TestDeleteSiteUserRequiresApprovalForData(t *testing.T) {
 	h := ipc.DefaultHandlers()[ipc.OpDeleteSiteUser]
 	args, _ := json.Marshal(ipc.DeleteSiteUserArgs{Domain: "example.com", DeleteData: true})

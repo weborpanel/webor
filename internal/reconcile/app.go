@@ -54,7 +54,7 @@ func ApplyAppSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, opt
 		if site.Type != config.SiteTypeApp {
 			continue
 		}
-		if err := applyOneApp(site, ops, opt.SampleBinary); err != nil {
+		if err := applyOneApp(ctx, site, ops, opt.SampleBinary); err != nil {
 			return fmt.Errorf("site %s: %w", site.Name, err)
 		}
 		applied = append(applied, site.Name)
@@ -84,7 +84,7 @@ func ApplyAppSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, opt
 	return ops.ReloadCaddy(ctx, opt.CaddyConfigPath)
 }
 
-func applyOneApp(site config.Site, ops *helper.Ops, sampleBinary string) error {
+func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleBinary string) error {
 	if err := ops.CreateSiteUser(site.Name); err != nil {
 		return err
 	}
@@ -93,19 +93,6 @@ func applyOneApp(site config.Site, ops *helper.Ops, sampleBinary string) error {
 	}
 	if err := os.MkdirAll(sites.BinDir(site.Name), 0o755); err != nil {
 		return fmt.Errorf("bin dir: %w", err)
-	}
-
-	execPath := strings.TrimSpace(site.Exec)
-	if execPath == "" {
-		return fmt.Errorf("exec is required")
-	}
-	if !filepath.IsAbs(execPath) {
-		execPath = filepath.Join(sites.Root(site.Name), execPath)
-	}
-	if sampleBinary != "" {
-		if err := installSampleBinary(sampleBinary, execPath); err != nil {
-			return err
-		}
 	}
 
 	units, err := systemd.RenderAppUnits(site)
@@ -123,7 +110,6 @@ func applyOneApp(site config.Site, ops *helper.Ops, sampleBinary string) error {
 		return err
 	}
 
-	// Ensure site tree ownership after binary install.
 	u := sites.Username(site.Name)
 	cmd := exec.Command("chown", "-R", u+":"+u, sites.Root(site.Name))
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -131,9 +117,23 @@ func applyOneApp(site config.Site, ops *helper.Ops, sampleBinary string) error {
 	}
 
 	if units.SocketName != "" {
-		return ops.SystemctlEnableNow(units.SocketName)
+		if err := ops.SystemctlEnableNow(units.SocketName); err != nil {
+			return err
+		}
+	} else if err := ops.SystemctlEnableNow(units.ServiceName); err != nil {
+		return err
 	}
-	return ops.SystemctlEnableNow(units.ServiceName)
+
+	if sampleBinary == "" {
+		return nil
+	}
+	// Stage under site tmp so DeployAppBinary path validation accepts it.
+	staged := filepath.Join(sites.Tmp(site.Name), sites.DefaultAppBinary)
+	if err := installSampleBinary(sampleBinary, staged); err != nil {
+		return err
+	}
+	_, err = ops.DeployAppBinary(ctx, site.Name, staged)
+	return err
 }
 
 func installSampleBinary(src, dest string) error {

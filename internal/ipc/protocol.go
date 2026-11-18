@@ -12,6 +12,8 @@ const (
 	OpDeleteSiteUser  = "DeleteSiteUser"
 	OpWritePublicFile = "WritePublicFile"
 	OpDeployStaticZip = "DeployStaticZip"
+	OpDeployAppBinary = "DeployAppBinary"
+	OpDeployAppGit    = "DeployAppGit"
 	OpRunBuild        = "RunBuild"
 	OpWriteUnitFile   = "WriteUnitFile"
 	OpReloadCaddy     = "ReloadCaddy"
@@ -59,6 +61,23 @@ type WritePublicFileArgs struct {
 type DeployStaticZipArgs struct {
 	Domain  string `json:"domain"`
 	ZipPath string `json:"zip_path"`
+}
+
+// DeployAppBinaryArgs installs a binary into a new app release and activates it.
+type DeployAppBinaryArgs struct {
+	Domain     string `json:"domain"`
+	BinaryPath string `json:"binary_path"`
+}
+
+// DeployAppGitArgs clones/fetches, builds, and deploys an app artifact.
+type DeployAppGitArgs struct {
+	Domain       string `json:"domain"`
+	GitURL       string `json:"git_url"`
+	GitRef       string `json:"git_ref,omitempty"`
+	BuildCommand string `json:"build_command,omitempty"`
+	Artifact     string `json:"artifact,omitempty"` // relative to src/, default bin/server
+	MemoryMax    string `json:"memory_max,omitempty"`
+	TimeoutSec   int    `json:"timeout_sec,omitempty"`
 }
 
 // RunBuildArgs runs a build command as the site user with resource limits.

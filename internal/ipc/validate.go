@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	sitesRoot     = "/srv/sites"
-	maxUnitBytes  = 256 * 1024
-	maxUnitName   = 128
-	maxDomainLen  = 253
+	sitesRoot    = "/srv/sites"
+	maxUnitBytes = 256 * 1024
+	maxUnitName  = 128
+	maxDomainLen = 253
 )
 
 var (
@@ -182,6 +182,82 @@ func ValidateDeployStaticZipArgs(a DeployStaticZipArgs) error {
 	}
 	if !ok {
 		return fmt.Errorf("zip_path %q not under allowed upload directories", p)
+	}
+	return nil
+}
+
+// ValidateDeployAppBinaryArgs validates DeployAppBinary arguments.
+func ValidateDeployAppBinaryArgs(a DeployAppBinaryArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	p := filepath.Clean(strings.TrimSpace(a.BinaryPath))
+	if p == "" || p == "." {
+		return fmt.Errorf("binary_path is required")
+	}
+	if !filepath.IsAbs(p) {
+		return fmt.Errorf("binary_path must be absolute")
+	}
+	domain := strings.ToLower(strings.TrimSpace(a.Domain))
+	allowedPrefixes := []string{
+		filepath.Join(sitesRoot, domain, "tmp") + string(filepath.Separator),
+		filepath.Join("/var/lib/webooza/uploads", domain) + string(filepath.Separator),
+		filepath.Join(sitesRoot, domain) + string(filepath.Separator),
+	}
+	ok := false
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("binary_path %q not under allowed directories", p)
+	}
+	return nil
+}
+
+var gitURLRE = regexp.MustCompile(`^(https://|http://|git@|ssh://)`)
+
+// ValidateDeployAppGitArgs validates DeployAppGit arguments.
+func ValidateDeployAppGitArgs(a DeployAppGitArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	url := strings.TrimSpace(a.GitURL)
+	if url == "" {
+		return fmt.Errorf("git_url is required")
+	}
+	if len(url) > 2048 {
+		return fmt.Errorf("git_url too long")
+	}
+	if strings.ContainsAny(url, " \t\n\r;$`|&;<>(){}\\\"'") {
+		return fmt.Errorf("git_url contains invalid characters")
+	}
+	if !gitURLRE.MatchString(url) {
+		return fmt.Errorf("git_url must start with https://, http://, git@, or ssh://")
+	}
+	ref := strings.TrimSpace(a.GitRef)
+	if strings.ContainsAny(ref, " \t\n\r;$`|&;<>(){}\\\"'") {
+		return fmt.Errorf("git_ref contains invalid characters")
+	}
+	art := strings.TrimSpace(a.Artifact)
+	if art != "" {
+		if strings.Contains(art, "..") || strings.HasPrefix(art, "/") || strings.Contains(art, `\`) {
+			return fmt.Errorf("invalid artifact path")
+		}
+	}
+	cmd := strings.TrimSpace(a.BuildCommand)
+	if len(cmd) > 8*1024 {
+		return fmt.Errorf("build_command too long")
+	}
+	if a.TimeoutSec < 0 || a.TimeoutSec > 3600 {
+		return fmt.Errorf("timeout_sec out of range")
+	}
+	if a.MemoryMax != "" {
+		if err := validateMemoryMax(a.MemoryMax); err != nil {
+			return err
+		}
 	}
 	return nil
 }

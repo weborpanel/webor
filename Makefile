@@ -20,7 +20,7 @@ CADDY_UNIT  ?= webooza-caddy-lab
 BINS := webooza webooza-helper wbz
 
 .PHONY: help web build clean test \
-	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset lab-app
+	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset lab-app lab-deploy
 
 help:
 	@echo "Webooza lab Makefile"
@@ -30,6 +30,7 @@ help:
 	@echo "  make test          go test ./..."
 	@echo "  make lab-start     start helper + caddy + panel (systemd-run)"
 	@echo "  make lab-app       apply socket-activated app.example.com (needs lab-start/caddy)"
+	@echo "  make lab-deploy    binary deploy + failed-probe rollback (needs lab-app)"
 	@echo "  make lab-stop      stop lab units"
 	@echo "  make lab-restart   stop then start"
 	@echo "  make lab-status    unit + listen status"
@@ -144,3 +145,8 @@ lab-app: build lab-dirs
 	@echo -n "service before: "; systemctl is-active webooza-app-app-example-com.service || true
 	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/; echo
 	@echo -n "service after:  "; systemctl is-active webooza-app-app-example-com.service || true
+
+# Milestone 2 slice 2: app binary deploy + automatic rollback on probe failure.
+lab-deploy: lab-app
+	go build -o $(BIN_DIR)/spike-m2-deploy ./cmd/spike-m2-deploy
+	sudo $(BIN_DIR)/spike-m2-deploy -domain app.example.com -binary $(BIN_DIR)/spike-socket-go

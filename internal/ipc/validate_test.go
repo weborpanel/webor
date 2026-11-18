@@ -83,6 +83,49 @@ func TestValidateDeployStaticZipArgs(t *testing.T) {
 	}
 }
 
+func TestValidateDeployAppBinaryArgs(t *testing.T) {
+	if err := ipc.ValidateDeployAppBinaryArgs(ipc.DeployAppBinaryArgs{
+		Domain:     "app.example.com",
+		BinaryPath: "/srv/sites/app.example.com/tmp/server",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipc.ValidateDeployAppBinaryArgs(ipc.DeployAppBinaryArgs{
+		Domain:     "app.example.com",
+		BinaryPath: "/tmp/evil",
+	}); err == nil {
+		t.Fatal("expected path rejection")
+	}
+	if err := ipc.ValidateDeployAppBinaryArgs(ipc.DeployAppBinaryArgs{
+		Domain:     "app.example.com",
+		BinaryPath: "relative/server",
+	}); err == nil {
+		t.Fatal("expected absolute path rejection")
+	}
+}
+
+func TestValidateDeployAppGitArgs(t *testing.T) {
+	if err := ipc.ValidateDeployAppGitArgs(ipc.DeployAppGitArgs{
+		Domain: "app.example.com",
+		GitURL: "https://github.com/example/app.git",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipc.ValidateDeployAppGitArgs(ipc.DeployAppGitArgs{
+		Domain: "app.example.com",
+		GitURL: "file:///etc/passwd",
+	}); err == nil {
+		t.Fatal("expected scheme rejection")
+	}
+	if err := ipc.ValidateDeployAppGitArgs(ipc.DeployAppGitArgs{
+		Domain:   "app.example.com",
+		GitURL:   "https://github.com/example/app.git",
+		Artifact: "../evil",
+	}); err == nil {
+		t.Fatal("expected artifact rejection")
+	}
+}
+
 func TestValidateDeleteSiteUserArgs(t *testing.T) {
 	if err := ipc.ValidateDeleteSiteUserArgs(ipc.DeleteSiteUserArgs{Domain: "example.com"}); err != nil {
 		t.Fatal(err)
