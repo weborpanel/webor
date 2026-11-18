@@ -20,7 +20,7 @@ CADDY_UNIT  ?= webooza-caddy-lab
 BINS := webooza webooza-helper wbz
 
 .PHONY: help web build clean test \
-	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset lab-app lab-deploy lab-idle
+	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset lab-app lab-deploy lab-idle lab-cron
 
 help:
 	@echo "Webooza lab Makefile"
@@ -32,6 +32,7 @@ help:
 	@echo "  make lab-app       apply socket-activated app.example.com (needs lab-start/caddy)"
 	@echo "  make lab-deploy    binary deploy + failed-probe rollback (needs lab-app)"
 	@echo "  make lab-idle      idle-stop (scale to zero) then wake-on-request (needs lab-app)"
+	@echo "  make lab-cron      install cron timer + run-now smoke (needs lab-app site user)"
 	@echo "  make lab-stop      stop lab units"
 	@echo "  make lab-restart   stop then start"
 	@echo "  make lab-status    unit + listen status"
@@ -166,3 +167,8 @@ lab-idle: lab-app
 	@echo -n "service after wake: "; systemctl is-active webooza-app-app-example-com.service || true
 	@test "$$(systemctl is-active webooza-app-app-example-com.service)" = active
 	@echo "ok: idle-stop + wake verified"
+
+# Milestone 2 slice 4: per-site cron timer + run-now.
+lab-cron: build lab-dirs
+	go build -o $(BIN_DIR)/spike-m2-cron ./cmd/spike-m2-cron
+	sudo $(BIN_DIR)/spike-m2-cron -domain app.example.com -job lab-tick

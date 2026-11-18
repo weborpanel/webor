@@ -149,6 +149,7 @@ func (c *Config) Validate() error {
 		if err := validateIdleTimeout(s); err != nil {
 			return fmt.Errorf("%s: %w", prefix, err)
 		}
+		seenJobs := map[string]struct{}{}
 		for j, job := range s.Cron {
 			if strings.TrimSpace(job.Name) == "" {
 				return fmt.Errorf("%s.cron[%d]: name is required", prefix, j)
@@ -158,6 +159,14 @@ func (c *Config) Validate() error {
 			}
 			if strings.TrimSpace(job.Exec) == "" {
 				return fmt.Errorf("%s.cron[%d]: exec is required", prefix, j)
+			}
+			key := strings.ToLower(strings.TrimSpace(job.Name))
+			if _, ok := seenJobs[key]; ok {
+				return fmt.Errorf("%s.cron[%d]: duplicate job name %q", prefix, j, job.Name)
+			}
+			seenJobs[key] = struct{}{}
+			if err := validateCronSchedule(job.Schedule); err != nil {
+				return fmt.Errorf("%s.cron[%d].schedule: %w", prefix, j, err)
 			}
 		}
 	}
@@ -186,6 +195,14 @@ func validateIdleTimeout(s Site) error {
 	}
 	if d > 24*time.Hour {
 		return fmt.Errorf("idle_timeout too large (max 24h)")
+	}
+	return nil
+}
+
+func validateCronSchedule(schedule string) error {
+	fields := strings.Fields(strings.TrimSpace(schedule))
+	if len(fields) != 5 {
+		return fmt.Errorf("must have 5 cron fields (got %d)", len(fields))
 	}
 	return nil
 }

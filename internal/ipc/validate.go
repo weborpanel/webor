@@ -273,6 +273,29 @@ func ValidateWriteUnitFileArgs(a WriteUnitFileArgs) error {
 	return ValidateUnitContent(a.Content)
 }
 
+// ValidateRunCronNowArgs validates RunCronNow arguments.
+func ValidateRunCronNowArgs(a RunCronNowArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	job := strings.TrimSpace(a.Job)
+	if job == "" {
+		return fmt.Errorf("job is required")
+	}
+	if len(job) > 64 {
+		return fmt.Errorf("job name too long")
+	}
+	if strings.ContainsAny(job, "/\\\n\r") {
+		return fmt.Errorf("invalid job name")
+	}
+	return nil
+}
+
+// ValidateCronStatusArgs validates CronStatus arguments.
+func ValidateCronStatusArgs(a CronStatusArgs) error {
+	return ValidateRunCronNowArgs(RunCronNowArgs{Domain: a.Domain, Job: a.Job})
+}
+
 // ValidateReloadCaddyArgs validates ReloadCaddy arguments.
 func ValidateReloadCaddyArgs(a ReloadCaddyArgs) error {
 	p := filepath.Clean(strings.TrimSpace(a.ConfigPath))

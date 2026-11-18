@@ -31,6 +31,8 @@ func Handlers(ops *helper.Ops, store *auth.Store) map[string]HandlerFunc {
 		OpRunBuild:        makeRunBuild(ops),
 		OpWriteUnitFile:   makeWriteUnitFile(ops),
 		OpReloadCaddy:     makeReloadCaddy(ops),
+		OpRunCronNow:      makeRunCronNow(ops),
+		OpCronStatus:      makeCronStatus(ops),
 		OpRequestApproval: makeRequestApproval(store),
 		OpApprove:         makeApprove(store),
 		OpDangerousDemo:   makeDangerousDemo(store),
@@ -254,5 +256,44 @@ func makeReloadCaddy(ops *helper.Ops) HandlerFunc {
 			OK:      true,
 			Message: fmt.Sprintf("reloaded caddy from %s", args.ConfigPath),
 		}
+	}
+}
+
+func makeRunCronNow(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args RunCronNowArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateRunCronNowArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		if err := ops.RunCronNow(args.Domain, args.Job); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{
+			ID:      req.ID,
+			OK:      true,
+			Message: fmt.Sprintf("started cron job %q for %s", args.Job, args.Domain),
+		}
+	}
+}
+
+func makeCronStatus(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args CronStatusArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateCronStatusArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		st, err := ops.CronStatus(args.Domain, args.Job)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		msg := fmt.Sprintf("timer=%s active=%v result=%s failed=%v next=%s",
+			st.Timer, st.TimerActive, st.LastResult, st.Failed, st.NextElapse)
+		return Response{ID: req.ID, OK: true, Message: msg}
 	}
 }

@@ -17,6 +17,8 @@ const (
 	OpRunBuild        = "RunBuild"
 	OpWriteUnitFile   = "WriteUnitFile"
 	OpReloadCaddy     = "ReloadCaddy"
+	OpRunCronNow      = "RunCronNow"
+	OpCronStatus      = "CronStatus"
 	OpRequestApproval = "RequestApproval"
 	OpApprove         = "Approve" // console / root only
 	OpDangerousDemo   = "DangerousDemo"
@@ -98,6 +100,18 @@ type WriteUnitFileArgs struct {
 // ReloadCaddyArgs asks the helper to validate and reload Caddy.
 type ReloadCaddyArgs struct {
 	ConfigPath string `json:"config_path"`
+}
+
+// RunCronNowArgs starts a site cron oneshot service immediately.
+type RunCronNowArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// CronStatusArgs fetches timer/service status for a site cron job.
+type CronStatusArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
 }
 
 // RequestApprovalArgs creates a pending step-up approval bound to an operation.

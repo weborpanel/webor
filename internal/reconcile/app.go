@@ -124,6 +124,10 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 		return err
 	}
 
+	if err := ops.InstallSiteCron(site); err != nil {
+		return err
+	}
+
 	if sampleBinary == "" {
 		return nil
 	}

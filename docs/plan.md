@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-18): Milestone 0–1 lab-complete. Milestone 2 in progress: socket activation, binary deploy+rollback, and cooperative idle-stop (`make lab-idle` / `WBZ_IDLE_TIMEOUT`). Still open in M2: deploy UI, proxyd idle fallback, journal viewer, cron, resource monitoring. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
+*Progress note (2026-11-18): Milestone 0–1 lab-complete. Milestone 2 in progress: socket apps, deploy+rollback, idle-stop, and per-site cron timers (`make lab-cron`). Still open in M2: deploy UI, proxyd idle fallback, journal viewer UI, long-running job services, resource monitoring. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
 
 ## 1. Product scope
 
@@ -182,15 +182,15 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 2: Native apps, socket activation and jobs (weeks 6 to 8)
 
-**Status:** in progress (slice 3: cooperative idle-stop + wake lab smoke)
+**Status:** in progress (slice 4: cron timers + run-now + status)
 
 **Deliverables**
 
 - [x] App unit rendering: per-site user service, systemd hardening subset, env file, Unix socket (`internal/providers/systemd`)
 - [~] Socket activation with wake-on-request and cooperative idle-stop via `idle_timeout` → `WBZ_IDLE_TIMEOUT` (`make lab-idle`); proxyd/`--exit-idle-time=` fallback for non-cooperative apps still open; always-on when `socket_activation: false`
 - [~] Deploys: helper `DeployAppBinary` / `DeployAppGit` with atomic `current`+`bin/server` symlinks and probe rollback (`make lab-deploy`); UI upload/git flow still open
-- [ ] Logs: journald viewer through the helper with live tail, and per-unit size limits
-- [ ] Cron and long-running jobs: per-site timers from cron-style schedules, long-running jobs as services, run-now, history, status and failure flags
+- [~] Logs: helper `JournalTail` for unit journals; full viewer UI + per-unit size limits still open
+- [~] Cron: 5-field schedule → `OnCalendar` timers, install/enable, run-now, status/failure flags (`make lab-cron`); long-running job-as-service still open
 - [ ] Resource monitoring: CPU, memory and disk usage from cgroups and filesystem checks
 
 **Exit criteria:** sample Node and Go apps deploy, scale to zero and wake on request, roll back after a failed health check, and run a scheduled job. Process-isolation tests pass.
