@@ -54,7 +54,7 @@
 
 <section class="login">
 	<h1>Log in</h1>
-	<p>Sign in with the admin account created during first-run setup.</p>
+	<p>Sign in with your admin account.</p>
 
 	<form method="post" onsubmit={onSubmit}>
 		<label>
@@ -87,8 +87,6 @@
 		{/if}
 		<button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Continue'}</button>
 	</form>
-
-	<p class="setup-link"><a href="/setup">First-run setup</a></p>
 </section>
 
 <style>
@@ -107,11 +105,6 @@
 	p {
 		margin: 0 0 1.75rem;
 		color: var(--muted);
-	}
-
-	.setup-link {
-		margin: 1.25rem 0 0;
-		font-size: 0.92rem;
 	}
 
 	.error {
