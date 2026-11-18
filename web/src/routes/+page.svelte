@@ -1,19 +1,30 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { fetchAuthStatus } from '#lib/auth';
+
+	let panelHref = $state('/login');
+	let panelLabel = $state('Log in');
 
 	onMount(async () => {
 		try {
-			const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				needs_setup?: boolean;
-			};
-			if (res.ok && data.ok && data.needs_setup) {
+			const status = await fetchAuthStatus();
+			if (status.needs_setup) {
+				panelHref = '/setup';
+				panelLabel = 'Start setup';
 				await goto('/setup');
+				return;
+			}
+			if (status.authenticated) {
+				panelHref = '/sites';
+				panelLabel = 'Open panel';
+			} else {
+				panelHref = '/login';
+				panelLabel = 'Log in';
 			}
 		} catch {
-			// Keep home available if status is unreachable
+			panelHref = '/login';
+			panelLabel = 'Log in';
 		}
 	});
 </script>
@@ -25,9 +36,12 @@
 <section class="hero">
 	<img class="mark" src="/icon.svg" width="72" height="72" alt="" aria-hidden="true" />
 	<h1>Webooza</h1>
-	<p>A lightweight hosting panel for one VPS and several sites — static builds, native apps, automatic SSL, without Docker.</p>
+	<p>
+		A lightweight hosting panel for one VPS and several sites — static builds, native apps,
+		automatic SSL, without Docker.
+	</p>
 	<p class="cta">
-		<a class="button" href="/sites">Open panel</a>
+		<a class="button" href={panelHref}>{panelLabel}</a>
 	</p>
 </section>
 
@@ -76,7 +90,9 @@
 		font-weight: 800;
 		text-decoration: none;
 		box-shadow: 0 10px 30px color-mix(in srgb, var(--wbz-ultramarine) 28%, transparent);
-		transition: transform 160ms ease, box-shadow 160ms ease;
+		transition:
+			transform 160ms ease,
+			box-shadow 160ms ease;
 	}
 
 	.button:hover {

@@ -39,7 +39,7 @@
 				error = data.error || 'Login failed';
 				return;
 			}
-			await goto('/');
+			await goto('/sites');
 		} catch {
 			error = 'Could not reach the panel API';
 		} finally {
