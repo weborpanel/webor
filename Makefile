@@ -20,7 +20,7 @@ CADDY_UNIT  ?= webooza-caddy-lab
 BINS := webooza webooza-helper wbz
 
 .PHONY: help web build clean test \
-	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset
+	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset lab-app
 
 help:
 	@echo "Webooza lab Makefile"
@@ -29,6 +29,7 @@ help:
 	@echo "  make build         build Go binaries into $(BIN_DIR) (uses embedded UI)"
 	@echo "  make test          go test ./..."
 	@echo "  make lab-start     start helper + caddy + panel (systemd-run)"
+	@echo "  make lab-app       apply socket-activated app.example.com (needs lab-start/caddy)"
 	@echo "  make lab-stop      stop lab units"
 	@echo "  make lab-restart   stop then start"
 	@echo "  make lab-status    unit + listen status"
@@ -125,3 +126,19 @@ lab-logs:
 lab-reset: lab-stop
 	rm -rf $(LAB_STATE)
 	@echo "wiped $(LAB_STATE); run make lab-start for a fresh setup token"
+
+# Milestone 2 slice 1: socket-activated Go sample behind Caddy.
+lab-app: build lab-dirs
+	go build -o $(BIN_DIR)/spike-socket-go ./cmd/spike-socket-go
+	go build -o $(BIN_DIR)/spike-m2-app ./cmd/spike-m2-app
+	sudo mkdir -p /run/webooza/sites /var/lib/webooza
+	sudo $(BIN_DIR)/spike-m2-app \
+		-config internal/config/testdata/lab-app.yaml \
+		-caddy-json $(CADDY_JSON) \
+		-sample-binary $(BIN_DIR)/spike-socket-go \
+		-disable-https
+	@echo "--- wake-on-request ---"
+	@sudo systemctl stop webooza-app-app-example-com.service 2>/dev/null || true
+	@echo -n "service before: "; systemctl is-active webooza-app-app-example-com.service || true
+	@curl -sS -H 'Host: app.example.com' http://127.0.0.1:8080/ | head -c 200; echo
+	@echo -n "service after:  "; systemctl is-active webooza-app-app-example-com.service || true

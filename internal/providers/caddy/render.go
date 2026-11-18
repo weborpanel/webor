@@ -20,9 +20,9 @@ type RenderOptions struct {
 	DisableHTTPS bool
 }
 
-// RenderStatic builds a Caddy JSON config for static sites in cfg.
-// App/container sites are skipped until later milestones.
-func RenderStatic(cfg *config.Config, opt RenderOptions) ([]byte, error) {
+// Render builds a Caddy JSON config for static and app sites in cfg.
+// Container sites are skipped until a later milestone.
+func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -40,27 +40,42 @@ func RenderStatic(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 
 	var routes []map[string]any
 	for _, site := range cfg.Sites {
-		if site.Type != config.SiteTypeStatic {
-			continue
-		}
-		rootName := site.Root
-		if rootName == "" {
-			rootName = "public"
-		}
-		fsRoot := filepath.Join(sites.Root(site.Name), rootName)
 		hosts := append([]string{site.Name}, site.Aliases...)
-		routes = append(routes, map[string]any{
-			"match": []map[string]any{{"host": hosts}},
-			"handle": []map[string]any{
-				{
-					"handler": "file_server",
-					"root":    fsRoot,
+		switch site.Type {
+		case config.SiteTypeStatic:
+			rootName := site.Root
+			if rootName == "" {
+				rootName = "public"
+			}
+			fsRoot := filepath.Join(sites.Root(site.Name), rootName)
+			routes = append(routes, map[string]any{
+				"match": []map[string]any{{"host": hosts}},
+				"handle": []map[string]any{
+					{
+						"handler": "file_server",
+						"root":    fsRoot,
+					},
 				},
-			},
-		})
+			})
+		case config.SiteTypeApp:
+			dial := "unix/" + sites.AppSocket(site.Name)
+			routes = append(routes, map[string]any{
+				"match": []map[string]any{{"host": hosts}},
+				"handle": []map[string]any{
+					{
+						"handler": "reverse_proxy",
+						"upstreams": []map[string]any{
+							{"dial": dial},
+						},
+					},
+				},
+			})
+		default:
+			// container / unknown: skip
+		}
 	}
 	if len(routes) == 0 {
-		return nil, fmt.Errorf("no static sites to render")
+		return nil, fmt.Errorf("no static or app sites to render")
 	}
 
 	server := map[string]any{
@@ -88,11 +103,40 @@ func RenderStatic(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 	return append(out, '\n'), nil
 }
 
+// RenderStatic builds a Caddy JSON config for static sites only.
+// Prefer Render when mixing static and app sites.
+func RenderStatic(cfg *config.Config, opt RenderOptions) ([]byte, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	staticOnly := &config.Config{
+		Version: cfg.Version,
+		Panel:   cfg.Panel,
+	}
+	for _, s := range cfg.Sites {
+		if s.Type == config.SiteTypeStatic {
+			staticOnly.Sites = append(staticOnly.Sites, s)
+		}
+	}
+	return Render(staticOnly, opt)
+}
+
 // StaticSiteNames returns static site domain names from cfg.
 func StaticSiteNames(cfg *config.Config) []string {
 	var names []string
 	for _, s := range cfg.Sites {
 		if s.Type == config.SiteTypeStatic {
+			names = append(names, strings.ToLower(s.Name))
+		}
+	}
+	return names
+}
+
+// AppSiteNames returns app site domain names from cfg.
+func AppSiteNames(cfg *config.Config) []string {
+	var names []string
+	for _, s := range cfg.Sites {
+		if s.Type == config.SiteTypeApp {
 			names = append(names, strings.ToLower(s.Name))
 		}
 	}

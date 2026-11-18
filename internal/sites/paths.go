@@ -69,3 +69,22 @@ func Logs(domain string) string {
 func Tmp(domain string) string {
 	return filepath.Join(Root(domain), "tmp")
 }
+
+// BinDir returns /srv/sites/<domain>/bin.
+func BinDir(domain string) string {
+	return filepath.Join(Root(domain), "bin")
+}
+
+// RuntimeDir is the parent for per-site runtime sockets.
+// Tests may override it.
+var RuntimeDir = "/run/webooza/sites"
+
+// SiteRuntime returns /run/webooza/sites/<domain>.
+func SiteRuntime(domain string) string {
+	return filepath.Join(RuntimeDir, strings.ToLower(strings.TrimSpace(domain)))
+}
+
+// AppSocket returns the public Unix socket path Caddy reverse-proxies to.
+func AppSocket(domain string) string {
+	return filepath.Join(SiteRuntime(domain), "app.sock")
+}

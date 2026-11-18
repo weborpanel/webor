@@ -1,0 +1,10 @@
+version: 1
+panel:
+  port: 0
+sites:
+  - name: app.example.com
+    type: app
+    exec: ./bin/server
+    socket_activation: true
+    limits:
+      memory_max: 128M
