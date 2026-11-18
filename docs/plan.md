@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-18): Milestone 0–1 lab-complete. Milestone 2 in progress: socket apps, deploy+rollback, idle-stop, cron timers, and panel deploy API (`POST /api/sites/{name}/deploy`). Still open in M2: deploy UI polish, proxyd idle fallback, journal viewer UI, long-running job services, resource monitoring, Node sample. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
+*Progress note (2026-11-18): Milestone 0–1 lab-complete. Milestone 2 in progress: socket apps, deploy+rollback, idle-stop, cron, panel deploy API + Svelte deploy UI on site detail. Still open in M2: proxyd idle fallback, journal viewer UI, long-running job services, resource monitoring, Node sample. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
 
 ## 1. Product scope
 
@@ -188,7 +188,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 - [x] App unit rendering: per-site user service, systemd hardening subset, env file, Unix socket (`internal/providers/systemd`)
 - [~] Socket activation with wake-on-request and cooperative idle-stop via `idle_timeout` → `WBZ_IDLE_TIMEOUT` (`make lab-idle`); proxyd/`--exit-idle-time=` fallback for non-cooperative apps still open; always-on when `socket_activation: false`
-- [~] Deploys: helper + IPC + panel API (`POST …/deploy`, `POST …/deploy/git`) with atomic symlinks and probe rollback (`make lab-deploy`); Svelte upload UI still open
+- [x] Deploys: helper + IPC + panel API + Svelte deploy UI (binary/git on app site detail) with atomic symlinks and probe rollback (`make lab-deploy`)
 - [~] Logs: helper `JournalTail` for unit journals; full viewer UI + per-unit size limits still open
 - [~] Cron: 5-field schedule → `OnCalendar` timers, install/enable, run-now, status/failure flags (`make lab-cron`); long-running job-as-service still open
 - [ ] Resource monitoring: CPU, memory and disk usage from cgroups and filesystem checks

@@ -12,6 +12,7 @@
 	let error = $state('');
 	let loading = $state(true);
 	let name = $state('');
+	let siteKind = $state<'static' | 'app'>('static');
 	let submitting = $state(false);
 
 	let selected = $state('');
@@ -77,7 +78,7 @@
 				method: 'POST',
 				credentials: 'same-origin',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: domain, type: 'static' })
+				body: JSON.stringify({ name: domain, type: siteKind })
 			});
 			const data = (await res.json().catch(() => ({}))) as {
 				ok?: boolean;
@@ -204,7 +205,7 @@
 						onclick={() => (selected = site.name)}
 					>
 						<strong>{site.name}</strong>
-						<span class="meta">{site.root || 'public'}/ · <a href={`/sites/${encodeURIComponent(site.name)}`} onclick={(e) => e.stopPropagation()}>dashboard</a></span>
+						<span class="meta">{site.type} · {site.root || 'public'}/ · <a href={`/sites/${encodeURIComponent(site.name)}`} onclick={(e) => e.stopPropagation()}>dashboard</a></span>
 					</button>
 					<button type="button" class="danger" onclick={() => removeSite(site.name)}>Remove</button>
 				</li>
@@ -217,6 +218,13 @@
 		<label>
 			<span>Domain</span>
 			<input name="name" bind:value={name} placeholder="example.com" required />
+		</label>
+		<label>
+			<span>Type</span>
+			<select name="type" bind:value={siteKind}>
+				<option value="static">Static</option>
+				<option value="app">App</option>
+			</select>
 		</label>
 		<button type="submit" disabled={submitting}>{submitting ? 'Adding…' : 'Add site'}</button>
 	</form>
@@ -369,7 +377,8 @@
 		font-size: 0.92rem;
 	}
 
-	input {
+	input,
+	select {
 		font: inherit;
 		padding: 0.75rem 0.9rem;
 		border-radius: 12px;

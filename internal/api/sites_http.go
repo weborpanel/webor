@@ -113,6 +113,11 @@ func (s *Server) handleAddSite(w http.ResponseWriter, r *http.Request) {
 		Type: body.Type,
 		Root: "public",
 	}
+	if body.Type == config.SiteTypeApp {
+		site.Root = ""
+		site.Exec = "./bin/server"
+		site.SocketActivation = true
+	}
 
 	sitesMu.Lock()
 	defer sitesMu.Unlock()

@@ -12,6 +12,9 @@ Panel API (auth session):
 - `POST /api/sites/{name}/deploy` — multipart field `file` (binary → `/var/lib/webooza/uploads/{name}/server`)
 - `POST /api/sites/{name}/deploy/git` — JSON `{git_url, git_ref?, build_command?, artifact?, memory_max?, timeout_sec?}`
 
+UI: open an **app** site dashboard (`/sites/{name}`) → **Deploy** (Binary upload or Git deploy).
+Add app sites from **Sites → Add site → Type: App**.
+
 ## On the Debian VM
 
 Prereq: Caddy + panel up (`make lab-start`), then socket-activated sample site.
