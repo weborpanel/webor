@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -145,6 +146,9 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("%s.aliases[%d]: %w", prefix, j, err)
 			}
 		}
+		if err := validateIdleTimeout(s); err != nil {
+			return fmt.Errorf("%s: %w", prefix, err)
+		}
 		for j, job := range s.Cron {
 			if strings.TrimSpace(job.Name) == "" {
 				return fmt.Errorf("%s.cron[%d]: name is required", prefix, j)
@@ -156,6 +160,32 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("%s.cron[%d]: exec is required", prefix, j)
 			}
 		}
+	}
+	return nil
+}
+
+// validateIdleTimeout checks idle_timeout when set.
+// Cooperative socket-activated apps exit after this idle period (WBZ_IDLE_TIMEOUT).
+func validateIdleTimeout(s Site) error {
+	raw := strings.TrimSpace(s.IdleTimeout)
+	if raw == "" {
+		return nil
+	}
+	if s.Type != SiteTypeApp {
+		return fmt.Errorf("idle_timeout is only valid for type app")
+	}
+	if !s.SocketActivation {
+		return fmt.Errorf("idle_timeout requires socket_activation: true")
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return fmt.Errorf("invalid idle_timeout %q: %w", raw, err)
+	}
+	if d < time.Second {
+		return fmt.Errorf("idle_timeout must be at least 1s")
+	}
+	if d > 24*time.Hour {
+		return fmt.Errorf("idle_timeout too large (max 24h)")
 	}
 	return nil
 }

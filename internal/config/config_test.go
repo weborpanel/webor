@@ -70,6 +70,43 @@ panel:
 	}
 }
 
+func TestIdleTimeoutRequiresSocketActivation(t *testing.T) {
+	_, err := config.Parse([]byte(`
+version: 1
+panel:
+  port: 0
+sites:
+  - name: app.example.com
+    type: app
+    exec: ./bin/server
+    socket_activation: false
+    idle_timeout: 15m
+`))
+	if err == nil {
+		t.Fatal("expected error for idle_timeout without socket_activation")
+	}
+}
+
+func TestIdleTimeoutOK(t *testing.T) {
+	c, err := config.Parse([]byte(`
+version: 1
+panel:
+  port: 0
+sites:
+  - name: app.example.com
+    type: app
+    exec: ./bin/server
+    socket_activation: true
+    idle_timeout: 15m
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Sites[0].IdleTimeout != "15m" {
+		t.Fatalf("idle_timeout=%q", c.Sites[0].IdleTimeout)
+	}
+}
+
 func TestSaveRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

@@ -1,20 +1,39 @@
 // Socket-activated HTTP sample for Spike B (LISTEN_FDS / Unix socket).
+// Honors WBZ_IDLE_TIMEOUT (Go duration) to exit when idle so systemd can
+// scale the service to zero while the .socket unit keeps listening.
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
 
 func main() {
+	idle, err := idleTimeout()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var mu sync.Mutex
+	last := time.Now()
+	touch := func() {
+		mu.Lock()
+		last = time.Now()
+		mu.Unlock()
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		touch()
 		fmt.Fprintf(w, "webooza-spike-b-go ok pid=%d\n", os.Getpid())
 	})
 
@@ -22,9 +41,48 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("listening on %s (activated=%v)", ln.Addr(), os.Getenv("LISTEN_FDS") != "")
+	log.Printf("listening on %s (activated=%v idle=%v)", ln.Addr(), os.Getenv("LISTEN_FDS") != "", idle)
+
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	log.Fatal(srv.Serve(ln))
+	if idle > 0 {
+		go func() {
+			t := time.NewTicker(200 * time.Millisecond)
+			defer t.Stop()
+			for range t.C {
+				mu.Lock()
+				since := time.Since(last)
+				mu.Unlock()
+				if since < idle {
+					continue
+				}
+				log.Printf("idle for %s (limit %s); shutting down", since.Round(time.Millisecond), idle)
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				_ = srv.Shutdown(ctx)
+				cancel()
+				return
+			}
+		}()
+	}
+
+	err = srv.Serve(ln)
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
+}
+
+func idleTimeout() (time.Duration, error) {
+	raw := strings.TrimSpace(os.Getenv("WBZ_IDLE_TIMEOUT"))
+	if raw == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("WBZ_IDLE_TIMEOUT: %w", err)
+	}
+	if d < time.Second {
+		return 0, fmt.Errorf("WBZ_IDLE_TIMEOUT must be at least 1s")
+	}
+	return d, nil
 }
 
 func listen() (net.Listener, error) {

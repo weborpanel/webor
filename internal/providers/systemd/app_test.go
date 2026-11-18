@@ -15,6 +15,7 @@ func TestRenderAppUnitsSocketActivated(t *testing.T) {
 		Type:             config.SiteTypeApp,
 		Exec:             "./bin/server",
 		SocketActivation: true,
+		IdleTimeout:      "15m",
 		EnvFile:          ".env",
 		Limits:           config.Limits{MemoryMax: "256M"},
 	})
@@ -31,9 +32,11 @@ func TestRenderAppUnitsSocketActivated(t *testing.T) {
 		"User=" + sites.Username("app.example.com"),
 		"ExecStart=" + sites.Root("app.example.com") + "/bin/server",
 		"MemoryMax=256M",
+		"Environment=WBZ_IDLE_TIMEOUT=15m",
 		"EnvironmentFile=-" + sites.Root("app.example.com") + "/.env",
 		"Requires=webooza-app-app-example-com.socket",
 		"NoNewPrivileges=true",
+		"Restart=no",
 	} {
 		if !strings.Contains(units.Service, want) {
 			t.Fatalf("service missing %q:\n%s", want, units.Service)

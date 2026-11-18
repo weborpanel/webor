@@ -6,5 +6,6 @@ sites:
     type: app
     exec: ./bin/server
     socket_activation: true
+    idle_timeout: 3s
     limits:
       memory_max: 128M

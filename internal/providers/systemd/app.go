@@ -94,6 +94,14 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 	if site.Limits.MemoryMax != "" {
 		fmt.Fprintf(&svc, "MemoryMax=%s\n", site.Limits.MemoryMax)
 	}
+	if site.SocketActivation {
+		idle := strings.TrimSpace(site.IdleTimeout)
+		if idle != "" {
+			// Cooperative apps exit after idle; socket unit stays up for wake-on-request.
+			fmt.Fprintf(&svc, "Environment=WBZ_IDLE_TIMEOUT=%s\n", idle)
+		}
+	}
+	// Restart=no so an intentional idle exit scales to zero instead of looping.
 	fmt.Fprintf(&svc, "Restart=no\n")
 	fmt.Fprintf(&svc, "NoNewPrivileges=true\n")
 	fmt.Fprintf(&svc, "ProtectSystem=strict\n")
