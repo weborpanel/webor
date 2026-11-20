@@ -21,6 +21,9 @@ Non-cooperative apps use `socket_proxy: true`: public `.socket` activates
 `systemd-socket-proxyd` with `--exit-idle-time=` from `idle_timeout`, forwarding
 to a private always-on backend (`WBZ_SOCK`). Smoke: `make lab-proxyd`.
 
+Note: Caddy upstream keep-alives can keep proxyd busy; the lab idle check uses
+a direct Unix-socket curl so the connection fully closes.
+
 For the full Node smoke (wake + idle + deploy) use `make lab-node`.
 
 ## On the Debian VM

@@ -228,24 +228,25 @@ lab-proxyd: build lab-dirs
 		-caddy-json $(CADDY_JSON) \
 		-sample-binary $(BIN_DIR)/spike-socket-backend \
 		-disable-https
-	@echo "--- wake-on-request (proxyd) ---"
+	@echo "--- wake-on-request (proxyd via unix socket; Caddy keep-alives hold proxyd open) ---"
+	@sudo systemctl reset-failed webooza-app-app-example-com.socket webooza-app-app-example-com.service 2>/dev/null || true
 	@sudo systemctl stop webooza-app-app-example-com.service 2>/dev/null || true
 	@systemctl is-active --quiet webooza-app-app-example-com.socket || sudo systemctl start webooza-app-app-example-com.socket
 	@systemctl is-active --quiet webooza-app-app-example-com-backend.service || sudo systemctl start webooza-app-app-example-com-backend.service
 	@echo -n "backend: "; systemctl is-active webooza-app-app-example-com-backend.service || true
 	@echo -n "proxyd before: "; systemctl is-active webooza-app-app-example-com.service || true
-	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/ | tee /tmp/webooza-lab-proxyd.txt; echo
+	@curl -sf --unix-socket /run/webooza/sites/app.example.com/app.sock http://localhost/ | tee /tmp/webooza-lab-proxyd.txt; echo
 	@grep -q 'webooza-spike-b-proxy-backend ok' /tmp/webooza-lab-proxyd.txt
 	@echo -n "proxyd after:  "; systemctl is-active webooza-app-app-example-com.service || true
 	@echo "--- idle-stop proxyd (exit-idle-time=3s) ---"
-	@sleep 4
+	@sleep 5
 	@echo -n "socket after idle: "; systemctl is-active webooza-app-app-example-com.socket || true
 	@echo -n "proxyd after idle: "; systemctl is-active webooza-app-app-example-com.service || true
 	@echo -n "backend after idle: "; systemctl is-active webooza-app-app-example-com-backend.service || true
 	@test "$$(systemctl is-active webooza-app-app-example-com.socket)" = active
 	@test "$$(systemctl is-active webooza-app-app-example-com.service)" = inactive
 	@test "$$(systemctl is-active webooza-app-app-example-com-backend.service)" = active
-	@echo "--- wake after idle ---"
+	@echo "--- wake via Caddy after idle ---"
 	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/; echo
 	@echo -n "proxyd after wake: "; systemctl is-active webooza-app-app-example-com.service || true
 	@test "$$(systemctl is-active webooza-app-app-example-com.service)" = active
