@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/webooza/webooza/internal/config"
+	"github.com/webooza/webooza/internal/deploy"
 	"github.com/webooza/webooza/internal/helper"
 	"github.com/webooza/webooza/internal/providers/caddy"
 	"github.com/webooza/webooza/internal/providers/systemd"
@@ -94,6 +95,11 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 	if err := os.MkdirAll(sites.BinDir(site.Name), 0o755); err != nil {
 		return fmt.Errorf("bin dir: %w", err)
 	}
+	// Site user must own the runtime dir so socket_proxy backends can bind WBZ_SOCK.
+	uEarly := sites.Username(site.Name)
+	if out, err := exec.Command("chown", uEarly+":"+uEarly, sites.SiteRuntime(site.Name)).CombinedOutput(); err != nil {
+		return fmt.Errorf("chown runtime: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
 
 	units, err := systemd.RenderAppUnits(site)
 	if err != nil {
@@ -124,12 +130,32 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 		return fmt.Errorf("chown: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 
+	// Install sample binary before enabling units so proxyd backends have a
+	// working ExecStart on first start (avoids start-limit storms).
+	if sampleBinary != "" {
+		staged := filepath.Join(sites.Tmp(site.Name), sites.DefaultAppBinary)
+		if err := installSampleBinary(sampleBinary, staged); err != nil {
+			return err
+		}
+		id, _, err := deploy.InstallAppBinary(site.Name, staged, deploy.AppBinaryOptions{})
+		if err != nil {
+			return err
+		}
+		if err := sites.ActivateAppRelease(site.Name, id, sites.DefaultAppBinary); err != nil {
+			return err
+		}
+		_ = exec.Command("chown", "-R", u+":"+u, sites.Root(site.Name)).Run()
+	}
+
 	if units.BackendServiceName != "" {
+		_ = ops.SystemctlResetFailed(units.BackendServiceName)
 		if err := ops.SystemctlEnableNow(units.BackendServiceName); err != nil {
 			return err
 		}
 	}
 	if units.SocketName != "" {
+		_ = ops.SystemctlResetFailed(units.SocketName)
+		_ = ops.SystemctlResetFailed(units.ServiceName)
 		if err := ops.SystemctlEnableNow(units.SocketName); err != nil {
 			return err
 		}
@@ -147,13 +173,8 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 	if sampleBinary == "" {
 		return nil
 	}
-	// Stage under site tmp so DeployAppBinary path validation accepts it.
-	staged := filepath.Join(sites.Tmp(site.Name), sites.DefaultAppBinary)
-	if err := installSampleBinary(sampleBinary, staged); err != nil {
-		return err
-	}
-	_, err = ops.DeployAppBinary(ctx, site.Name, staged)
-	return err
+	// Wake via public socket (native activation or proxyd) to verify the release.
+	return ops.ProbeApp(ctx, site.Name)
 }
 
 func installSampleBinary(src, dest string) error {

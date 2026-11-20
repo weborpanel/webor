@@ -167,7 +167,8 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 		var proxy strings.Builder
 		fmt.Fprintf(&proxy, "[Unit]\n")
 		fmt.Fprintf(&proxy, "Description=Webooza socket-proxyd %s\n", site.Name)
-		fmt.Fprintf(&proxy, "Requires=%s %s\n", SocketUnitName(site.Name), backendName)
+		fmt.Fprintf(&proxy, "Requires=%s\n", SocketUnitName(site.Name))
+		fmt.Fprintf(&proxy, "Wants=%s\n", backendName)
 		fmt.Fprintf(&proxy, "After=%s %s\n", SocketUnitName(site.Name), backendName)
 		fmt.Fprintf(&proxy, "\n[Service]\n")
 		fmt.Fprintf(&proxy, "Type=simple\n")

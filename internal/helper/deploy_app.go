@@ -136,13 +136,29 @@ func rollbackAppRelease(o *Ops, domain, prevID, svc string) error {
 	return probeAppSocket(context.Background(), o, domain)
 }
 
+// ProbeApp ensures the site socket is listening and a request succeeds.
+func (o *Ops) ProbeApp(ctx context.Context, domain string) error {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	backend := systemd.BackendServiceUnitName(domain)
+	_ = o.SystemctlResetFailed(backend)
+	if !o.SystemctlIsActive(backend) {
+		_ = o.SystemctlStart(backend) // ignore when backend unit is absent
+	}
+	if err := o.ensureAppSocket(domain); err != nil {
+		return err
+	}
+	return probeAppSocket(ctx, o, domain)
+}
+
 // ensureAppSocket clears start-limit failures and makes sure the .socket unit
 // is listening again after a bad activation storm.
 func (o *Ops) ensureAppSocket(domain string) error {
 	sock := systemd.SocketUnitName(domain)
 	svc := systemd.ServiceUnitName(domain)
+	backend := systemd.BackendServiceUnitName(domain)
 	_ = o.SystemctlResetFailed(svc)
 	_ = o.SystemctlResetFailed(sock)
+	_ = o.SystemctlResetFailed(backend)
 	if o.SystemctlIsActive(sock) {
 		return nil
 	}
