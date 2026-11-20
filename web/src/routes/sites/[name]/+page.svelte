@@ -24,6 +24,7 @@
 	let dnsCanCert = $state(false);
 	let dnsChecked = $state(false);
 	let dnsLoading = $state(false);
+	let expectedA = $state('');
 
 	let deployMode = $state<DeployMode>('binary');
 	let deployBusy = $state(false);
@@ -35,6 +36,11 @@
 	let buildCommand = $state('');
 	let artifact = $state('');
 	let isApp = $derived(siteType === 'app');
+
+	let uploadPath = $state('index.html');
+	let uploadFile = $state<FileList | null>(null);
+	let uploading = $state(false);
+	let uploadOk = $state('');
 
 	async function load() {
 		loading = true;
@@ -69,7 +75,8 @@
 		dnsLoading = true;
 		error = '';
 		try {
-			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/dns`, {
+			const q = expectedA.trim() ? `?a=${encodeURIComponent(expectedA.trim())}` : '';
+			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/dns${q}`, {
 				credentials: 'same-origin'
 			});
 			const data = (await res.json()) as {
@@ -89,6 +96,45 @@
 			error = 'Could not reach the panel API';
 		} finally {
 			dnsLoading = false;
+		}
+	}
+
+	async function upload(e: Event) {
+		e.preventDefault();
+		uploadOk = '';
+		error = '';
+		if (!uploadFile?.length) {
+			error = 'Choose a file to upload';
+			return;
+		}
+		uploading = true;
+		try {
+			const file = uploadFile[0];
+			const path = uploadPath.trim() || file.name;
+			const res = await fetch(
+				`/api/sites/${encodeURIComponent(name)}/files/${path.split('/').map(encodeURIComponent).join('/')}`,
+				{
+					method: 'PUT',
+					credentials: 'same-origin',
+					headers: { 'Content-Type': 'application/octet-stream' },
+					body: await file.arrayBuffer()
+				}
+			);
+			if (res.status === 401) {
+				await goto('/login');
+				return;
+			}
+			const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+			if (!res.ok || !data.ok) {
+				error = data.error || 'Upload failed';
+				return;
+			}
+			uploadOk = `Uploaded to ${root}/${path}`;
+			uploadFile = null;
+		} catch {
+			error = 'Could not reach the panel API';
+		} finally {
+			uploading = false;
 		}
 	}
 
@@ -188,16 +234,20 @@
 	<title>{name} · Webooza</title>
 </svelte:head>
 
-<section class="dash">
-	<p class="back"><a href="/sites">← Sites</a></p>
+<section class="page">
+	<p class="crumb"><a href="/sites">Sites</a> <span aria-hidden="true">/</span> <span>{name || '…'}</span></p>
+
 	{#if loading}
-		<p class="muted">Loading…</p>
+		<p class="wbz-muted">Loading…</p>
 	{:else if !exists}
-		<p class="error" role="alert">Site not found in config.</p>
+		<p class="wbz-error" role="alert">Site not found in config.</p>
 	{:else}
-		<header>
-			<h1>{name}</h1>
-			<p>
+		<header class="page-head">
+			<div class="title-row">
+				<h1>{name}</h1>
+				<span class="wbz-badge">{siteType}</span>
+			</div>
+			<p class="wbz-muted">
 				{#if isApp}
 					App site · releases under <code>/srv/sites/{name}/</code>
 				{:else}
@@ -207,18 +257,45 @@
 		</header>
 
 		{#if error}
-			<p class="error" role="alert">{error}</p>
+			<p class="wbz-error" role="alert">{error}</p>
 		{/if}
 
+		<section class="wbz-panel" aria-labelledby="overview-heading">
+			<h2 id="overview-heading">Overview</h2>
+			<p class="lede">
+				{#if isApp}
+					Deploy a release, then confirm DNS before HTTPS.
+				{:else}
+					Upload into <code>{root}/</code>, then confirm DNS before HTTPS.
+				{/if}
+			</p>
+			<ul class="facts">
+				<li><span>Type</span> <strong>{siteType}</strong></li>
+				<li><span>Path</span> <code>/srv/sites/{name}/</code></li>
+				<li>
+					<span>HTTPS</span>
+					<strong>
+						{#if !dnsChecked}
+							Not checked yet
+						{:else if dnsCanCert}
+							DNS ready
+						{:else}
+							DNS not ready
+						{/if}
+					</strong>
+				</li>
+			</ul>
+		</section>
+
 		{#if isApp}
-			<section class="deploy">
-				<h2>Deploy</h2>
-				<p class="muted">Upload a binary or build from git. Failed health checks roll back automatically.</p>
+			<section class="wbz-panel" aria-labelledby="deploy-heading">
+				<h2 id="deploy-heading">Deploy</h2>
+				<p class="lede">Upload a binary or build from git. Failed health checks roll back automatically.</p>
 
 				<div class="mode" role="group" aria-label="Deploy mode">
 					<button
 						type="button"
-						class={['mode-btn', deployMode === 'binary' && 'active']}
+						class={['wbz-btn', 'wbz-btn-ghost', 'mode-btn', deployMode === 'binary' && 'active']}
 						disabled={deployBusy}
 						onclick={() => (deployMode = 'binary')}
 					>
@@ -226,7 +303,7 @@
 					</button>
 					<button
 						type="button"
-						class={['mode-btn', deployMode === 'git' && 'active']}
+						class={['wbz-btn', 'wbz-btn-ghost', 'mode-btn', deployMode === 'git' && 'active']}
 						disabled={deployBusy}
 						onclick={() => (deployMode = 'git')}
 					>
@@ -235,15 +312,15 @@
 				</div>
 
 				{#if deployError}
-					<p class="error" role="alert">{deployError}</p>
+					<p class="wbz-error" role="alert">{deployError}</p>
 				{/if}
 				{#if deploySuccess}
-					<p class="ok" role="status">{deploySuccess}</p>
+					<p class="wbz-ok" role="status">{deploySuccess}</p>
 				{/if}
 
 				{#if deployMode === 'binary'}
-					<form onsubmit={deployBinary}>
-						<label>
+					<form class="stack" onsubmit={deployBinary}>
+						<label class="wbz-field">
 							<span>Binary file</span>
 							<input
 								type="file"
@@ -254,13 +331,13 @@
 								}}
 							/>
 						</label>
-						<button type="submit" disabled={deployBusy}>
+						<button class="wbz-btn" type="submit" disabled={deployBusy}>
 							{deployBusy ? 'Deploying…' : 'Deploy'}
 						</button>
 					</form>
 				{:else}
-					<form onsubmit={deployGit}>
-						<label>
+					<form class="stack" onsubmit={deployGit}>
+						<label class="wbz-field">
 							<span>Git URL</span>
 							<input
 								name="git_url"
@@ -270,16 +347,11 @@
 								disabled={deployBusy}
 							/>
 						</label>
-						<label>
+						<label class="wbz-field">
 							<span>Git ref (optional)</span>
-							<input
-								name="git_ref"
-								bind:value={gitRef}
-								placeholder="main"
-								disabled={deployBusy}
-							/>
+							<input name="git_ref" bind:value={gitRef} placeholder="main" disabled={deployBusy} />
 						</label>
-						<label>
+						<label class="wbz-field">
 							<span>Build command (optional)</span>
 							<input
 								name="build_command"
@@ -288,7 +360,7 @@
 								disabled={deployBusy}
 							/>
 						</label>
-						<label>
+						<label class="wbz-field">
 							<span>Artifact (optional)</span>
 							<input
 								name="artifact"
@@ -297,122 +369,150 @@
 								disabled={deployBusy}
 							/>
 						</label>
-						<button type="submit" disabled={deployBusy}>
+						<button class="wbz-btn" type="submit" disabled={deployBusy}>
 							{deployBusy ? 'Deploying…' : 'Deploy from git'}
 						</button>
 					</form>
 				{/if}
 			</section>
-		{/if}
-
-		<section class="next">
-			<h2>Next steps</h2>
-			<ol>
-				{#if isApp}
-					<li>
-						<strong>Deploy a release</strong> — use Binary upload or Git deploy above.
-					</li>
-				{:else}
-					<li>
-						<strong>Upload files</strong> into <code>{root}/</code> —
-						<a href="/sites">open the Sites page</a> and use the upload form for this domain.
-					</li>
+		{:else}
+			<section class="wbz-panel" aria-labelledby="upload-heading">
+				<h2 id="upload-heading">Upload</h2>
+				<p class="lede">Files land under <code>{root}/</code> and are served by Caddy.</p>
+				{#if uploadOk}
+					<p class="wbz-ok" role="status">{uploadOk}</p>
 				{/if}
-				<li>
-					<strong>Run DNS checklist</strong> — point the domain at this VPS, then check below.
-				</li>
-				<li>
-					<strong>Certificate gating</strong> —
-					{#if !dnsChecked}
-						run the DNS check to see whether HTTPS can be issued.
-					{:else if dnsCanCert}
-						DNS is ready for certificate issuance.
-					{:else}
-						DNS is not ready for HTTPS yet — fix failing records first.
-					{/if}
-				</li>
-			</ol>
-		</section>
-
-		<div class="actions">
-			{#if !isApp}
-				<a class="button" href="/sites">Upload files on Sites</a>
-			{/if}
-			<button type="button" disabled={dnsLoading} onclick={checkDNS}>
-				{dnsLoading ? 'Checking DNS…' : 'Check DNS'}
-			</button>
-		</div>
-
-		{#if dnsChecked}
-			<p class={['summary', dnsCanCert ? 'good' : 'bad']}>
-				{dnsCanCert ? 'DNS ready for certificate issuance' : 'DNS not ready for HTTPS yet'}
-			</p>
-			<table>
-				<thead>
-					<tr><th>Record</th><th>Status</th><th>Detail</th></tr>
-				</thead>
-				<tbody>
-					{#each dnsItems as item, i (item.record + item.host + i)}
-						<tr>
-							<td>{item.record}</td>
-							<td class={item.status}>{item.status}</td>
-							<td>{item.got || item.detail || item.want || '—'}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+				<form class="stack" onsubmit={upload}>
+					<label class="wbz-field">
+						<span>Path under {root}/</span>
+						<input name="path" bind:value={uploadPath} placeholder="index.html" required />
+					</label>
+					<label class="wbz-field">
+						<span>File</span>
+						<input
+							type="file"
+							onchange={(e) => {
+								uploadFile = e.currentTarget.files;
+							}}
+						/>
+					</label>
+					<button class="wbz-btn" type="submit" disabled={uploading}>
+						{uploading ? 'Uploading…' : 'Upload'}
+					</button>
+				</form>
+			</section>
 		{/if}
+
+		<section class="wbz-panel" aria-labelledby="dns-heading">
+			<h2 id="dns-heading">DNS checklist</h2>
+			<p class="lede">Point the domain at this VPS, then run the check. Certificate issuance waits for a green A record.</p>
+			<form
+				class="stack dns-form"
+				onsubmit={(e) => {
+					e.preventDefault();
+					checkDNS();
+				}}
+			>
+				<label class="wbz-field">
+					<span>Expected A (optional override)</span>
+					<input bind:value={expectedA} placeholder="203.0.113.10" />
+				</label>
+				<button class="wbz-btn" type="submit" disabled={dnsLoading}>
+					{dnsLoading ? 'Checking…' : 'Check DNS'}
+				</button>
+			</form>
+			{#if dnsChecked}
+				<p class={['summary', dnsCanCert ? 'good' : 'bad']}>
+					{dnsCanCert ? 'DNS ready for certificate issuance' : 'DNS not ready for HTTPS yet'}
+				</p>
+				<table>
+					<thead>
+						<tr>
+							<th>Record</th>
+							<th>Status</th>
+							<th>Detail</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each dnsItems as item, i (item.record + item.host + i)}
+							<tr>
+								<td>{item.record}</td>
+								<td class={item.status}>{item.status}</td>
+								<td>{item.got || item.detail || item.want || '—'}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
+		</section>
 	{/if}
 </section>
 
 <style>
-	.dash {
-		max-width: 40rem;
-		padding: 1rem 0 4rem;
+	.page {
+		max-width: 44rem;
+		display: grid;
+		gap: 1.15rem;
 	}
 
-	.back {
-		margin: 0 0 1rem;
+	.crumb {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--muted);
+		font-weight: 700;
 	}
 
-	h1 {
-		margin: 0 0 0.4rem;
-		font-size: clamp(2rem, 5vw, 2.6rem);
+	.crumb a {
+		text-decoration: none;
+		font-weight: 800;
+	}
+
+	.crumb span[aria-hidden='true'] {
+		margin: 0 0.35rem;
+		opacity: 0.5;
+	}
+
+	.page-head h1 {
+		margin: 0;
+		font-size: clamp(1.85rem, 4vw, 2.35rem);
 		letter-spacing: -0.03em;
 		font-weight: 800;
 	}
 
-	h2 {
-		margin: 0 0 0.75rem;
-		font-size: 1.15rem;
+	.title-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.65rem;
+		margin-bottom: 0.35rem;
 	}
 
-	header p {
+	.page-head p {
 		margin: 0;
+	}
+
+	.facts {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 0.55rem;
+	}
+
+	.facts li {
+		display: grid;
+		grid-template-columns: 5.5rem 1fr;
+		gap: 0.75rem;
+		align-items: baseline;
+		font-size: 0.95rem;
+	}
+
+	.facts span {
 		color: var(--muted);
-	}
-
-	.muted {
-		color: var(--muted);
-	}
-
-	.error {
-		color: #b42318;
-		font-weight: 600;
-	}
-
-	.ok {
-		color: #067647;
-		font-weight: 600;
-	}
-
-	.deploy,
-	.next {
-		margin: 1.5rem 0 0;
-	}
-
-	.deploy > .muted {
-		margin: 0 0 1rem;
+		font-weight: 700;
+		font-size: 0.82rem;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
 	}
 
 	.mode {
@@ -422,101 +522,37 @@
 		margin: 0 0 1rem;
 	}
 
-	.mode-btn {
-		background: transparent;
-		color: var(--text);
-		border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
-		padding: 0.45rem 0.9rem;
-		font-size: 0.9rem;
-		font-weight: 700;
-	}
-
 	.mode-btn.active {
 		background: var(--wbz-ultramarine);
 		color: #fff;
 		border-color: transparent;
 	}
 
-	form {
+	.stack {
 		display: grid;
 		gap: 0.9rem;
-		max-width: 26rem;
+		max-width: 28rem;
 	}
 
-	label {
-		display: grid;
-		gap: 0.35rem;
-		font-weight: 700;
-		font-size: 0.92rem;
-	}
-
-	input {
-		font: inherit;
-		padding: 0.75rem 0.9rem;
-		border-radius: 12px;
-		border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
-		background: color-mix(in srgb, var(--surface) 92%, transparent);
-		color: var(--text);
-	}
-
-	input[type='file'] {
-		padding: 0.55rem 0;
-		border: 0;
-		border-radius: 0;
-		background: transparent;
-	}
-
-	ol {
-		margin: 0;
-		padding-left: 1.25rem;
-		display: grid;
-		gap: 0.65rem;
-		color: var(--muted);
-	}
-
-	ol strong {
-		color: var(--text);
-	}
-
-	.actions {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		margin: 1.5rem 0;
-	}
-
-	.button,
-	button {
-		font: inherit;
-		font-weight: 800;
-		padding: 0.75rem 1.1rem;
-		border: 0;
-		border-radius: 999px;
-		background: var(--wbz-ultramarine);
-		color: #fff;
-		cursor: pointer;
-		text-decoration: none;
-		display: inline-flex;
-		align-items: center;
+	.stack .wbz-btn {
 		justify-self: start;
 	}
 
-	button:disabled {
-		opacity: 0.7;
-		cursor: wait;
+	.dns-form {
+		margin-bottom: 1rem;
 	}
 
 	.summary {
-		font-weight: 700;
+		font-weight: 800;
 		margin: 0 0 0.75rem;
 	}
 
 	.summary.good {
-		color: #067647;
+		color: var(--ok);
 	}
 
 	.summary.bad {
-		color: #b42318;
+		color: var(--danger);
 	}
 
 	table {
@@ -528,23 +564,35 @@
 	th,
 	td {
 		text-align: left;
-		padding: 0.45rem 0.35rem;
-		border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+		padding: 0.5rem 0.35rem;
+		border-bottom: 1px solid var(--border);
+	}
+
+	th {
+		font-size: 0.78rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+		font-weight: 800;
 	}
 
 	td.pass {
-		color: #067647;
+		color: var(--ok);
 		font-weight: 700;
 	}
 
 	td.fail {
-		color: #b42318;
+		color: var(--danger);
 		font-weight: 700;
 	}
 
 	td.warn,
 	td.skip {
-		color: #b54708;
+		color: var(--warn);
 		font-weight: 700;
+	}
+
+	code {
+		font-size: 0.92em;
 	}
 </style>

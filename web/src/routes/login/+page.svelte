@@ -57,11 +57,11 @@
 	<p>Sign in with your admin account.</p>
 
 	<form method="post" onsubmit={onSubmit}>
-		<label>
+		<label class="wbz-field">
 			<span>Email</span>
 			<input type="email" name="email" autocomplete="username" bind:value={email} required />
 		</label>
-		<label>
+		<label class="wbz-field">
 			<span>Password</span>
 			<input
 				type="password"
@@ -71,7 +71,7 @@
 				required
 			/>
 		</label>
-		<label>
+		<label class="wbz-field">
 			<span>TOTP code</span>
 			<input
 				type="text"
@@ -83,9 +83,11 @@
 			/>
 		</label>
 		{#if error}
-			<p class="error" role="alert">{error}</p>
+			<p class="wbz-error" role="alert">{error}</p>
 		{/if}
-		<button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Continue'}</button>
+		<button class="wbz-btn" type="submit" disabled={submitting}>
+			{submitting ? 'Signing in…' : 'Continue'}
+		</button>
 	</form>
 </section>
 
@@ -107,56 +109,13 @@
 		color: var(--muted);
 	}
 
-	.error {
-		margin: 0;
-		color: #b42318;
-		font-weight: 600;
-	}
-
 	form {
 		display: grid;
 		gap: 1rem;
 	}
 
-	label {
-		display: grid;
-		gap: 0.4rem;
-		font-weight: 700;
-		font-size: 0.92rem;
-	}
-
-	input {
-		font: inherit;
-		padding: 0.75rem 0.9rem;
-		border-radius: 12px;
-		border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
-		background: color-mix(in srgb, var(--surface) 92%, transparent);
-		color: var(--text);
-	}
-
-	input:focus {
-		outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
-		outline-offset: 1px;
-	}
-
-	button {
-		margin-top: 0.35rem;
-		font: inherit;
-		font-weight: 800;
-		padding: 0.85rem 1.1rem;
-		border: 0;
-		border-radius: 999px;
-		background: var(--wbz-ultramarine);
-		color: #fff;
-		cursor: pointer;
-	}
-
-	button:hover:not(:disabled) {
-		filter: brightness(1.05);
-	}
-
-	button:disabled {
-		opacity: 0.7;
-		cursor: wait;
+	.wbz-btn {
+		justify-self: start;
+		margin-top: 0.2rem;
 	}
 </style>

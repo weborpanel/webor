@@ -8,18 +8,15 @@
 	--accent: var(--wbz-ultramarine);
 	--accent-2: var(--wbz-marigold);
 	--surface: #ffffff;
+	--border: color-mix(in srgb, var(--wbz-ink) 14%, transparent);
+	--danger: #b42318;
+	--ok: #067647;
+	--warn: #b54708;
+	--sidebar-width: 15.5rem;
+	--pane-pad: clamp(1.25rem, 3vw, 2.25rem);
+	--radius: 12px;
+	--radius-sm: 8px;
 	--font: 'Nunito', 'Avenir Next', 'Trebuchet MS', sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-	:root {
-		color-scheme: dark;
-		--page: #0a0e24;
-		--text: #eef1fa;
-		--muted: var(--wbz-muted-dark);
-		--accent: var(--wbz-ultramarine-light);
-		--surface: var(--wbz-ink);
-	}
 }
 
 *,
@@ -38,9 +35,17 @@ body {
 	font-family: var(--font);
 	color: var(--text);
 	background:
-		radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--wbz-ultramarine) 18%, transparent), transparent 60%),
-		radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--wbz-marigold) 16%, transparent), transparent 55%),
-		linear-gradient(180deg, var(--page), color-mix(in srgb, var(--page) 88%, var(--wbz-ink)));
+		radial-gradient(
+			1100px 520px at 8% -12%,
+			color-mix(in srgb, var(--wbz-ultramarine) 14%, transparent),
+			transparent 58%
+		),
+		radial-gradient(
+			800px 420px at 100% 0%,
+			color-mix(in srgb, var(--wbz-marigold) 12%, transparent),
+			transparent 52%
+		),
+		linear-gradient(180deg, var(--page), color-mix(in srgb, var(--page) 90%, var(--wbz-ink)));
 	line-height: 1.55;
 }
 
@@ -52,4 +57,129 @@ a {
 
 a:hover {
 	color: color-mix(in srgb, var(--accent) 80%, var(--text));
+}
+
+/* Shared form / button primitives for panel pages */
+.wbz-field {
+	display: grid;
+	gap: 0.35rem;
+	font-weight: 700;
+	font-size: 0.92rem;
+}
+
+.wbz-field input,
+.wbz-field select,
+.wbz-input {
+	font: inherit;
+	padding: 0.7rem 0.85rem;
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--border);
+	background: var(--surface);
+	color: var(--text);
+}
+
+.wbz-field input:focus,
+.wbz-field select:focus,
+.wbz-input:focus {
+	outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
+	outline-offset: 1px;
+}
+
+.wbz-field input[type='file'] {
+	padding: 0.4rem 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+
+.wbz-btn {
+	font: inherit;
+	font-weight: 800;
+	padding: 0.7rem 1.05rem;
+	border: 0;
+	border-radius: var(--radius-sm);
+	background: var(--wbz-ultramarine);
+	color: #fff;
+	cursor: pointer;
+	text-decoration: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+}
+
+.wbz-btn:hover:not(:disabled) {
+	filter: brightness(1.05);
+}
+
+.wbz-btn:disabled {
+	opacity: 0.7;
+	cursor: wait;
+}
+
+.wbz-btn-ghost {
+	background: transparent;
+	color: var(--text);
+	border: 1px solid var(--border);
+}
+
+.wbz-btn-danger {
+	background: transparent;
+	color: var(--danger);
+	border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+	padding: 0.4rem 0.75rem;
+	font-size: 0.85rem;
+	font-weight: 700;
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+	font: inherit;
+}
+
+.wbz-panel {
+	background: color-mix(in srgb, var(--surface) 94%, transparent);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 1.15rem 1.25rem;
+}
+
+.wbz-panel h2 {
+	margin: 0 0 0.5rem;
+	font-size: 1.05rem;
+	font-weight: 800;
+	letter-spacing: -0.02em;
+}
+
+.wbz-panel .lede {
+	margin: 0 0 1rem;
+	color: var(--muted);
+	font-size: 0.95rem;
+}
+
+.wbz-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.15rem 0.55rem;
+	border-radius: var(--radius-sm);
+	font-size: 0.78rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	background: color-mix(in srgb, var(--wbz-ultramarine) 12%, var(--surface));
+	color: var(--wbz-ultramarine);
+}
+
+.wbz-error {
+	margin: 0;
+	color: var(--danger);
+	font-weight: 700;
+}
+
+.wbz-ok {
+	margin: 0;
+	color: var(--ok);
+	font-weight: 700;
+}
+
+.wbz-muted {
+	color: var(--muted);
 }

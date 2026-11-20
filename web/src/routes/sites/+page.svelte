@@ -14,25 +14,7 @@
 	let name = $state('');
 	let siteKind = $state<'static' | 'app'>('static');
 	let submitting = $state(false);
-
-	let selected = $state('');
-	let uploadPath = $state('index.html');
-	let uploadFile = $state<FileList | null>(null);
-	let uploading = $state(false);
-
-	type DnsItem = {
-		record: string;
-		host: string;
-		want?: string;
-		got?: string;
-		status: string;
-		detail?: string;
-	};
-	let dnsItems = $state<DnsItem[]>([]);
-	let dnsOK = $state<boolean | null>(null);
-	let dnsCanCert = $state(false);
-	let dnsLoading = $state(false);
-	let expectedA = $state('');
+	let removing = $state('');
 
 	async function load() {
 		loading = true;
@@ -49,7 +31,6 @@
 				return;
 			}
 			sites = data.sites || [];
-			if (!selected && sites.length) selected = sites[0].name;
 		} catch {
 			error = 'Could not reach the panel API';
 		} finally {
@@ -58,7 +39,6 @@
 	}
 
 	function isValidHostname(domain: string): boolean {
-		// Lowercase hostname: letters/digits/hyphen/dot, at least one dot
 		return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain);
 	}
 
@@ -83,7 +63,6 @@
 			const data = (await res.json().catch(() => ({}))) as {
 				ok?: boolean;
 				error?: string;
-				warning?: string;
 			};
 			if (!res.ok || !data.ok) {
 				error = data.error || 'Could not add site';
@@ -99,78 +78,20 @@
 
 	async function removeSite(siteName: string) {
 		error = '';
-		const res = await fetch(`/api/sites/${encodeURIComponent(siteName)}`, {
-			method: 'DELETE',
-			credentials: 'same-origin'
-		});
-		const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-		if (!res.ok || !data.ok) {
-			error = data.error || 'Could not remove site';
-			return;
-		}
-		if (selected === siteName) selected = '';
-		await load();
-	}
-
-	async function upload(e: Event) {
-		e.preventDefault();
-		if (!selected || !uploadFile?.length) {
-			error = 'Choose a site and a file';
-			return;
-		}
-		uploading = true;
-		error = '';
+		removing = siteName;
 		try {
-			const file = uploadFile[0];
-			const path = uploadPath.trim() || file.name;
-			const res = await fetch(
-				`/api/sites/${encodeURIComponent(selected)}/files/${path.split('/').map(encodeURIComponent).join('/')}`,
-				{
-					method: 'PUT',
-					credentials: 'same-origin',
-					headers: { 'Content-Type': 'application/octet-stream' },
-					body: await file.arrayBuffer()
-				}
-			);
-			const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-			if (!res.ok || !data.ok) {
-				error = data.error || 'Upload failed';
-				return;
-			}
-			uploadFile = null;
-		} catch {
-			error = 'Could not reach the panel API';
-		} finally {
-			uploading = false;
-		}
-	}
-
-	async function checkDNS() {
-		if (!selected) return;
-		dnsLoading = true;
-		error = '';
-		try {
-			const q = expectedA.trim() ? `?a=${encodeURIComponent(expectedA.trim())}` : '';
-			const res = await fetch(`/api/sites/${encodeURIComponent(selected)}/dns${q}`, {
+			const res = await fetch(`/api/sites/${encodeURIComponent(siteName)}`, {
+				method: 'DELETE',
 				credentials: 'same-origin'
 			});
-			const data = (await res.json()) as {
-				ok?: boolean;
-				error?: string;
-				can_issue_certificate?: boolean;
-				reports?: { ok: boolean; items: DnsItem[] }[];
-			};
+			const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
 			if (!res.ok || !data.ok) {
-				error = data.error || 'DNS check failed';
+				error = data.error || 'Could not remove site';
 				return;
 			}
-			dnsItems = data.reports?.[0]?.items || [];
-			dnsOK = data.reports?.[0]?.ok ?? null;
-			dnsCanCert = !!data.can_issue_certificate;
-		} catch {
-			error = 'Could not reach the panel API';
+			await load();
 		} finally {
-			dnsLoading = false;
+			removing = '';
 		}
 	}
 
@@ -181,282 +102,180 @@
 	<title>Sites · Webooza</title>
 </svelte:head>
 
-<section class="sites">
-	<header>
+<section class="page">
+	<header class="page-head">
 		<h1>Sites</h1>
-		<p>Each site gets a <code>public/</code> folder (like public_html). Upload HTML there; Caddy serves it.</p>
+		<p class="wbz-muted">Static and app sites on this VPS. Open a site to upload, deploy, or check DNS.</p>
 	</header>
 
 	{#if error}
-		<p class="error" role="alert">{error}</p>
+		<p class="wbz-error" role="alert">{error}</p>
 	{/if}
 
-	{#if loading}
-		<p class="muted">Loading…</p>
-	{:else if sites.length === 0}
-		<p class="muted">No sites yet. Add a domain below.</p>
-	{:else}
-		<ul>
-			{#each sites as site (site.name)}
-				<li>
-					<button
-						type="button"
-						class={['pick', selected === site.name && 'active']}
-						onclick={() => (selected = site.name)}
-					>
-						<strong>{site.name}</strong>
-						<span class="meta">{site.type} · {site.root || 'public'}/ · <a href={`/sites/${encodeURIComponent(site.name)}`} onclick={(e) => e.stopPropagation()}>dashboard</a></span>
-					</button>
-					<button type="button" class="danger" onclick={() => removeSite(site.name)}>Remove</button>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-
-	<form onsubmit={addSite}>
-		<h2>Add site</h2>
-		<label>
-			<span>Domain</span>
-			<input name="name" bind:value={name} placeholder="example.com" required />
-		</label>
-		<label>
-			<span>Type</span>
-			<select name="type" bind:value={siteKind}>
-				<option value="static">Static</option>
-				<option value="app">App</option>
-			</select>
-		</label>
-		<button type="submit" disabled={submitting}>{submitting ? 'Adding…' : 'Add site'}</button>
-	</form>
-
-	{#if selected}
-		<form class="upload" onsubmit={upload}>
-			<h2>Upload into {selected}/public/</h2>
-			<label>
-				<span>Path under public/</span>
-				<input name="path" bind:value={uploadPath} placeholder="index.html" required />
-			</label>
-			<label>
-				<span>File</span>
-				<input
-					type="file"
-					onchange={(e) => {
-						uploadFile = e.currentTarget.files;
-					}}
-				/>
-			</label>
-			<button type="submit" disabled={uploading}>{uploading ? 'Uploading…' : 'Upload'}</button>
-		</form>
-
-		<div class="dns">
-			<h2>DNS checklist · {selected}</h2>
-			<p class="muted">Point the domain at this VPS, then run the check. Certificate issuance waits for a green A record.</p>
-			<label>
-				<span>Expected A (optional override)</span>
-				<input bind:value={expectedA} placeholder="203.0.113.10" />
-			</label>
-			<button type="button" disabled={dnsLoading} onclick={checkDNS}>
-				{dnsLoading ? 'Checking…' : 'Check DNS'}
-			</button>
-			{#if dnsOK !== null}
-				<p class={['dns-summary', dnsCanCert ? 'good' : 'bad']}>
-					{dnsCanCert ? 'Ready for certificate issuance' : 'Not ready — fix failing records first'}
-				</p>
+	<div class="layout">
+		<section class="wbz-panel inventory" aria-labelledby="inventory-heading">
+			<h2 id="inventory-heading">Your sites</h2>
+			{#if loading}
+				<p class="wbz-muted">Loading…</p>
+			{:else if sites.length === 0}
+				<p class="wbz-muted empty">No sites yet. Add a domain to get started.</p>
+			{:else}
 				<table>
 					<thead>
-						<tr><th>Record</th><th>Status</th><th>Want</th><th>Got</th></tr>
+						<tr>
+							<th>Domain</th>
+							<th>Type</th>
+							<th></th>
+						</tr>
 					</thead>
 					<tbody>
-						{#each dnsItems as item, i (item.record + item.host + i)}
+						{#each sites as site (site.name)}
 							<tr>
-								<td>{item.record}</td>
-								<td class={item.status}>{item.status}</td>
-								<td>{item.want || '—'}</td>
-								<td>{item.got || item.detail || '—'}</td>
+								<td>
+									<a class="site-link" href={`/sites/${encodeURIComponent(site.name)}`}>
+										{site.name}
+									</a>
+								</td>
+								<td>
+									<span class="wbz-badge">{site.type}</span>
+								</td>
+								<td class="actions">
+									<a class="open" href={`/sites/${encodeURIComponent(site.name)}`}>Open</a>
+									<button
+										type="button"
+										class="wbz-btn-danger"
+										disabled={removing === site.name}
+										onclick={() => removeSite(site.name)}
+									>
+										{removing === site.name ? 'Removing…' : 'Remove'}
+									</button>
+								</td>
 							</tr>
 						{/each}
 					</tbody>
 				</table>
 			{/if}
-		</div>
-	{/if}
+		</section>
+
+		<form class="wbz-panel add" onsubmit={addSite} aria-labelledby="add-heading">
+			<h2 id="add-heading">Add site</h2>
+			<p class="lede">Creates the site user, directories, and Caddy route.</p>
+			<label class="wbz-field">
+				<span>Domain</span>
+				<input name="name" bind:value={name} placeholder="example.com" required autocomplete="off" />
+			</label>
+			<label class="wbz-field">
+				<span>Type</span>
+				<select name="type" bind:value={siteKind}>
+					<option value="static">Static</option>
+					<option value="app">App</option>
+				</select>
+			</label>
+			<button class="wbz-btn" type="submit" disabled={submitting}>
+				{submitting ? 'Adding…' : 'Add site'}
+			</button>
+		</form>
+	</div>
 </section>
 
 <style>
-	.sites {
-		max-width: 40rem;
-		padding: 1rem 0 4rem;
+	.page {
+		max-width: 56rem;
+		display: grid;
+		gap: 1.25rem;
 	}
 
-	header {
-		margin-bottom: 1.5rem;
-	}
-
-	h1 {
-		margin: 0 0 0.4rem;
-		font-size: clamp(2rem, 5vw, 2.6rem);
+	.page-head h1 {
+		margin: 0 0 0.35rem;
+		font-size: clamp(1.85rem, 4vw, 2.35rem);
 		letter-spacing: -0.03em;
 		font-weight: 800;
 	}
 
-	h2 {
-		margin: 0 0 0.75rem;
-		font-size: 1.15rem;
-	}
-
-	p {
+	.page-head p {
 		margin: 0;
-		color: var(--muted);
+		max-width: 42ch;
 	}
 
-	code {
-		font-size: 0.92em;
-	}
-
-	.muted {
-		margin: 0 0 1.25rem;
-		color: var(--muted);
-	}
-
-	.error {
-		margin: 0 0 1rem;
-		color: #b42318;
-		font-weight: 600;
-	}
-
-	ul {
-		list-style: none;
-		margin: 0 0 2rem;
-		padding: 0;
+	.layout {
 		display: grid;
-		gap: 0.65rem;
+		gap: 1.15rem;
+		grid-template-columns: minmax(0, 1.4fr) minmax(16rem, 0.9fr);
+		align-items: start;
 	}
 
-	li {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.35rem 0;
-		border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+	.inventory {
+		min-width: 0;
 	}
 
-	.pick {
-		display: grid;
-		gap: 0.15rem;
-		text-align: left;
-		background: transparent;
-		border: 0;
-		padding: 0.5rem 0;
-		color: inherit;
-		font: inherit;
-		cursor: pointer;
-	}
-
-	.pick.active strong {
-		color: var(--wbz-ultramarine);
-	}
-
-	.meta {
-		font-size: 0.9rem;
-		color: var(--muted);
-		font-weight: 500;
-	}
-
-	form {
-		display: grid;
-		gap: 0.9rem;
-		max-width: 26rem;
-		margin-bottom: 2rem;
-	}
-
-	label {
-		display: grid;
-		gap: 0.35rem;
-		font-weight: 700;
-		font-size: 0.92rem;
-	}
-
-	input,
-	select {
-		font: inherit;
-		padding: 0.75rem 0.9rem;
-		border-radius: 12px;
-		border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
-		background: color-mix(in srgb, var(--surface) 92%, transparent);
-		color: var(--text);
-	}
-
-	button {
-		font: inherit;
-		font-weight: 800;
-		padding: 0.75rem 1.1rem;
-		border: 0;
-		border-radius: 999px;
-		background: var(--wbz-ultramarine);
-		color: #fff;
-		cursor: pointer;
-		justify-self: start;
-	}
-
-	button:disabled {
-		opacity: 0.7;
-		cursor: wait;
-	}
-
-	button.danger {
-		background: transparent;
-		color: #b42318;
-		border: 1px solid color-mix(in srgb, #b42318 35%, transparent);
-		padding: 0.45rem 0.85rem;
-		font-size: 0.85rem;
-	}
-
-	.dns {
-		display: grid;
-		gap: 0.75rem;
-		max-width: 36rem;
-	}
-
-	.dns-summary {
-		font-weight: 700;
-	}
-
-	.dns-summary.good {
-		color: #067647;
-	}
-
-	.dns-summary.bad {
-		color: #b42318;
+	.empty {
+		margin: 0.25rem 0 0;
 	}
 
 	table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.9rem;
+		font-size: 0.95rem;
 	}
 
 	th,
 	td {
 		text-align: left;
-		padding: 0.45rem 0.35rem;
-		border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-		vertical-align: top;
+		padding: 0.7rem 0.35rem;
+		border-bottom: 1px solid var(--border);
+		vertical-align: middle;
 	}
 
-	td.pass {
-		color: #067647;
-		font-weight: 700;
+	th {
+		font-size: 0.78rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+		font-weight: 800;
 	}
 
-	td.fail {
-		color: #b42318;
-		font-weight: 700;
+	.site-link {
+		font-weight: 800;
+		text-decoration: none;
+		color: var(--text);
 	}
 
-	td.warn,
-	td.skip {
-		color: #b54708;
-		font-weight: 700;
+	.site-link:hover {
+		color: var(--wbz-ultramarine);
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.55rem;
+		justify-content: flex-end;
+		align-items: center;
+	}
+
+	.open {
+		font-weight: 800;
+		font-size: 0.9rem;
+		text-decoration: none;
+		color: var(--wbz-ultramarine);
+	}
+
+	.add {
+		display: grid;
+		gap: 0.9rem;
+	}
+
+	.add .wbz-btn {
+		justify-self: start;
+		margin-top: 0.25rem;
+	}
+
+	@media (max-width: 820px) {
+		.layout {
+			grid-template-columns: 1fr;
+		}
+
+		.actions {
+			justify-content: flex-start;
+		}
 	}
 </style>
