@@ -88,3 +88,8 @@ func SiteRuntime(domain string) string {
 func AppSocket(domain string) string {
 	return filepath.Join(SiteRuntime(domain), "app.sock")
 }
+
+// AppBackendSocket returns the private backend socket used with systemd-socket-proxyd.
+func AppBackendSocket(domain string) string {
+	return filepath.Join(SiteRuntime(domain), "backend.sock")
+}

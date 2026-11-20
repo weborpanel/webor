@@ -42,6 +42,30 @@
 	let uploading = $state(false);
 	let uploadOk = $state('');
 
+	let socketProxy = $state(false);
+	let cronNames = $state<string[]>([]);
+	let jobNames = $state<string[]>([]);
+
+	let logUnit = $state('app');
+	let logText = $state('');
+	let logUnitName = $state('');
+	let logLoading = $state(false);
+	let logError = $state('');
+
+	type Resources = {
+		disk_used_bytes?: number;
+		disk_avail_bytes?: number;
+		disk_quota?: string;
+		memory_current_bytes?: number;
+		memory_max?: string;
+		cpu_usage_usec?: number;
+		app_active?: boolean;
+		unit?: string;
+	};
+	let resources = $state<Resources | null>(null);
+	let resourcesLoading = $state(false);
+	let resourcesError = $state('');
+
 	async function load() {
 		loading = true;
 		error = '';
@@ -54,7 +78,14 @@
 			const data = (await res.json()) as {
 				ok?: boolean;
 				error?: string;
-				sites?: { name: string; type?: string; root?: string }[];
+				sites?: {
+					name: string;
+					type?: string;
+					root?: string;
+					socket_proxy?: boolean;
+					cron?: string[];
+					jobs?: string[];
+				}[];
 			};
 			if (!res.ok || !data.ok) {
 				error = data.error || 'Failed to load site';
@@ -64,11 +95,94 @@
 			exists = !!site;
 			root = site?.root || 'public';
 			siteType = site?.type || 'static';
+			socketProxy = !!site?.socket_proxy;
+			cronNames = site?.cron || [];
+			jobNames = site?.jobs || [];
+			if (socketProxy) logUnit = 'backend';
+			else if (siteType === 'app') logUnit = 'app';
+			else if (cronNames.length) logUnit = `cron:${cronNames[0]}`;
+			else if (jobNames.length) logUnit = `job:${jobNames[0]}`;
 		} catch {
 			error = 'Could not reach the panel API';
 		} finally {
 			loading = false;
 		}
+		if (exists) {
+			await Promise.all([loadLogs(), loadResources()]);
+		}
+	}
+
+	async function loadLogs() {
+		logLoading = true;
+		logError = '';
+		try {
+			const q = new URLSearchParams({ unit: logUnit, lines: '120' });
+			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/logs?${q}`, {
+				credentials: 'same-origin'
+			});
+			if (res.status === 401) {
+				await goto('/login');
+				return;
+			}
+			const data = (await res.json().catch(() => ({}))) as {
+				ok?: boolean;
+				error?: string;
+				text?: string;
+				unit?: string;
+			};
+			if (!res.ok || !data.ok) {
+				logError = data.error || 'Could not load logs';
+				logText = '';
+				return;
+			}
+			logText = data.text || '';
+			logUnitName = data.unit || '';
+		} catch {
+			logError = 'Could not reach the panel API';
+		} finally {
+			logLoading = false;
+		}
+	}
+
+	async function loadResources() {
+		resourcesLoading = true;
+		resourcesError = '';
+		try {
+			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/resources`, {
+				credentials: 'same-origin'
+			});
+			if (res.status === 401) {
+				await goto('/login');
+				return;
+			}
+			const data = (await res.json().catch(() => ({}))) as {
+				ok?: boolean;
+				error?: string;
+				resources?: Resources;
+			};
+			if (!res.ok || !data.ok) {
+				resourcesError = data.error || 'Could not load resources';
+				resources = null;
+				return;
+			}
+			resources = data.resources || null;
+		} catch {
+			resourcesError = 'Could not reach the panel API';
+		} finally {
+			resourcesLoading = false;
+		}
+	}
+
+	function formatBytes(n?: number): string {
+		if (n == null || n < 0 || Number.isNaN(n)) return '—';
+		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+		let v = n;
+		let i = 0;
+		while (v >= 1024 && i < units.length - 1) {
+			v /= 1024;
+			i++;
+		}
+		return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
 	}
 
 	async function checkDNS() {
@@ -272,6 +386,9 @@
 			<ul class="facts">
 				<li><span>Type</span> <strong>{siteType}</strong></li>
 				<li><span>Path</span> <code>/srv/sites/{name}/</code></li>
+				{#if socketProxy}
+					<li><span>Socket</span> <strong>proxyd idle</strong></li>
+				{/if}
 				<li>
 					<span>HTTPS</span>
 					<strong>
@@ -285,6 +402,41 @@
 					</strong>
 				</li>
 			</ul>
+		</section>
+
+		<section class="wbz-panel" aria-labelledby="resources-heading">
+			<h2 id="resources-heading">Resources</h2>
+			<p class="lede">Disk under the site root and memory for the app unit (when running).</p>
+			{#if resourcesError}
+				<p class="wbz-error" role="alert">{resourcesError}</p>
+			{/if}
+			{#if resourcesLoading && !resources}
+				<p class="wbz-muted">Loading…</p>
+			{:else if resources}
+				<ul class="facts">
+					<li><span>Disk used</span> <strong>{formatBytes(resources.disk_used_bytes)}</strong></li>
+					<li><span>Disk free</span> <strong>{formatBytes(resources.disk_avail_bytes)}</strong></li>
+					{#if resources.disk_quota}
+						<li><span>Quota</span> <strong>{resources.disk_quota}</strong></li>
+					{/if}
+					<li>
+						<span>Memory</span>
+						<strong>
+							{formatBytes(resources.memory_current_bytes)}
+							{#if resources.memory_max}
+								<span class="wbz-muted"> / {resources.memory_max}</span>
+							{/if}
+						</strong>
+					</li>
+					<li>
+						<span>App</span>
+						<strong>{resources.app_active ? 'active' : 'inactive'}</strong>
+					</li>
+				</ul>
+			{/if}
+			<button class="wbz-btn wbz-btn-ghost" type="button" disabled={resourcesLoading} onclick={loadResources}>
+				{resourcesLoading ? 'Refreshing…' : 'Refresh'}
+			</button>
 		</section>
 
 		{#if isApp}
@@ -402,6 +554,40 @@
 				</form>
 			</section>
 		{/if}
+
+		<section class="wbz-panel" aria-labelledby="logs-heading">
+			<h2 id="logs-heading">Logs</h2>
+			<p class="lede">Recent journal lines for this site’s units.</p>
+			<div class="log-controls">
+				<label class="wbz-field">
+					<span>Unit</span>
+					<select bind:value={logUnit} onchange={loadLogs}>
+						{#if isApp}
+							<option value="app">{socketProxy ? 'Proxyd' : 'App'}</option>
+							{#if socketProxy}
+								<option value="backend">Backend</option>
+							{/if}
+						{/if}
+						{#each cronNames as cron (cron)}
+							<option value={`cron:${cron}`}>Cron · {cron}</option>
+						{/each}
+						{#each jobNames as job (job)}
+							<option value={`job:${job}`}>Job · {job}</option>
+						{/each}
+					</select>
+				</label>
+				<button class="wbz-btn wbz-btn-ghost" type="button" disabled={logLoading} onclick={loadLogs}>
+					{logLoading ? 'Loading…' : 'Refresh'}
+				</button>
+			</div>
+			{#if logUnitName}
+				<p class="wbz-muted unit-name"><code>{logUnitName}</code></p>
+			{/if}
+			{#if logError}
+				<p class="wbz-error" role="alert">{logError}</p>
+			{/if}
+			<pre class="log-tail">{logText || (logLoading ? '…' : '(no log lines)')}</pre>
+		</section>
 
 		<section class="wbz-panel" aria-labelledby="dns-heading">
 			<h2 id="dns-heading">DNS checklist</h2>
@@ -540,6 +726,37 @@
 
 	.dns-form {
 		margin-bottom: 1rem;
+	}
+
+	.log-controls {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		align-items: end;
+		margin-bottom: 0.75rem;
+	}
+
+	.log-controls .wbz-field {
+		min-width: 12rem;
+	}
+
+	.unit-name {
+		margin: 0 0 0.5rem;
+		font-size: 0.85rem;
+	}
+
+	.log-tail {
+		margin: 0;
+		padding: 0.85rem 1rem;
+		max-height: 18rem;
+		overflow: auto;
+		font-size: 0.8rem;
+		line-height: 1.45;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--border);
+		background: color-mix(in srgb, var(--wbz-ink) 4%, var(--surface));
+		white-space: pre-wrap;
+		word-break: break-word;
 	}
 
 	.summary {

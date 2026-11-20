@@ -1,0 +1,12 @@
+version: 1
+panel:
+  port: 0
+sites:
+  - name: app.example.com
+    type: app
+    exec: ./bin/server
+    socket_activation: true
+    socket_proxy: true
+    idle_timeout: 3s
+    limits:
+      memory_max: 128M

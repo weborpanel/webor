@@ -102,12 +102,20 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 	if units.SocketName != "" {
 		_ = ops.SystemctlStop(units.ServiceName)
 		_ = ops.SystemctlStop(units.SocketName)
+		if units.BackendServiceName != "" {
+			_ = ops.SystemctlStop(units.BackendServiceName)
+		}
 		if err := ops.WriteUnitFile(site.Name, units.SocketName, units.Socket); err != nil {
 			return err
 		}
 	}
 	if err := ops.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
 		return err
+	}
+	if units.BackendServiceName != "" {
+		if err := ops.WriteUnitFile(site.Name, units.BackendServiceName, units.BackendService); err != nil {
+			return err
+		}
 	}
 
 	u := sites.Username(site.Name)
@@ -116,6 +124,11 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 		return fmt.Errorf("chown: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 
+	if units.BackendServiceName != "" {
+		if err := ops.SystemctlEnableNow(units.BackendServiceName); err != nil {
+			return err
+		}
+	}
 	if units.SocketName != "" {
 		if err := ops.SystemctlEnableNow(units.SocketName); err != nil {
 			return err
@@ -125,6 +138,9 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 	}
 
 	if err := ops.InstallSiteCron(site); err != nil {
+		return err
+	}
+	if err := ops.InstallSiteJobs(site); err != nil {
 		return err
 	}
 

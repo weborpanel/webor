@@ -81,3 +81,36 @@ func TestRenderAppUnitsRequiresExec(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestRenderAppUnitsSocketProxy(t *testing.T) {
+	if _, err := systemd.FindSocketProxyd(); err != nil {
+		t.Skip("systemd-socket-proxyd not installed")
+	}
+	units, err := systemd.RenderAppUnits(config.Site{
+		Name:             "app.example.com",
+		Type:             config.SiteTypeApp,
+		Exec:             "./bin/server",
+		SocketActivation: true,
+		SocketProxy:      true,
+		IdleTimeout:      "3s",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if units.BackendServiceName != "webooza-app-app-example-com-backend.service" {
+		t.Fatalf("backend=%q", units.BackendServiceName)
+	}
+	if !strings.Contains(units.Service, "systemd-socket-proxyd") {
+		t.Fatalf("proxy service missing proxyd:\n%s", units.Service)
+	}
+	if !strings.Contains(units.Service, "--exit-idle-time=3s") {
+		t.Fatalf("proxy missing idle flag:\n%s", units.Service)
+	}
+	backendSock := sites.AppBackendSocket("app.example.com")
+	if !strings.Contains(units.BackendService, "Environment=WBZ_SOCK="+backendSock) {
+		t.Fatalf("backend missing WBZ_SOCK:\n%s", units.BackendService)
+	}
+	if !strings.Contains(units.BackendService, "Restart=on-failure") {
+		t.Fatalf("backend should stay up:\n%s", units.BackendService)
+	}
+}

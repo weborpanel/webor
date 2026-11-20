@@ -15,7 +15,12 @@ idle_timeout: 15m
 The unit renderer sets `Environment=WBZ_IDLE_TIMEOUT=<value>` and `Restart=no`.
 Cooperative apps (`spike-socket-go`, and the Node sample under
 `examples/socket-activation/node-app`) read `WBZ_IDLE_TIMEOUT` and shut down
-when idle. Non-cooperative apps need the proxyd/`--exit-idle-time=` path (still open).
+when idle.
+
+Non-cooperative apps use `socket_proxy: true`: public `.socket` activates
+`systemd-socket-proxyd` with `--exit-idle-time=` from `idle_timeout`, forwarding
+to a private always-on backend (`WBZ_SOCK`). Smoke: `make lab-proxyd`.
+
 For the full Node smoke (wake + idle + deploy) use `make lab-node`.
 
 ## On the Debian VM

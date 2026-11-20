@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-20): Milestone 0–1 lab-complete. Milestone 2 in progress: socket apps, deploy+rollback, idle-stop, cron, panel deploy API + Svelte deploy UI, Node sample (`make lab-node`). Still open in M2: proxyd idle fallback, journal viewer UI, long-running job services, resource monitoring. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
+*Progress note (2026-11-20): Milestone 0–1 lab-complete. Milestone 2 lab-complete: socket apps, deploy+rollback, cooperative + proxyd idle, cron + long-running jobs, Node sample, journal viewer, resource snapshot, deploy UI + dashboard. Next: Milestone 3 installer/hardening. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
 
 ## 1. Product scope
 
@@ -182,19 +182,19 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 2: Native apps, socket activation and jobs (weeks 6 to 8)
 
-**Status:** in progress (slice 4: cron timers + run-now + status)
+**Status:** lab-complete
 
 **Deliverables**
 
 - [x] App unit rendering: per-site user service, systemd hardening subset, env file, Unix socket (`internal/providers/systemd`)
-- [~] Socket activation with wake-on-request and cooperative idle-stop via `idle_timeout` → `WBZ_IDLE_TIMEOUT` (`make lab-idle`); proxyd/`--exit-idle-time=` fallback for non-cooperative apps still open; always-on when `socket_activation: false`
+- [x] Socket activation with wake-on-request; cooperative idle-stop (`WBZ_IDLE_TIMEOUT`, `make lab-idle`); proxyd/`--exit-idle-time=` fallback (`socket_proxy`, `make lab-proxyd`); always-on when `socket_activation: false`
 - [x] Deploys: helper + IPC + panel API + Svelte deploy UI (binary/git on app site detail) with atomic symlinks and probe rollback (`make lab-deploy`)
 - [x] Node sample: socket wake + cooperative idle-stop + deploy/rollback (`examples/socket-activation/node-app`, `make lab-node`)
-- [~] Logs: helper `JournalTail` for unit journals; full viewer UI + per-unit size limits still open
-- [~] Cron: 5-field schedule → `OnCalendar` timers, install/enable, run-now, status/failure flags (`make lab-cron`); long-running job-as-service still open
-- [ ] Resource monitoring: CPU, memory and disk usage from cgroups and filesystem checks
+- [x] Logs: helper `JournalTail` + `GET /api/sites/{name}/logs` + site detail Logs panel; `limits.log_max` rate-limit hints (global `SystemMaxUse` → M3)
+- [x] Cron: 5-field schedule → `OnCalendar` timers (`make lab-cron`); long-running `jobs:` services (`make lab-job`)
+- [x] Resource monitoring: disk + memory (+ optional CPU) via `GET /api/sites/{name}/resources` + Resources strip
 
-**Exit criteria:** sample Node and Go apps deploy, scale to zero and wake on request, roll back after a failed health check, and run a scheduled job. Process-isolation tests pass.
+**Exit criteria:** sample Node and Go apps deploy, scale to zero and wake on request, roll back after a failed health check, and run a scheduled job. Process-isolation tests pass. — **met in lab**
 
 ### Milestone 3: Installer and hardening (weeks 9 to 10)
 

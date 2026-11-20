@@ -19,6 +19,7 @@ const (
 	OpReloadCaddy     = "ReloadCaddy"
 	OpRunCronNow      = "RunCronNow"
 	OpCronStatus      = "CronStatus"
+	OpJournalTail     = "JournalTail"
 	OpRequestApproval = "RequestApproval"
 	OpApprove         = "Approve" // console / root only
 	OpDangerousDemo   = "DangerousDemo"
@@ -112,6 +113,13 @@ type RunCronNowArgs struct {
 type CronStatusArgs struct {
 	Domain string `json:"domain"`
 	Job    string `json:"job"`
+}
+
+// JournalTailArgs tails a site unit journal (app|backend|cron:<n>|job:<n>).
+type JournalTailArgs struct {
+	Domain   string `json:"domain"`
+	Unit     string `json:"unit"` // selector
+	Lines    int    `json:"lines,omitempty"`
 }
 
 // RequestApprovalArgs creates a pending step-up approval bound to an operation.

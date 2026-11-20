@@ -1,0 +1,14 @@
+version: 1
+panel:
+  port: 0
+sites:
+  - name: app.example.com
+    type: app
+    exec: ./bin/server
+    socket_activation: true
+    idle_timeout: 15m
+    limits:
+      memory_max: 128M
+    jobs:
+      - name: lab-keep
+        exec: ./bin/lab-keep

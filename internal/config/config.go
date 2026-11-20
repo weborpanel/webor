@@ -46,12 +46,14 @@ type Site struct {
 	BuildCommand     string            `yaml:"build_command,omitempty"`
 	Exec             string            `yaml:"exec,omitempty"`
 	SocketActivation bool              `yaml:"socket_activation,omitempty"`
+	SocketProxy      bool              `yaml:"socket_proxy,omitempty"` // proxyd + private backend (non-LISTEN_FDS apps)
 	IdleTimeout      string            `yaml:"idle_timeout,omitempty"`
 	EnvFile          string            `yaml:"env_file,omitempty"`
 	Database         string            `yaml:"database,omitempty"`
 	Cache            string            `yaml:"cache,omitempty"`
 	Limits           Limits            `yaml:"limits,omitempty"`
 	Cron             []CronJob         `yaml:"cron,omitempty"`
+	Jobs             []Job             `yaml:"jobs,omitempty"` // long-running Type=simple services
 	Extra            map[string]string `yaml:"extra,omitempty"`
 }
 
@@ -62,11 +64,17 @@ type Limits struct {
 	MemoryMax string `yaml:"memory_max,omitempty"`
 }
 
-// CronJob is a scheduled job for a site.
+// CronJob is a scheduled oneshot job for a site.
 type CronJob struct {
 	Name     string `yaml:"name"`
 	Schedule string `yaml:"schedule"`
 	Exec     string `yaml:"exec"`
+}
+
+// Job is a long-running (Type=simple) per-site service with no schedule.
+type Job struct {
+	Name string `yaml:"name"`
+	Exec string `yaml:"exec"`
 }
 
 // Mail is reserved so adding mail later does not break existing configs.
@@ -149,7 +157,7 @@ func (c *Config) Validate() error {
 		if err := validateIdleTimeout(s); err != nil {
 			return fmt.Errorf("%s: %w", prefix, err)
 		}
-		seenJobs := map[string]struct{}{}
+		seenCron := map[string]struct{}{}
 		for j, job := range s.Cron {
 			if strings.TrimSpace(job.Name) == "" {
 				return fmt.Errorf("%s.cron[%d]: name is required", prefix, j)
@@ -161,13 +169,27 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("%s.cron[%d]: exec is required", prefix, j)
 			}
 			key := strings.ToLower(strings.TrimSpace(job.Name))
-			if _, ok := seenJobs[key]; ok {
+			if _, ok := seenCron[key]; ok {
 				return fmt.Errorf("%s.cron[%d]: duplicate job name %q", prefix, j, job.Name)
 			}
-			seenJobs[key] = struct{}{}
+			seenCron[key] = struct{}{}
 			if err := validateCronSchedule(job.Schedule); err != nil {
 				return fmt.Errorf("%s.cron[%d].schedule: %w", prefix, j, err)
 			}
+		}
+		seenJobs := map[string]struct{}{}
+		for j, job := range s.Jobs {
+			if strings.TrimSpace(job.Name) == "" {
+				return fmt.Errorf("%s.jobs[%d]: name is required", prefix, j)
+			}
+			if strings.TrimSpace(job.Exec) == "" {
+				return fmt.Errorf("%s.jobs[%d]: exec is required", prefix, j)
+			}
+			key := strings.ToLower(strings.TrimSpace(job.Name))
+			if _, ok := seenJobs[key]; ok {
+				return fmt.Errorf("%s.jobs[%d]: duplicate job name %q", prefix, j, job.Name)
+			}
+			seenJobs[key] = struct{}{}
 		}
 	}
 	return nil
@@ -175,7 +197,16 @@ func (c *Config) Validate() error {
 
 // validateIdleTimeout checks idle_timeout when set.
 // Cooperative socket-activated apps exit after this idle period (WBZ_IDLE_TIMEOUT).
+// With socket_proxy, idle_timeout maps to systemd-socket-proxyd --exit-idle-time=.
 func validateIdleTimeout(s Site) error {
+	if s.SocketProxy {
+		if s.Type != SiteTypeApp {
+			return fmt.Errorf("socket_proxy is only valid for type app")
+		}
+		if !s.SocketActivation {
+			return fmt.Errorf("socket_proxy requires socket_activation: true")
+		}
+	}
 	raw := strings.TrimSpace(s.IdleTimeout)
 	if raw == "" {
 		return nil

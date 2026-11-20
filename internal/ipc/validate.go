@@ -296,6 +296,31 @@ func ValidateCronStatusArgs(a CronStatusArgs) error {
 	return ValidateRunCronNowArgs(RunCronNowArgs{Domain: a.Domain, Job: a.Job})
 }
 
+// ValidateJournalTailArgs validates JournalTail arguments.
+func ValidateJournalTailArgs(a JournalTailArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	sel := strings.TrimSpace(a.Unit)
+	if sel == "" {
+		sel = "app"
+	}
+	switch {
+	case sel == "app", sel == "backend":
+	case strings.HasPrefix(sel, "cron:"), strings.HasPrefix(sel, "job:"):
+		name := strings.TrimSpace(sel[strings.IndexByte(sel, ':')+1:])
+		if name == "" || len(name) > 64 || strings.ContainsAny(name, "/\\\n\r") {
+			return fmt.Errorf("invalid unit selector")
+		}
+	default:
+		return fmt.Errorf("unit must be app|backend|cron:<name>|job:<name>")
+	}
+	if a.Lines < 0 || a.Lines > 500 {
+		return fmt.Errorf("lines out of range")
+	}
+	return nil
+}
+
 // ValidateReloadCaddyArgs validates ReloadCaddy arguments.
 func ValidateReloadCaddyArgs(a ReloadCaddyArgs) error {
 	p := filepath.Clean(strings.TrimSpace(a.ConfigPath))

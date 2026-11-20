@@ -21,9 +21,10 @@ BINS := webooza webooza-helper wbz
 
 .PHONY: help web build clean test \
 	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset \
-	lab-app lab-deploy lab-idle lab-cron lab-node
+	lab-app lab-deploy lab-idle lab-cron lab-node lab-proxyd lab-job
 
 NODE_SAMPLE ?= $(CURDIR)/examples/socket-activation/node-app/server.js
+JOB_SAMPLE ?= $(CURDIR)/examples/m2-job/lab-keep.sh
 
 help:
 	@echo "Webooza lab Makefile"
@@ -37,6 +38,8 @@ help:
 	@echo "  make lab-idle      idle-stop (scale to zero) then wake-on-request (needs lab-app)"
 	@echo "  make lab-cron      install cron timer + run-now smoke (needs lab-app site user)"
 	@echo "  make lab-node      Node sample: wake + idle-stop + deploy/rollback (needs node + lab-start)"
+	@echo "  make lab-proxyd    proxyd idle fallback (--exit-idle-time) + wake"
+	@echo "  make lab-job       long-running job-as-service smoke"
 	@echo "  make lab-stop      stop lab units"
 	@echo "  make lab-restart   stop then start"
 	@echo "  make lab-status    unit + listen status"
@@ -214,3 +217,45 @@ lab-node: build lab-dirs
 		-binary $(NODE_SAMPLE) \
 		-expect 'webooza-spike-b-node ok'
 	@echo "ok: node wake + idle-stop + deploy/rollback verified"
+
+# Milestone 2: proxyd idle fallback (non-LISTEN_FDS backend + --exit-idle-time).
+lab-proxyd: build lab-dirs
+	go build -o $(BIN_DIR)/spike-socket-backend ./cmd/spike-socket-backend
+	go build -o $(BIN_DIR)/spike-m2-app ./cmd/spike-m2-app
+	sudo mkdir -p /run/webooza/sites /var/lib/webooza
+	sudo $(BIN_DIR)/spike-m2-app \
+		-config internal/config/testdata/lab-proxyd.yaml \
+		-caddy-json $(CADDY_JSON) \
+		-sample-binary $(BIN_DIR)/spike-socket-backend \
+		-disable-https
+	@echo "--- wake-on-request (proxyd) ---"
+	@sudo systemctl stop webooza-app-app-example-com.service 2>/dev/null || true
+	@systemctl is-active --quiet webooza-app-app-example-com.socket || sudo systemctl start webooza-app-app-example-com.socket
+	@systemctl is-active --quiet webooza-app-app-example-com-backend.service || sudo systemctl start webooza-app-app-example-com-backend.service
+	@echo -n "backend: "; systemctl is-active webooza-app-app-example-com-backend.service || true
+	@echo -n "proxyd before: "; systemctl is-active webooza-app-app-example-com.service || true
+	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/ | tee /tmp/webooza-lab-proxyd.txt; echo
+	@grep -q 'webooza-spike-b-proxy-backend ok' /tmp/webooza-lab-proxyd.txt
+	@echo -n "proxyd after:  "; systemctl is-active webooza-app-app-example-com.service || true
+	@echo "--- idle-stop proxyd (exit-idle-time=3s) ---"
+	@sleep 4
+	@echo -n "socket after idle: "; systemctl is-active webooza-app-app-example-com.socket || true
+	@echo -n "proxyd after idle: "; systemctl is-active webooza-app-app-example-com.service || true
+	@echo -n "backend after idle: "; systemctl is-active webooza-app-app-example-com-backend.service || true
+	@test "$$(systemctl is-active webooza-app-app-example-com.socket)" = active
+	@test "$$(systemctl is-active webooza-app-app-example-com.service)" = inactive
+	@test "$$(systemctl is-active webooza-app-app-example-com-backend.service)" = active
+	@echo "--- wake after idle ---"
+	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/; echo
+	@echo -n "proxyd after wake: "; systemctl is-active webooza-app-app-example-com.service || true
+	@test "$$(systemctl is-active webooza-app-app-example-com.service)" = active
+	@echo "ok: proxyd idle + wake verified"
+
+# Milestone 2: long-running job-as-service.
+lab-job: build lab-dirs
+	@test -f $(JOB_SAMPLE) || { echo "lab-job: missing $(JOB_SAMPLE)"; exit 1; }
+	chmod +x $(JOB_SAMPLE)
+	go build -o $(BIN_DIR)/spike-m2-job ./cmd/spike-m2-job
+	sudo $(BIN_DIR)/spike-m2-job -domain app.example.com -job lab-keep -script $(JOB_SAMPLE)
+	@test -f /srv/sites/app.example.com/tmp/job-alive
+	@echo "ok: long-running job marker present"

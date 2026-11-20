@@ -42,6 +42,8 @@ func (s *Server) MountSites(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/sites/{name}", s.handleDeleteSite)
 	mux.HandleFunc("PUT /api/sites/{name}/files/{path...}", s.handlePutSiteFile)
 	mux.HandleFunc("GET /api/sites/{name}/dns", s.handleSiteDNS)
+	mux.HandleFunc("GET /api/sites/{name}/logs", s.handleSiteLogs)
+	mux.HandleFunc("GET /api/sites/{name}/resources", s.handleSiteResources)
 	mux.HandleFunc("POST /api/sites/{name}/deploy", s.handleDeployBinary)
 	mux.HandleFunc("POST /api/sites/{name}/deploy/git", s.handleDeployGit)
 }
@@ -78,9 +80,12 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type siteView struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
-		Root string `json:"root"`
+		Name        string   `json:"name"`
+		Type        string   `json:"type"`
+		Root        string   `json:"root"`
+		SocketProxy bool     `json:"socket_proxy,omitempty"`
+		Cron        []string `json:"cron,omitempty"`
+		Jobs        []string `json:"jobs,omitempty"`
 	}
 	out := make([]siteView, 0, len(cfg.Sites))
 	for _, site := range cfg.Sites {
@@ -88,7 +93,19 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		if root == "" {
 			root = "public"
 		}
-		out = append(out, siteView{Name: site.Name, Type: site.Type, Root: root})
+		v := siteView{
+			Name:        site.Name,
+			Type:        site.Type,
+			Root:        root,
+			SocketProxy: site.SocketProxy,
+		}
+		for _, c := range site.Cron {
+			v.Cron = append(v.Cron, c.Name)
+		}
+		for _, j := range site.Jobs {
+			v.Jobs = append(v.Jobs, j.Name)
+		}
+		out = append(out, v)
 	}
 	s.writeJSON(w, 200, map[string]any{"ok": true, "sites": out})
 }

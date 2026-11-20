@@ -53,8 +53,13 @@ func (o *Ops) DeployAppBinary(ctx context.Context, domain, binaryPath string) (*
 	}
 
 	svc := systemd.ServiceUnitName(domain)
-	// Stop the running process so the next socket connection activates the new binary.
+	backend := systemd.BackendServiceUnitName(domain)
+	// Stop activated service (app or proxyd). Restart private backend when present
+	// so socket_proxy sites pick up the new binary without LISTEN_FDS.
 	_ = o.SystemctlStop(svc)
+	_ = o.SystemctlResetFailed(backend)
+	_ = o.SystemctlStop(backend)
+	_ = o.SystemctlStart(backend) // ignore error when backend unit is absent (native mode)
 	if err := o.ensureAppSocket(domain); err != nil {
 		if rbErr := rollbackAppRelease(o, domain, prev, svc); rbErr != nil {
 			return nil, fmt.Errorf("socket not ready (%v) and rollback failed (%w)", err, rbErr)
@@ -120,6 +125,10 @@ func rollbackAppRelease(o *Ops, domain, prevID, svc string) error {
 	u := sites.Username(domain)
 	_ = exec.Command("chown", "-R", u+":"+u, sites.Root(domain)).Run()
 	_ = o.SystemctlStop(svc)
+	backend := systemd.BackendServiceUnitName(domain)
+	_ = o.SystemctlResetFailed(backend)
+	_ = o.SystemctlStop(backend)
+	_ = o.SystemctlStart(backend)
 	if err := o.ensureAppSocket(domain); err != nil {
 		return err
 	}

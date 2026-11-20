@@ -33,6 +33,7 @@ func Handlers(ops *helper.Ops, store *auth.Store) map[string]HandlerFunc {
 		OpReloadCaddy:     makeReloadCaddy(ops),
 		OpRunCronNow:      makeRunCronNow(ops),
 		OpCronStatus:      makeCronStatus(ops),
+		OpJournalTail:     makeJournalTail(ops),
 		OpRequestApproval: makeRequestApproval(store),
 		OpApprove:         makeApprove(store),
 		OpDangerousDemo:   makeDangerousDemo(store),
@@ -294,6 +295,24 @@ func makeCronStatus(ops *helper.Ops) HandlerFunc {
 		}
 		msg := fmt.Sprintf("timer=%s active=%v result=%s failed=%v next=%s",
 			st.Timer, st.TimerActive, st.LastResult, st.Failed, st.NextElapse)
+		return Response{ID: req.ID, OK: true, Message: msg}
+	}
+}
+
+func makeJournalTail(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args JournalTailArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateJournalTailArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		unit, text, err := ops.SiteJournalTail(args.Domain, args.Unit, args.Lines)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		msg := fmt.Sprintf("%s\n%s", unit, text)
 		return Response{ID: req.ID, OK: true, Message: msg}
 	}
 }
