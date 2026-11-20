@@ -54,6 +54,10 @@ curl --unix-socket /run/webooza-spike/node.sock http://localhost/
 systemctl is-active webooza-spike-node.service
 ```
 
+For the Milestone 2 path (site user, Caddy, idle-stop, deploy/rollback) use
+`make lab-node` — see [`m2-app-node.md`](m2-app-node.md). The sample also
+honors `WBZ_IDLE_TIMEOUT` like the Go binary.
+
 ## C) systemd-socket-proxyd fallback
 
 ```bash

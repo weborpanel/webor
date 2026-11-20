@@ -20,7 +20,10 @@ CADDY_UNIT  ?= webooza-caddy-lab
 BINS := webooza webooza-helper wbz
 
 .PHONY: help web build clean test \
-	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset lab-app lab-deploy lab-idle lab-cron
+	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset \
+	lab-app lab-deploy lab-idle lab-cron lab-node
+
+NODE_SAMPLE ?= $(CURDIR)/examples/socket-activation/node-app/server.js
 
 help:
 	@echo "Webooza lab Makefile"
@@ -33,6 +36,7 @@ help:
 	@echo "  make lab-deploy    binary deploy + failed-probe rollback (needs lab-app)"
 	@echo "  make lab-idle      idle-stop (scale to zero) then wake-on-request (needs lab-app)"
 	@echo "  make lab-cron      install cron timer + run-now smoke (needs lab-app site user)"
+	@echo "  make lab-node      Node sample: wake + idle-stop + deploy/rollback (needs node + lab-start)"
 	@echo "  make lab-stop      stop lab units"
 	@echo "  make lab-restart   stop then start"
 	@echo "  make lab-status    unit + listen status"
@@ -172,3 +176,41 @@ lab-idle: lab-app
 lab-cron: build lab-dirs
 	go build -o $(BIN_DIR)/spike-m2-cron ./cmd/spike-m2-cron
 	sudo $(BIN_DIR)/spike-m2-cron -domain app.example.com -job lab-tick
+
+# Milestone 2: Node sample on app.example.com (wake, idle-stop, deploy+rollback).
+lab-node: build lab-dirs
+	@command -v node >/dev/null || { echo "lab-node: node is required (apt install nodejs)"; exit 1; }
+	@test -f $(NODE_SAMPLE) || { echo "lab-node: missing $(NODE_SAMPLE)"; exit 1; }
+	chmod +x $(NODE_SAMPLE)
+	go build -o $(BIN_DIR)/spike-m2-app ./cmd/spike-m2-app
+	go build -o $(BIN_DIR)/spike-m2-deploy ./cmd/spike-m2-deploy
+	sudo mkdir -p /run/webooza/sites /var/lib/webooza
+	sudo $(BIN_DIR)/spike-m2-app \
+		-config internal/config/testdata/lab-app.yaml \
+		-caddy-json $(CADDY_JSON) \
+		-sample-binary $(NODE_SAMPLE) \
+		-disable-https
+	@echo "--- wake-on-request (node) ---"
+	@sudo systemctl stop webooza-app-app-example-com.service 2>/dev/null || true
+	@systemctl is-active --quiet webooza-app-app-example-com.socket || sudo systemctl start webooza-app-app-example-com.socket
+	@echo -n "socket:  "; systemctl is-active webooza-app-app-example-com.socket || true
+	@echo -n "service before: "; systemctl is-active webooza-app-app-example-com.service || true
+	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/ | tee /tmp/webooza-lab-node-wake.txt; echo
+	@grep -q 'webooza-spike-b-node ok' /tmp/webooza-lab-node-wake.txt
+	@echo -n "service after:  "; systemctl is-active webooza-app-app-example-com.service || true
+	@echo "--- idle-stop (lab-app.yaml idle_timeout=3s) ---"
+	@sleep 4
+	@echo -n "socket after idle:  "; systemctl is-active webooza-app-app-example-com.socket || true
+	@echo -n "service after idle: "; systemctl is-active webooza-app-app-example-com.service || true
+	@test "$$(systemctl is-active webooza-app-app-example-com.socket)" = active
+	@test "$$(systemctl is-active webooza-app-app-example-com.service)" = inactive
+	@echo "--- wake after idle ---"
+	@curl -sf -H 'Host: app.example.com' http://127.0.0.1:8080/; echo
+	@echo -n "service after wake: "; systemctl is-active webooza-app-app-example-com.service || true
+	@test "$$(systemctl is-active webooza-app-app-example-com.service)" = active
+	@echo "--- deploy + rollback (node) ---"
+	sudo $(BIN_DIR)/spike-m2-deploy \
+		-domain app.example.com \
+		-binary $(NODE_SAMPLE) \
+		-expect 'webooza-spike-b-node ok'
+	@echo "ok: node wake + idle-stop + deploy/rollback verified"

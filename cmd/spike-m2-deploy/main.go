@@ -19,10 +19,11 @@ import (
 func main() {
 	domain := flag.String("domain", "app.example.com", "app site domain")
 	binary := flag.String("binary", "", "absolute path to a healthy app binary")
+	expect := flag.String("expect", "webooza-spike-b-go ok", "substring required in curl response after rollback")
 	flag.Parse()
 
 	if *binary == "" {
-		fmt.Fprintln(os.Stderr, "usage: spike-m2-deploy -binary /path/to/spike-socket-go [-domain app.example.com]")
+		fmt.Fprintln(os.Stderr, "usage: spike-m2-deploy -binary /path/to/app [-domain app.example.com] [-expect marker]")
 		os.Exit(2)
 	}
 	abs, err := filepath.Abs(*binary)
@@ -89,8 +90,8 @@ func main() {
 	}
 	body := strings.TrimSpace(string(out))
 	fmt.Printf("curl: %s\n", body)
-	if !strings.Contains(body, "webooza-spike-b-go ok") {
-		fatal(fmt.Errorf("unexpected response %q", body))
+	if !strings.Contains(body, *expect) {
+		fatal(fmt.Errorf("unexpected response %q (want substring %q)", body, *expect))
 	}
 
 	fmt.Println("ok: deploy + rollback verified")
