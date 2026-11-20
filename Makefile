@@ -258,5 +258,5 @@ lab-job: build lab-dirs
 	chmod +x $(JOB_SAMPLE)
 	go build -o $(BIN_DIR)/spike-m2-job ./cmd/spike-m2-job
 	sudo $(BIN_DIR)/spike-m2-job -domain app.example.com -job lab-keep -script $(JOB_SAMPLE)
-	@test -f /srv/sites/app.example.com/tmp/job-alive
+	@sudo test -f /srv/sites/app.example.com/tmp/job-alive
 	@echo "ok: long-running job marker present"
