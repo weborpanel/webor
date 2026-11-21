@@ -55,11 +55,12 @@ type Site struct {
 	Databases []SiteDatabase `yaml:"databases,omitempty"`
 	Cache     string         `yaml:"cache,omitempty"`
 	// HTTPS enables automatic TLS for this site when the panel is not force-disabling HTTPS.
-	HTTPS     bool           `yaml:"https,omitempty"`
-	Limits    Limits         `yaml:"limits,omitempty"`
-	Cron      []CronJob      `yaml:"cron,omitempty"`
-	Jobs      []Job          `yaml:"jobs,omitempty"` // long-running Type=simple services
-	Extra     map[string]string `yaml:"extra,omitempty"`
+	HTTPS   bool         `yaml:"https,omitempty"`
+	Backend *SiteBackend `yaml:"backend,omitempty"` // optional HTTP API on a static site
+	Limits  Limits       `yaml:"limits,omitempty"`
+	Cron    []CronJob    `yaml:"cron,omitempty"`
+	Jobs    []Job        `yaml:"jobs,omitempty"` // long-running Type=simple services
+	Extra   map[string]string `yaml:"extra,omitempty"`
 }
 
 // Limits are per-site resource caps.
@@ -202,6 +203,12 @@ func (c *Config) Validate() error {
 		if err := validateIdleTimeout(s); err != nil {
 			return fmt.Errorf("%s: %w", prefix, err)
 		}
+		if s.Backend != nil {
+			NormalizeBackend(s.Backend)
+			if err := ValidateSiteBackend(s.Type, s.Backend); err != nil {
+				return fmt.Errorf("%s: %w", prefix, err)
+			}
+		}
 		seenCron := map[string]struct{}{}
 		for j, job := range s.Cron {
 			if strings.TrimSpace(job.Name) == "" {
@@ -248,6 +255,17 @@ func (c *Config) Validate() error {
 		if strings.TrimSpace(byName[parent].Parent) != "" {
 			return fmt.Errorf("sites[%d].parent: %q is itself a child site", i, s.Parent)
 		}
+	}
+	seenPorts := map[int]string{}
+	for i, s := range c.Sites {
+		if s.Backend == nil || !s.Backend.Enabled || s.Backend.Port == 0 {
+			continue
+		}
+		p := s.Backend.Port
+		if other, ok := seenPorts[p]; ok {
+			return fmt.Errorf("sites[%d].backend.port: %d already used by %q", i, p, other)
+		}
+		seenPorts[p] = s.Name
 	}
 	return nil
 }

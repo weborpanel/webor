@@ -3,6 +3,7 @@
 /webor-helper
 /wbr
 /bin/
+/dist/
 *.exe
 *.test
 *.out
@@ -40,3 +41,6 @@ Thumbs.db
 *.db
 *.db-journal
 /var/
+
+# Built sample binaries (rebuild locally)
+examples/http-backend/server

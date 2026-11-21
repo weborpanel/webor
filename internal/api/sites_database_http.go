@@ -171,28 +171,19 @@ func (s *Server) handleAddDatabase(w http.ResponseWriter, r *http.Request) {
 	id := config.NormalizeDBID(name, body.ID)
 
 	if dbengine.NeedsApproval(engine) {
-		installed, err := s.engineInstalled(engine)
+		st, err := s.engineStatus(engine)
 		if err != nil {
 			s.writeErr(w, 500, err.Error())
 			return
 		}
-		if !installed {
-			if body.ApprovalID == "" {
-				s.writeJSON(w, 403, s.installApprovalPayload(engine))
-				return
-			}
-			if err := s.installEngine(engine, body.ApprovalID); err != nil {
-				s.writeErr(w, 403, err.Error())
-				return
-			}
-			s.writeJSON(w, 403, map[string]any{
-				"ok":                 false,
-				"error":              engine + " installed; attach still requires approval",
-				"approval_required":  true,
-				"approval_operation": ipc.OpEnsureSiteDatabase,
-				"approval_args":      map[string]string{"domain": name, "engine": engine, "id": id},
-				"hint":               "Root approval required to attach " + engine,
-			})
+		if !st.Installed {
+			// Package install stays out of the panel approval flow (same as Valkey):
+			// an operator installs as root, then returns here to Add + Ensure approval.
+			s.writeJSON(w, 409, s.engineInstallRequiredPayload(engine, false))
+			return
+		}
+		if !st.Active {
+			s.writeJSON(w, 409, s.engineInstallRequiredPayload(engine, true))
 			return
 		}
 		if body.ApprovalID == "" {
@@ -532,47 +523,56 @@ func findSite(cfg *config.Config, name string) (config.Site, bool) {
 	return s, ok
 }
 
-func (s *Server) engineInstalled(engine string) (bool, error) {
+type engineRuntimeStatus struct {
+	Installed bool
+	Active    bool
+}
+
+func (s *Server) engineStatus(engine string) (engineRuntimeStatus, error) {
 	switch engine {
 	case dbengine.Postgres:
 		st, err := s.postgresStatus()
 		if err != nil {
-			return false, err
+			return engineRuntimeStatus{}, err
 		}
-		return st != nil && st.Installed, nil
+		if st == nil {
+			return engineRuntimeStatus{}, nil
+		}
+		return engineRuntimeStatus{Installed: st.Installed, Active: st.Active}, nil
 	case dbengine.MariaDB:
 		st, err := s.mariaDBStatus()
 		if err != nil {
-			return false, err
+			return engineRuntimeStatus{}, err
 		}
-		return st != nil && st.Installed, nil
+		if st == nil {
+			return engineRuntimeStatus{}, nil
+		}
+		return engineRuntimeStatus{Installed: st.Installed, Active: st.Active}, nil
 	default:
-		return true, nil
+		return engineRuntimeStatus{Installed: true, Active: true}, nil
 	}
 }
 
-func (s *Server) installApprovalPayload(engine string) map[string]any {
-	op := ipc.OpInstallPostgres
+func (s *Server) engineInstallRequiredPayload(engine string, installedButInactive bool) map[string]any {
+	pkg := "postgresql postgresql-client"
+	unit := "postgresql"
 	if engine == dbengine.MariaDB {
-		op = ipc.OpInstallMariaDB
+		pkg = "mariadb-server"
+		unit = "mariadb"
+	}
+	if installedButInactive {
+		return map[string]any{
+			"ok":               false,
+			"error":            engine + " installed but not running",
+			"install_required": true,
+			"hint":             "Start " + engine + " as root, then try Add again:\n  sudo systemctl enable --now " + unit,
+		}
 	}
 	return map[string]any{
-		"ok":                 false,
-		"error":              engine + " not installed",
-		"approval_required":  true,
-		"approval_operation": op,
-		"hint":               "Root approval required to install " + engine,
-	}
-}
-
-func (s *Server) installEngine(engine, approvalID string) error {
-	switch engine {
-	case dbengine.Postgres:
-		return s.installPostgres(approvalID)
-	case dbengine.MariaDB:
-		return s.installMariaDB(approvalID)
-	default:
-		return fmt.Errorf("unsupported engine %q", engine)
+		"ok":               false,
+		"error":            engine + " not installed",
+		"install_required": true,
+		"hint":             "Log in as root and install " + engine + ", then try Add again:\n  sudo apt-get update && sudo apt-get install -y " + pkg + "\n  sudo systemctl enable --now " + unit,
 	}
 }
 

@@ -35,6 +35,13 @@
 		{ value: 'mariadb', label: 'MariaDB', hint: 'Unix-socket auth as the site user.' }
 	];
 
+	const PG_INSTALL =
+		'sudo apt-get update && sudo apt-get install -y postgresql postgresql-client\nsudo systemctl enable --now postgresql';
+	const PG_START = 'sudo systemctl enable --now postgresql';
+	const MARIA_INSTALL =
+		'sudo apt-get update && sudo apt-get install -y mariadb-server\nsudo systemctl enable --now mariadb';
+	const MARIA_START = 'sudo systemctl enable --now mariadb';
+
 	let databases = $state.raw<DbEntry[]>([]);
 	let defaultId = $state('');
 	let browsePath = $state('/db/');
@@ -47,6 +54,7 @@
 	let newDbId = $state('');
 	let engine = $state<DbEngine>('sqlite');
 	let revealed = $state<{ id: string; password: string; rotated: boolean } | null>(null);
+	let installHint = $state('');
 
 	const flow = new ApprovalFlow<DbAction>({
 		operationFor: (a) => (a.kind === 'add' ? 'EnsureSiteDatabase' : 'DropSiteDatabase'),
@@ -57,6 +65,31 @@
 		resume: (a, approvalId) => (a.kind === 'add' ? add(a, approvalId) : remove(a, approvalId)),
 		onError: (m) => toasts.error(m)
 	});
+
+	let selectedStatus = $derived(
+		engine === 'postgres' ? postgres : engine === 'mariadb' ? mariadb : null
+	);
+	let needsInstall = $derived(
+		(engine === 'postgres' || engine === 'mariadb') && selectedStatus !== null && !selectedStatus.installed
+	);
+	let needsStart = $derived(
+		(engine === 'postgres' || engine === 'mariadb') &&
+			!!selectedStatus?.installed &&
+			!selectedStatus.active
+	);
+	let blocked = $derived(needsInstall || needsStart);
+	let engineLabel = $derived(
+		engine === 'postgres' ? 'PostgreSQL' : engine === 'mariadb' ? 'MariaDB' : ''
+	);
+	let defaultCmdHint = $derived(
+		needsInstall
+			? engine === 'postgres'
+				? PG_INSTALL
+				: MARIA_INSTALL
+			: engine === 'postgres'
+				? PG_START
+				: MARIA_START
+	);
 
 	function normalizeId(raw: string) {
 		return raw.trim().toLowerCase() || defaultId;
@@ -69,7 +102,7 @@
 	function engineState(e: string): { tone: 'ok' | 'warn' | 'neutral'; text: string } | null {
 		const s = e === 'postgres' ? postgres : e === 'mariadb' ? mariadb : null;
 		if (e === 'sqlite') return null;
-		if (!s?.installed) return { tone: 'neutral', text: 'not installed, installs on first use' };
+		if (!s?.installed) return { tone: 'warn', text: 'not installed' };
 		return s.active ? { tone: 'ok', text: 'running' } : { tone: 'warn', text: 'installed, inactive' };
 	}
 
@@ -88,6 +121,7 @@
 				return;
 			}
 			loadError = '';
+			installHint = '';
 			databases = r.data.databases || [];
 			defaultId = r.data.default_id || '';
 			browsePath = r.data.browse_path || '/db/';
@@ -101,15 +135,36 @@
 	}
 
 	async function add(resume?: DbAction, approvalId: string = flow.id.trim()): Promise<void> {
-		if (site.isChild) return;
+		if (site.isChild || (!resume && blocked)) return;
 		const action: DbAction = resume ?? { kind: 'add', id: normalizeId(newDbId), engine };
 		if (!resume) flow.resetIfDifferent(action);
 		busy = true;
+		installHint = '';
 		try {
 			const payload: Record<string, string> = { engine: action.engine };
 			if (action.id) payload.id = action.id;
 			if (approvalId) payload.approval_id = approvalId;
-			const r = await request<{ password?: string }>(site.path('/databases'), { method: 'POST', json: payload });
+			const r = await request<{
+				password?: string;
+				install_required?: boolean;
+				approval_required?: boolean;
+				hint?: string;
+				error?: string;
+			}>(site.path('/databases'), { method: 'POST', json: payload });
+			if (r.data.install_required) {
+				installHint =
+					r.data.hint ||
+					(action.engine === 'mariadb'
+						? needsStart
+							? MARIA_START
+							: MARIA_INSTALL
+						: needsStart
+							? PG_START
+							: PG_INSTALL);
+				toasts.error(r.data.error || 'Database engine is not ready');
+				await load();
+				return;
+			}
 			if (r.data.approval_required) {
 				busy = false;
 				await flow.begin(r.data, action);
@@ -346,15 +401,47 @@
 						placeholder={defaultId || 'default'}
 						autocomplete="off"
 						spellcheck="false"
-						disabled={busy}
+						disabled={busy || blocked}
 					/>
 					<span class="hint">Optional. Leave empty for the domain default.</span>
 				</label>
-				<button class="wbr-btn" type="submit" disabled={busy}>
+				{#if blocked}
+					<div class="install" role="status">
+						<span class="ic" aria-hidden="true"><Icon name="terminal" size={18} /></span>
+						<div class="install-body">
+							<strong>
+								{needsInstall
+									? `${engineLabel} is not installed`
+									: `${engineLabel} is not running`}
+							</strong>
+							<p>
+								{#if needsInstall}
+									Log in as root on this VPS and install {engineLabel}. Then click Refresh and add the
+									database.
+								{:else}
+									Log in as root and start the {engineLabel} service. Then click Refresh and add the
+									database.
+								{/if}
+							</p>
+							<pre class="cmd">{installHint || defaultCmdHint}</pre>
+							<button
+								class="wbr-btn wbr-btn-ghost sm"
+								type="button"
+								disabled={loading || busy}
+								onclick={load}
+							>
+								<Icon name="refresh" size={14} /> Check again
+							</button>
+						</div>
+					</div>
+				{/if}
+				<button class="wbr-btn" type="submit" disabled={busy || blocked}>
 					<Icon name="plus" size={15} />
 					{busy ? 'Working…' : 'Add database'}
 				</button>
-				<p class="wbr-muted small">Installing a server engine for the first time needs root approval.</p>
+				<p class="wbr-muted small">
+					Install Postgres/MariaDB as root first. Adding a database then needs step-up approval.
+				</p>
 			</form>
 		</Card>
 	{/if}
@@ -495,6 +582,61 @@
 
 	.es.warn {
 		color: var(--warn);
+	}
+
+	.es.neutral {
+		color: var(--muted);
+	}
+
+	.install {
+		display: flex;
+		gap: 0.75rem;
+		align-items: flex-start;
+		padding: 0.75rem;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-2);
+	}
+
+	.ic {
+		display: grid;
+		place-items: center;
+		width: 2.2rem;
+		height: 2.2rem;
+		border-radius: 9px;
+		background: var(--accent-soft);
+		color: var(--accent);
+		flex-shrink: 0;
+	}
+
+	.install-body {
+		display: grid;
+		gap: 0.55rem;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.install-body strong {
+		font-size: 0.95rem;
+	}
+
+	.install-body p {
+		margin: 0;
+		color: var(--muted);
+		font-size: 0.88rem;
+	}
+
+	.cmd {
+		margin: 0;
+		padding: 0.75rem 0.9rem;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--border);
+		background: var(--surface-3, var(--surface-2));
+		font-family: var(--mono);
+		font-size: 0.82rem;
+		line-height: 1.45;
+		overflow-x: auto;
+		white-space: pre-wrap;
 	}
 
 	.small {

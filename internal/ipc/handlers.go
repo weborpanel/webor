@@ -58,6 +58,10 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpPostgresStatus:         makePostgresStatus(ops),
 		OpMariaDBStatus:          makeMariaDBStatus(ops),
 		OpValkeyStatus:           makeValkeyStatus(ops),
+		OpEnsureHTTPBackend:      makeEnsureHTTPBackend(ops),
+		OpRemoveHTTPBackend:      makeRemoveHTTPBackend(ops),
+		OpDeployHTTPBackend:      makeDeployHTTPBackend(ops),
+		OpHTTPBackendStatus:      makeHTTPBackendStatus(ops),
 	}
 	return h
 }

@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/weborpanel/webor/internal/config"
 )
 
 const (
@@ -574,4 +576,52 @@ func ValidateRotateDatabasePasswordArgs(a RotateDatabasePasswordArgs) error {
 	return ValidateEnsureSiteDatabaseArgs(EnsureSiteDatabaseArgs{
 		Domain: a.Domain, Engine: a.Engine, ID: a.ID, StateDir: a.StateDir,
 	})
+}
+
+// ValidateEnsureHTTPBackendArgs validates EnsureHTTPBackend arguments.
+func ValidateEnsureHTTPBackendArgs(a EnsureHTTPBackendArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	if a.Port < config.BackendPortMin || a.Port > config.BackendPortMax {
+		return fmt.Errorf("port %d out of range %d-%d", a.Port, config.BackendPortMin, config.BackendPortMax)
+	}
+	prefix := strings.TrimSpace(a.Prefix)
+	if prefix == "" {
+		prefix = "/api"
+	}
+	if err := config.ValidateBackendPath(prefix); err != nil {
+		return fmt.Errorf("prefix: %w", err)
+	}
+	for i, p := range a.Paths {
+		if err := config.ValidateBackendPath(p); err != nil {
+			return fmt.Errorf("paths[%d]: %w", i, err)
+		}
+	}
+	execPath := strings.TrimSpace(a.Exec)
+	if execPath == "" {
+		execPath = "./bin/server"
+	}
+	if strings.Contains(execPath, "..") {
+		return fmt.Errorf("invalid exec path")
+	}
+	return nil
+}
+
+// ValidateRemoveHTTPBackendArgs validates RemoveHTTPBackend arguments.
+func ValidateRemoveHTTPBackendArgs(a RemoveHTTPBackendArgs) error {
+	return ValidateDomain(a.Domain)
+}
+
+// ValidateDeployHTTPBackendArgs validates DeployHTTPBackend arguments.
+func ValidateDeployHTTPBackendArgs(a DeployHTTPBackendArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	return ValidateDeployAppBinaryArgs(DeployAppBinaryArgs{Domain: a.Domain, BinaryPath: a.BinaryPath})
+}
+
+// ValidateHTTPBackendStatusArgs validates HTTPBackendStatus arguments.
+func ValidateHTTPBackendStatusArgs(a HTTPBackendStatusArgs) error {
+	return ValidateDomain(a.Domain)
 }

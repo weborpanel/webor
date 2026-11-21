@@ -61,6 +61,7 @@ func (s *Server) MountSites(mux *http.ServeMux) {
 	s.mountFSRoutes(mux)
 	s.mountDatabaseRoutes(mux)
 	s.mountCacheRoutes(mux)
+	s.mountBackendRoutes(mux)
 	s.mountDBAdminer(mux)
 }
 
@@ -99,19 +100,28 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		ID     string `json:"id"`
 		Engine string `json:"engine"`
 	}
+	type backendViewJSON struct {
+		Enabled   bool     `json:"enabled"`
+		Prefix    string   `json:"prefix,omitempty"`
+		Paths     []string `json:"paths,omitempty"`
+		WebSocket bool     `json:"websocket,omitempty"`
+		Port      int      `json:"port,omitempty"`
+		Exec      string   `json:"exec,omitempty"`
+	}
 	type siteView struct {
-		Name            string   `json:"name"`
-		Type            string   `json:"type"`
-		Root            string   `json:"root"`
-		Parent          string   `json:"parent,omitempty"`
-		Database        string   `json:"database,omitempty"` // legacy: first engine
-		Databases       []dbView `json:"databases,omitempty"`
-		Cache           string   `json:"cache,omitempty"`
-		HTTPS           bool     `json:"https,omitempty"`
-		SubdomainCount  int      `json:"subdomain_count,omitempty"`
-		SocketProxy     bool     `json:"socket_proxy,omitempty"`
-		Cron            []string `json:"cron,omitempty"`
-		Jobs            []string `json:"jobs,omitempty"`
+		Name           string           `json:"name"`
+		Type           string           `json:"type"`
+		Root           string           `json:"root"`
+		Parent         string           `json:"parent,omitempty"`
+		Database       string           `json:"database,omitempty"` // legacy: first engine
+		Databases      []dbView         `json:"databases,omitempty"`
+		Cache          string           `json:"cache,omitempty"`
+		HTTPS          bool             `json:"https,omitempty"`
+		Backend        *backendViewJSON `json:"backend,omitempty"`
+		SubdomainCount int              `json:"subdomain_count,omitempty"`
+		SocketProxy    bool             `json:"socket_proxy,omitempty"`
+		Cron           []string         `json:"cron,omitempty"`
+		Jobs           []string         `json:"jobs,omitempty"`
 	}
 	out := make([]siteView, 0, len(cfg.Sites))
 	for _, site := range cfg.Sites {
@@ -136,6 +146,17 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		}
 		if strings.TrimSpace(site.Parent) == "" {
 			v.SubdomainCount = len(cfg.ChildrenOf(site.Name))
+		}
+		if site.Backend != nil && site.Backend.Enabled {
+			config.NormalizeBackend(site.Backend)
+			v.Backend = &backendViewJSON{
+				Enabled:   true,
+				Prefix:    site.Backend.Prefix,
+				Paths:     site.Backend.BackendPathPrefixes(),
+				WebSocket: site.Backend.WebSocket,
+				Port:      site.Backend.Port,
+				Exec:      site.Backend.Exec,
+			}
 		}
 		for _, c := range site.Cron {
 			v.Cron = append(v.Cron, c.Name)
@@ -390,6 +411,12 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hadCache := strings.TrimSpace(site.Parent) == "" && strings.TrimSpace(site.Cache) != ""
+	if site.Backend != nil && site.Backend.Enabled {
+		_ = s.removeHTTPBackend(name)
+	}
+	for _, child := range removedChildren {
+		_ = s.removeHTTPBackend(child)
+	}
 	if err := s.purgeSite(name, removedChildren, dropDBs, approvalID); err != nil {
 		s.writeErr(w, 403, err.Error())
 		return

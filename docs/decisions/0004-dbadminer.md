@@ -23,7 +23,10 @@ docroots.
 4. **SQLite** add/remove is routine (default id → `data/app.db`; other ids →
    `data/<id>.db`).
 5. **Postgres / MariaDB** add/remove require step-up approval bound to
-   `{domain, engine, id}`. Package install ops stay approval-class.
+   `{domain, engine, id}`. Package install is **operator/root** (same as Valkey):
+   the panel does not open an Install* approval from Add; if the engine is
+   missing or inactive, Add returns `install_required` with apt/systemctl
+   hints. Helper `InstallPostgres` / `InstallMariaDB` ops remain for CLI use.
 6. Usernames are fixed (`sites.Username(parent)` for default id; else
    `username_id`). Passwords are rotatable via `RotateDatabasePassword`.
 7. Subdomains are separate sites (`CreateSiteUser` + own `public/`) that share

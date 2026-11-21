@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Public bootstrap installer (temporary host: 2bts.in).
+# Usage:
+#   curl -fsSL https://2bts.in/webor/install | sudo bash
+# Optional:
+#   WEBOR_BASE_URL=https://2bts.in/webor WEBOR_CHANNEL=beta curl -fsSL ... | sudo bash -s -- --skip-ptr
+set -euo pipefail
+
+BASE_URL="${WEBOR_BASE_URL:-https://2bts.in/webor}"
+CHANNEL="${WEBOR_CHANNEL:-beta}"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64|amd64) ARCH=amd64 ;;
+  aarch64|arm64) ARCH=arm64 ;;
+  *)
+    echo "unsupported arch: $ARCH" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "re-run as root (sudo)" >&2
+  exit 1
+fi
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "missing required command: $1" >&2; exit 1; }; }
+need curl
+need tar
+need sha256sum
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+TAR="webor-linux-${ARCH}.tar.gz"
+SUMS="SHA256SUMS"
+URL_TAR="${BASE_URL}/downloads/${CHANNEL}/${TAR}"
+URL_SUMS="${BASE_URL}/downloads/${CHANNEL}/${SUMS}"
+
+echo "[webor] downloading ${URL_TAR}"
+curl -fsSL "$URL_TAR" -o "${TMP}/${TAR}"
+echo "[webor] downloading ${URL_SUMS}"
+curl -fsSL "$URL_SUMS" -o "${TMP}/${SUMS}"
+
+(
+  cd "$TMP"
+  # Verify only the tarball line from SHA256SUMS
+  grep -E "[[:space:]]${TAR}\$" "$SUMS" | sha256sum -c -
+)
+
+echo "[webor] extracting"
+tar -xzf "${TMP}/${TAR}" -C "$TMP"
+ROOT="$(find "$TMP" -maxdepth 1 -type d -name 'webor-linux-*' | head -n1)"
+[[ -n "$ROOT" && -x "${ROOT}/install/install.sh" ]] || {
+  echo "tarball layout unexpected (missing install/install.sh)" >&2
+  exit 1
+}
+
+# Ensure Caddy exists (needed for site TLS later). Best-effort on Debian/Ubuntu.
+if ! command -v caddy >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    echo "[webor] installing caddy via apt"
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y
+    apt-get install -y caddy || echo "[webor] WARN: apt install caddy failed — continue; install Caddy manually then re-run"
+  else
+    echo "[webor] WARN: caddy not found and no apt-get — install Caddy before enabling HTTPS"
+  fi
+fi
+
+echo "[webor] running install.sh"
+exec "${ROOT}/install/install.sh" --yes --bin-dir "${ROOT}/bin" "$@"

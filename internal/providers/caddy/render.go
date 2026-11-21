@@ -48,15 +48,40 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 				rootName = "public"
 			}
 			fsRoot := filepath.Join(sites.Root(site.Name), rootName)
-			routes = append(routes, map[string]any{
-				"match": []map[string]any{{"host": hosts}},
-				"handle": []map[string]any{
-					{
-						"handler": "file_server",
-						"root":    fsRoot,
+
+			backendWholeHost := false
+			if site.Backend != nil && site.Backend.Enabled && site.Backend.Port > 0 {
+				config.NormalizeBackend(site.Backend)
+				prefixes := site.Backend.BackendPathPrefixes()
+				for _, p := range prefixes {
+					if p == "/" {
+						backendWholeHost = true
+						break
+					}
+				}
+				proxy := reverseProxyHandler(fmt.Sprintf("127.0.0.1:%d", site.Backend.Port), site.Backend.WebSocket)
+				match := map[string]any{"host": hosts}
+				if !backendWholeHost {
+					match["path"] = config.CaddyPathMatchers(prefixes)
+				}
+				routes = append(routes, map[string]any{
+					"match":  []map[string]any{match},
+					"handle": []map[string]any{proxy},
+				})
+			}
+
+			// Whole-host API backends (prefix "/") own the hostname; skip file_server.
+			if !backendWholeHost {
+				routes = append(routes, map[string]any{
+					"match": []map[string]any{{"host": hosts}},
+					"handle": []map[string]any{
+						{
+							"handler": "file_server",
+							"root":    fsRoot,
+						},
 					},
-				},
-			})
+				})
+			}
 		case config.SiteTypeApp:
 			dial := "unix/" + sites.AppSocket(site.Name)
 			routes = append(routes, map[string]any{
@@ -101,6 +126,20 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+func reverseProxyHandler(dial string, websocket bool) map[string]any {
+	h := map[string]any{
+		"handler": "reverse_proxy",
+		"upstreams": []map[string]any{
+			{"dial": dial},
+		},
+	}
+	if websocket {
+		// Disable response buffering so WebSocket / SSE streams flush promptly.
+		h["flush_interval"] = -1
+	}
+	return h
 }
 
 // RenderStatic builds a Caddy JSON config for static sites only.

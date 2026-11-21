@@ -19,8 +19,9 @@ First boot prints a one-time setup token. Open the panel URL (high port until yo
 2. **Static:** use the site **Files** tab to browse `public/`, upload, and extract zip/tar/tar.gz. SQLite lives under `data/`, not in Files. **App:** deploy binary or git from Deploy; Files still manages `public/` assets.
 3. **DNS:** point A/AAAA at the VPS; use the site DNS checklist until it is green.
 4. **HTTPS:** on a real VPS, run the panel **without** `-disable-https` and with `-expected-a <public-ip>`. When DNS is green, click **Enable HTTPS** on the site page.
-5. **Database:** parent site → Databases → add sqlite (immediate) or postgres/mariadb (approve with `sudo wbr approve <id>`). Password is shown once.
+5. **Database:** sqlite adds immediately. For Postgres/MariaDB, install the server as root first (`sudo apt-get install -y postgresql` or `mariadb-server`), then Add and approve with `sudo wbr approve <id>`. Password is shown once.
 6. **Cache:** install Valkey as root (`sudo apt-get install -y valkey`), then parent site → Cache → Attach. Password shown once; keys under `wbr_<slug>:`.
+7. **API backend (static sites, including subdomains):** site → **API** → Attach. Deploy a binary that binds to `PORT` (and `HOST`); Webor injects those into the unit — you never pick a port. Use path `/api` on the site, or `/` for a whole-host API (`api.example.com`). Optional extra paths (e.g. `/ws`) and WebSocket toggle are panel-only.
 
 ## Lab (VirtualBox)
 

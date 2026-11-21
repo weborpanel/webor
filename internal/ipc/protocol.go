@@ -43,6 +43,10 @@ const (
 	OpPostgresStatus         = "PostgresStatus"
 	OpMariaDBStatus          = "MariaDBStatus"
 	OpValkeyStatus           = "ValkeyStatus"
+	OpEnsureHTTPBackend      = "EnsureHTTPBackend"
+	OpRemoveHTTPBackend      = "RemoveHTTPBackend"
+	OpDeployHTTPBackend      = "DeployHTTPBackend"
+	OpHTTPBackendStatus      = "HTTPBackendStatus"
 )
 
 // Request is a single typed helper operation. Arguments are never shell strings.
@@ -289,4 +293,30 @@ type DropSiteCacheArgs struct {
 type RotateCachePasswordArgs struct {
 	Domain   string `json:"domain"`
 	StateDir string `json:"state_dir,omitempty"`
+}
+
+// EnsureHTTPBackendArgs installs/enables the loopback HTTP backend unit for a static site.
+type EnsureHTTPBackendArgs struct {
+	Domain    string   `json:"domain"`
+	Prefix    string   `json:"prefix,omitempty"`
+	Paths     []string `json:"paths,omitempty"`
+	WebSocket bool     `json:"websocket,omitempty"`
+	Exec      string   `json:"exec,omitempty"`
+	Port      int      `json:"port"`
+}
+
+// RemoveHTTPBackendArgs stops and removes the HTTP backend unit.
+type RemoveHTTPBackendArgs struct {
+	Domain string `json:"domain"`
+}
+
+// DeployHTTPBackendArgs deploys a binary to the site HTTP backend and restarts it.
+type DeployHTTPBackendArgs struct {
+	Domain     string `json:"domain"`
+	BinaryPath string `json:"binary_path"`
+}
+
+// HTTPBackendStatusArgs reports whether the backend unit is active.
+type HTTPBackendStatusArgs struct {
+	Domain string `json:"domain"`
 }
