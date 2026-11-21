@@ -29,6 +29,12 @@ type SiteResources struct {
 
 // SiteResources returns disk + cgroup/memory snapshot for a site.
 func (o *Ops) SiteResources(domain string, site *config.Site) (*SiteResources, error) {
+	return o.SiteResourcesWith(domain, site, true)
+}
+
+// SiteResourcesWith is SiteResources with an option to skip the du walk of
+// the site root, which is too slow to run on every metrics sample.
+func (o *Ops) SiteResourcesWith(domain string, site *config.Site, includeDisk bool) (*SiteResources, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	root := sites.Root(domain)
 	res := &SiteResources{
@@ -43,13 +49,15 @@ func (o *Ops) SiteResources(domain string, site *config.Site) (*SiteResources, e
 		}
 	}
 
-	used, err := dirSize(root)
-	if err == nil {
-		res.DiskUsedBytes = used
-	}
-	var st syscall.Statfs_t
-	if err := syscall.Statfs(root, &st); err == nil {
-		res.DiskAvailBytes = int64(st.Bavail) * int64(st.Bsize)
+	if includeDisk {
+		used, err := dirSize(root)
+		if err == nil {
+			res.DiskUsedBytes = used
+		}
+		var st syscall.Statfs_t
+		if err := syscall.Statfs(root, &st); err == nil {
+			res.DiskAvailBytes = int64(st.Bavail) * int64(st.Bsize)
+		}
 	}
 
 	unit := res.Unit

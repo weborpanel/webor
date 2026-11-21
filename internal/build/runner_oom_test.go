@@ -31,6 +31,9 @@ func TestRunBuildPassesMemoryMaxAndTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected non-zero exit error")
 	}
+	if !strings.Contains(err.Error(), "OOM") && !strings.Contains(err.Error(), "memory limit") {
+		t.Fatalf("expected OOM message, got %v", err)
+	}
 	if res == nil || res.ExitCode != 137 {
 		t.Fatalf("res=%+v", res)
 	}

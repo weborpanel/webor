@@ -1,0 +1,1 @@
+import{X as e,dt as t,ft as n}from"./avAlLcZL.js";var r=new class{#e=n(!1);get addSiteOpen(){return e(this.#e)}set addSiteOpen(e){t(this.#e,e,!0)}#t=n(!1);get paletteOpen(){return e(this.#t)}set paletteOpen(e){t(this.#t,e,!0)}#n=n(!1);get drawerOpen(){return e(this.#n)}set drawerOpen(e){t(this.#n,e,!0)}};export{r as t};

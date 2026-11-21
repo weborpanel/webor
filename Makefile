@@ -21,7 +21,7 @@ BINS := webor webor-helper wbr
 
 .PHONY: help web build clean test \
 	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset \
-	lab-app lab-deploy lab-idle lab-cron lab-node lab-proxyd lab-job
+	lab-app lab-deploy lab-idle lab-cron lab-node lab-proxyd lab-job lab-postgres lab-databases
 
 NODE_SAMPLE ?= $(CURDIR)/examples/socket-activation/node-app/server.js
 JOB_SAMPLE ?= $(CURDIR)/examples/m2-job/lab-keep.sh
@@ -40,6 +40,8 @@ help:
 	@echo "  make lab-node      Node sample: wake + idle-stop + deploy/rollback (needs node + lab-start)"
 	@echo "  make lab-proxyd    proxyd idle fallback (--exit-idle-time) + wake"
 	@echo "  make lab-job       long-running job-as-service smoke"
+	@echo "  make lab-postgres  attach Postgres + peer isolation check (DOMAIN=example.com)"
+	@echo "  make lab-databases alias for lab-postgres (M4 multi-engine spike)"
 	@echo "  make lab-stop      stop lab units"
 	@echo "  make lab-restart   stop then start"
 	@echo "  make lab-status    unit + listen status"
@@ -102,7 +104,8 @@ lab-start: build lab-dirs
 		-config $(LAB_CONFIG) \
 		-disable-https \
 		-caddy-json $(CADDY_JSON) \
-		-http-listen $(HTTP_LISTEN)
+		-http-listen $(HTTP_LISTEN) \
+		-helper-socket $(SOCKET)
 	@sleep 0.6
 	@$(MAKE) --no-print-directory lab-status
 	@$(MAKE) --no-print-directory lab-health
@@ -134,7 +137,8 @@ lab-logs:
 	sudo journalctl -u $(PANEL_UNIT) -u $(HELPER_UNIT) -u $(CADDY_UNIT) -n 80 --no-pager
 
 lab-reset: lab-stop
-	rm -rf $(LAB_STATE)
+	# Secrets written by helper may be root-owned under lab state.
+	sudo rm -rf $(LAB_STATE)
 	@echo "wiped $(LAB_STATE); run make lab-start for a fresh setup token"
 
 # Milestone 2 slice 1: socket-activated Go sample behind Caddy.
@@ -260,3 +264,13 @@ lab-job: build lab-dirs
 	sudo $(BIN_DIR)/spike-m2-job -domain app.example.com -job lab-keep -script $(JOB_SAMPLE)
 	@sudo test -f /srv/sites/app.example.com/tmp/job-alive
 	@echo "ok: long-running job marker present"
+
+# Milestone 4: ensure two site DBs and verify cross-site CONNECT denial (root + postgresql).
+# If postgres is missing: request InstallPostgres approval, sudo wbr approve <id>, retry.
+DOMAIN ?= example.com
+lab-postgres: build
+	go build -o $(BIN_DIR)/spike-m4-postgres ./cmd/spike-m4-postgres
+	sudo mkdir -p /var/lib/webor/secrets /srv/sites
+	sudo $(BIN_DIR)/spike-m4-postgres -domain $(DOMAIN) -other other.example.com -state-dir /var/lib/webor
+
+lab-databases: lab-postgres

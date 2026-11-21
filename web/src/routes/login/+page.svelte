@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { fetchAuthStatus, HOME_PATH } from '#lib/auth.ts';
+	import { NETWORK_ERROR } from '#lib/api.ts';
 
 	let email = $state('');
 	let password = $state('');
@@ -10,20 +12,15 @@
 
 	onMount(async () => {
 		try {
-			const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				needs_setup?: boolean;
-			};
-			if (res.ok && data.ok && data.needs_setup) {
-				await goto('/setup');
-			}
+			const status = await fetchAuthStatus();
+			if (status.needs_setup) await goto('/setup');
+			else if (status.authenticated) await goto(HOME_PATH);
 		} catch {
 			// Keep login form available if status is unreachable
 		}
 	});
 
-	async function onSubmit(e: Event) {
+	async function onSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
 		submitting = true;
@@ -39,9 +36,9 @@
 				error = data.error || 'Login failed';
 				return;
 			}
-			await goto('/sites');
+			await goto(HOME_PATH);
 		} catch {
-			error = 'Could not reach the panel API';
+			error = NETWORK_ERROR;
 		} finally {
 			submitting = false;
 		}
@@ -52,9 +49,9 @@
 	<title>Log in · Webor</title>
 </svelte:head>
 
-<section class="login">
-	<h1>Log in</h1>
-	<p>Sign in with your admin account.</p>
+<section class="auth-card">
+	<h1>Welcome back</h1>
+	<p class="lede">Sign in to manage your sites.</p>
 
 	<form method="post" onsubmit={onSubmit}>
 		<label class="wbr-field">
@@ -72,7 +69,7 @@
 			/>
 		</label>
 		<label class="wbr-field">
-			<span>TOTP code</span>
+			<span>Authenticator code <small class="opt">(if 2FA is enabled)</small></span>
 			<input
 				type="text"
 				name="totp"
@@ -80,32 +77,37 @@
 				autocomplete="one-time-code"
 				bind:value={totp}
 				placeholder="000000"
+				maxlength={8}
 			/>
 		</label>
 		{#if error}
 			<p class="wbr-error" role="alert">{error}</p>
 		{/if}
-		<button class="wbr-btn" type="submit" disabled={submitting}>
-			{submitting ? 'Signing in…' : 'Continue'}
+		<button class="wbr-btn submit" type="submit" disabled={submitting}>
+			{submitting ? 'Signing in…' : 'Sign in'}
 		</button>
 	</form>
 </section>
 
 <style>
-	.login {
-		max-width: 26rem;
-		padding: 2rem 0 4rem;
+	.auth-card {
+		width: min(26rem, 100%);
+		margin: auto;
+		padding: 2rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
 	}
 
 	h1 {
-		margin: 0 0 0.5rem;
-		font-size: clamp(2rem, 5vw, 2.6rem);
-		letter-spacing: -0.03em;
+		margin: 0 0 0.35rem;
+		font-size: 1.6rem;
 		font-weight: 800;
 	}
 
-	p {
-		margin: 0 0 1.75rem;
+	.lede {
+		margin: 0 0 1.5rem;
 		color: var(--muted);
 	}
 
@@ -114,8 +116,14 @@
 		gap: 1rem;
 	}
 
-	.wbr-btn {
-		justify-self: start;
-		margin-top: 0.2rem;
+	.opt {
+		font-weight: 500;
+		color: var(--subtle);
+	}
+
+	.submit {
+		width: 100%;
+		margin-top: 0.25rem;
+		padding-block: 0.7rem;
 	}
 </style>

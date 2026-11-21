@@ -76,7 +76,8 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops helper.SiteFS
 		}
 	}
 
-	raw, err := caddy.RenderStatic(cfg, caddy.RenderOptions{
+	// Full Render so app sites stay in Caddy when the panel reloads after HTTPS/DNS changes.
+	raw, err := caddy.Render(cfg, caddy.RenderOptions{
 		HTTPListen:   opt.HTTPListen,
 		DisableHTTPS: opt.DisableHTTPS,
 	})

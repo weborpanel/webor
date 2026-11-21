@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-20): Milestone 0–3 lab-complete. M3: installer + hardened units + first-run + step-up delete-with-data + audit chain; lab smoke (install → site on :8080 → approve delete) and helper review notes in `docs/spikes/m3-helper-review.md`. Next: Milestone 4 databases/cache. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
+*Progress note (2026-11-21): Milestone 0–4 lab-complete (multi-DB, Valkey/Redis ACL cache, Adminer, subdomains). Panel UI revamp (sidebar dashboard, metrics history, per-site tabs) + Files manager (browse/extract zip|tar|tar.gz under `public/` only). Valkey package install is operator/root (no approval). Native wrap next: real-VPS DNS→HTTPS + remaining `docs/vps-checklist.md` items. **M5 Podman postponed** until that checklist is solid.*
 
 ## 1. Product scope
 
@@ -213,16 +213,21 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 **Deliverables**
 
-- On-demand install of Postgres (default) or MariaDB as an approved operation
-- One database and role per site, with Unix-socket peer authentication
-- Valkey shared instance with per-site ACL users restricted to a key prefix, plus an optional dedicated instance per site
-- UI to attach and detach a database or cache and inspect connection details
+- [x] On-demand install of Postgres (default) or MariaDB as an approved operation
+- [x] Parent multi-DB + roles, Unix-socket peer auth, password rotate, subdomain inherit
+- [x] Valkey **shared** instance with per-site ACL users restricted to a key prefix (dedicated instance deferred)
+- [x] UI to attach and detach a database; cache UI with Valkey
+- [x] Embedded read-only [DBAdminer](https://github.com/dbadminer/dbadminer) for SQL browse (decision 0004)
 
 **Exit criteria:** cross-site database and cache isolation tests pass.
 
-### Milestone 5: Containers, optional module (weeks 13 to 14)
+**Spike (2026-11-21):** Postgres/MariaDB + multi-DB + Adminer. Valkey is the remaining M4 piece in the native wrap. See `docs/spikes/m4-postgres.md`, `docs/spikes/m4-databases.md`.
 
-**Deliverables**
+### Milestone 5: Containers, optional module — **DEFERRED**
+
+**Status:** postponed until native wrap is complete (Valkey, DNS→HTTPS, OOM UX, light docs/VPS gate).
+
+**Deliverables** (unchanged when resumed)
 
 - Podman installed on demand, rootless per site user
 - Quadlet unit generation, with secure credential storage for registry logins and pulls from Docker/OCI registries
@@ -259,20 +264,30 @@ panel:
   port: 0              # 0 = random high port until a domain is set
 sites:
   - name: example.com
-    aliases: [www.example.com]
-    type: static       # static | app | container
+    aliases: [www.example.com]   # same public/ as parent (multi-host)
+    type: static                 # static | app | container
     root: public
+    databases:                   # parent-owned; blank id on create → slug(parent)
+      - id: example_com          # default = slug(example.com)
+        engine: postgres
+      - id: notes
+        engine: sqlite
     build_command: npm install && npm run build   # optional build step
     limits:
       disk_quota: 2G
       log_max: 200M
+  - name: app.example.com
+    parent: example.com          # subdomain site: own public/, inherits parent DBs
+    type: static
   - name: api.example.com
     type: app
     exec: ./bin/server
     socket_activation: true
     idle_timeout: 15m
     env_file: .env
-    database: postgres
+    databases:
+      - id: api_example_com
+        engine: postgres
     cache: valkey
     limits:
       memory_max: 256M
@@ -294,7 +309,9 @@ A `mail:` block is reserved in the schema from the start (per domain), so adding
 | Run a build as the site user with limits | Routine |
 | Reload Caddy with a validated config | Routine |
 | Read a site's journal | Routine |
-| Install or remove packages (Postgres, Podman, Valkey) | Approval |
+| Install or remove packages (Postgres, Podman, Valkey) | Approval (`InstallPostgres` wired) |
+| Ensure or drop a parent database (by id) | SQLite: routine. Postgres/MariaDB: step-up (`EnsureSiteDatabase` / `DropSiteDatabase`, bound `{domain,engine,id}`) |
+| Rotate database password | Routine after panel auth (`RotateDatabasePassword`) |
 | Change firewall rules | Approval |
 | Change the panel port or domain | Approval |
 | Delete a site together with its data | Approval |

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -15,6 +17,7 @@ import (
 	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/helper"
 	"github.com/weborpanel/webor/internal/ipc"
+	"github.com/weborpanel/webor/internal/metrics"
 	"github.com/weborpanel/webor/internal/ui"
 	"github.com/weborpanel/webor/internal/version"
 )
@@ -54,16 +57,49 @@ func main() {
 		log.Printf("first-run setup token (save this): %s", tok)
 	}
 
+	ops := helper.DefaultOps()
+	hostCollector := &metrics.HostCollector{}
+	sampler := &metrics.Sampler{
+		Store: &metrics.Store{DB: db},
+		Host:  hostCollector,
+		Sites: func() ([]config.Site, error) {
+			cfg, err := config.Load(*configPath)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			return cfg.Sites, nil
+		},
+		Usage: func(site config.Site, includeDisk bool) (metrics.SiteUsage, error) {
+			res, err := ops.SiteResourcesWith(site.Name, &site, includeDisk)
+			if err != nil {
+				return metrics.SiteUsage{}, err
+			}
+			return metrics.SiteUsage{
+				MemBytes:     res.MemoryCurrentBytes,
+				DiskBytes:    res.DiskUsedBytes,
+				CPUUsageUSec: res.CPUUsageUSec,
+				Active:       res.AppActive,
+			}, nil
+		},
+	}
+	go sampler.Run(context.Background())
+
 	srv := &api.Server{
 		Account:         acct,
 		Issuer:          "Webor",
 		ConfigPath:      *configPath,
-		Ops:             helper.DefaultOps(),
+		Ops:             ops,
+		Sampler:         sampler,
+		Host:            hostCollector,
 		HelperSocket:    strings.TrimSpace(*helperSocket),
 		ExpectedA:       splitCSV(*expectedA),
 		CaddyConfigPath: *caddyJSON,
 		HTTPListen:      *httpListen,
 		DisableHTTPS:    *disableHTTPS,
+		StateDir:        *stateDir,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +113,7 @@ func main() {
 	srv.MountAuth(mux)
 	srv.MountSites(mux)
 	srv.MountApprovals(mux)
+	srv.MountMetrics(mux)
 	mux.Handle("/", ui.Handler())
 
 	log.Printf("webor %s listening on %s (state=%s config=%s helper=%s)", version.Version, *listen, *stateDir, *configPath, srv.HelperSocket)

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { fetchAuthStatus } from '#lib/auth';
+	import { fetchAuthStatus, HOME_PATH } from '#lib/auth.ts';
 
 	let panelHref = $state('/login');
 	let panelLabel = $state('Log in');
@@ -16,15 +16,11 @@
 				return;
 			}
 			if (status.authenticated) {
-				panelHref = '/sites';
+				panelHref = HOME_PATH;
 				panelLabel = 'Open panel';
-			} else {
-				panelHref = '/login';
-				panelLabel = 'Log in';
 			}
 		} catch {
-			panelHref = '/login';
-			panelLabel = 'Log in';
+			// keep the log in link
 		}
 	});
 </script>
@@ -34,25 +30,27 @@
 </svelte:head>
 
 <section class="hero">
-	<img class="mark" src="/icon.svg" width="72" height="72" alt="" aria-hidden="true" />
-	<h1>Webor</h1>
+	<img class="mark" src="/icon.svg" width="64" height="64" alt="" aria-hidden="true" />
+	<h1>Host every site on one VPS.</h1>
 	<p>
-		A lightweight hosting panel for one VPS and several sites — static builds, native apps,
-		automatic SSL, without Docker.
+		Static builds, native apps, databases, caches and automatic SSL, without Docker. One small
+		panel, everything in view.
 	</p>
 	<p class="cta">
-		<a class="button" href={panelHref}>{panelLabel}</a>
+		<a class="wbr-btn" href={panelHref}>{panelLabel}</a>
 	</p>
+	<ul class="points">
+		<li>Live CPU, memory and disk per site</li>
+		<li>Git or binary deploys with automatic rollback</li>
+		<li>Postgres, MariaDB, SQLite and Valkey per site</li>
+	</ul>
 </section>
 
 <style>
 	.hero {
-		min-height: calc(100vh - 7rem);
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		max-width: 38rem;
-		padding-bottom: 4rem;
+		margin: auto 0;
+		max-width: 40rem;
+		padding: 2rem 0 4rem;
 	}
 
 	.mark {
@@ -61,17 +59,17 @@
 	}
 
 	h1 {
-		margin: 0 0 0.75rem;
-		font-size: clamp(2.75rem, 8vw, 4.5rem);
-		line-height: 0.95;
+		margin: 0 0 0.85rem;
+		font-size: clamp(2.2rem, 6vw, 3.6rem);
+		line-height: 1.02;
 		letter-spacing: -0.04em;
 		font-weight: 800;
 	}
 
 	p {
 		margin: 0;
-		max-width: 34ch;
-		font-size: clamp(1.05rem, 2.4vw, 1.25rem);
+		max-width: 46ch;
+		font-size: clamp(1rem, 2.2vw, 1.15rem);
 		color: var(--muted);
 	}
 
@@ -79,25 +77,25 @@
 		margin-top: 1.75rem;
 	}
 
-	.button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.85rem 1.35rem;
-		border-radius: 999px;
-		background: var(--wbr-ultramarine);
-		color: #fff;
-		font-weight: 800;
-		text-decoration: none;
-		box-shadow: 0 10px 30px color-mix(in srgb, var(--wbr-ultramarine) 28%, transparent);
-		transition:
-			transform 160ms ease,
-			box-shadow 160ms ease;
+	.cta .wbr-btn {
+		padding: 0.8rem 1.4rem;
+		font-size: 1rem;
 	}
 
-	.button:hover {
-		color: #fff;
-		transform: translateY(-1px);
-		box-shadow: 0 14px 34px color-mix(in srgb, var(--wbr-ultramarine) 36%, transparent);
+	.points {
+		margin: 2rem 0 0;
+		padding: 0;
+		list-style: none;
+		display: grid;
+		gap: 0.4rem;
+		color: var(--muted);
+		font-size: 0.95rem;
+	}
+
+	.points li::before {
+		content: '✓';
+		color: var(--ok);
+		font-weight: 800;
+		margin-right: 0.55rem;
 	}
 </style>

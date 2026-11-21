@@ -37,6 +37,7 @@ type Panel struct {
 // Site describes one hosted site or app.
 type Site struct {
 	Name             string            `yaml:"name"`
+	Parent           string            `yaml:"parent,omitempty"` // subdomain of this parent site
 	Aliases          []string          `yaml:"aliases,omitempty"`
 	Type             string            `yaml:"type"` // static | app | container
 	Root             string            `yaml:"root,omitempty"`
@@ -49,12 +50,16 @@ type Site struct {
 	SocketProxy      bool              `yaml:"socket_proxy,omitempty"` // proxyd + private backend (non-LISTEN_FDS apps)
 	IdleTimeout      string            `yaml:"idle_timeout,omitempty"`
 	EnvFile          string            `yaml:"env_file,omitempty"`
-	Database         string            `yaml:"database,omitempty"`
-	Cache            string            `yaml:"cache,omitempty"`
-	Limits           Limits            `yaml:"limits,omitempty"`
-	Cron             []CronJob         `yaml:"cron,omitempty"`
-	Jobs             []Job             `yaml:"jobs,omitempty"` // long-running Type=simple services
-	Extra            map[string]string `yaml:"extra,omitempty"`
+	// Database is legacy singular engine; migrated into Databases on load.
+	Database  string         `yaml:"database,omitempty"`
+	Databases []SiteDatabase `yaml:"databases,omitempty"`
+	Cache     string         `yaml:"cache,omitempty"`
+	// HTTPS enables automatic TLS for this site when the panel is not force-disabling HTTPS.
+	HTTPS     bool           `yaml:"https,omitempty"`
+	Limits    Limits         `yaml:"limits,omitempty"`
+	Cron      []CronJob      `yaml:"cron,omitempty"`
+	Jobs      []Job          `yaml:"jobs,omitempty"` // long-running Type=simple services
+	Extra     map[string]string `yaml:"extra,omitempty"`
 }
 
 // Limits are per-site resource caps.
@@ -97,6 +102,9 @@ func Parse(data []byte) (*Config, error) {
 	if err := yaml.Unmarshal(data, &c); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	for i := range c.Sites {
+		NormalizeSiteDatabases(&c.Sites[i])
+	}
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
@@ -105,6 +113,9 @@ func Parse(data []byte) (*Config, error) {
 
 // Save writes the config as YAML to path.
 func Save(path string, c *Config) error {
+	for i := range c.Sites {
+		NormalizeSiteDatabases(&c.Sites[i])
+	}
 	if err := c.Validate(); err != nil {
 		return err
 	}
@@ -130,6 +141,7 @@ func (c *Config) Validate() error {
 	}
 
 	seen := make(map[string]struct{}, len(c.Sites))
+	byName := make(map[string]Site, len(c.Sites))
 	for i, s := range c.Sites {
 		prefix := fmt.Sprintf("sites[%d]", i)
 		if strings.TrimSpace(s.Name) == "" {
@@ -143,11 +155,44 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("%s: duplicate site name %q", prefix, s.Name)
 		}
 		seen[key] = struct{}{}
+		byName[key] = s
 
 		switch s.Type {
 		case SiteTypeStatic, SiteTypeApp, SiteTypeContainer:
 		default:
 			return fmt.Errorf("%s: invalid type %q (want static, app, or container)", prefix, s.Type)
+		}
+		parent := strings.ToLower(strings.TrimSpace(s.Parent))
+		if parent != "" {
+			if err := validateDomain(s.Parent); err != nil {
+				return fmt.Errorf("%s.parent: %w", prefix, err)
+			}
+			if parent == key {
+				return fmt.Errorf("%s.parent: cannot reference self", prefix)
+			}
+			if len(s.Databases) > 0 || strings.TrimSpace(s.Database) != "" {
+				return fmt.Errorf("%s: child sites cannot declare databases (use parent)", prefix)
+			}
+			if strings.TrimSpace(s.Cache) != "" {
+				return fmt.Errorf("%s: child sites cannot declare cache (use parent)", prefix)
+			}
+		}
+		if cache := strings.ToLower(strings.TrimSpace(s.Cache)); cache != "" && cache != "valkey" && cache != "redis" {
+			return fmt.Errorf("%s.cache: unsupported %q (want valkey)", prefix, s.Cache)
+		}
+		seenDB := map[string]struct{}{}
+		for j, db := range s.Databases {
+			id := NormalizeDBID(s.Name, db.ID)
+			if err := validateDBID(id); err != nil {
+				return fmt.Errorf("%s.databases[%d].id: %w", prefix, j, err)
+			}
+			if err := validateEngine(db.Engine); err != nil {
+				return fmt.Errorf("%s.databases[%d].engine: %w", prefix, j, err)
+			}
+			if _, ok := seenDB[id]; ok {
+				return fmt.Errorf("%s.databases[%d]: duplicate id %q", prefix, j, id)
+			}
+			seenDB[id] = struct{}{}
 		}
 		for j, alias := range s.Aliases {
 			if err := validateDomain(alias); err != nil {
@@ -190,6 +235,18 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("%s.jobs[%d]: duplicate job name %q", prefix, j, job.Name)
 			}
 			seenJobs[key] = struct{}{}
+		}
+	}
+	for i, s := range c.Sites {
+		parent := strings.ToLower(strings.TrimSpace(s.Parent))
+		if parent == "" {
+			continue
+		}
+		if _, ok := byName[parent]; !ok {
+			return fmt.Errorf("sites[%d].parent: unknown site %q", i, s.Parent)
+		}
+		if strings.TrimSpace(byName[parent].Parent) != "" {
+			return fmt.Errorf("sites[%d].parent: %q is itself a child site", i, s.Parent)
 		}
 	}
 	return nil

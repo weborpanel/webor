@@ -6,11 +6,13 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/weborpanel/webor/internal/auth"
 	"github.com/weborpanel/webor/internal/dnscheck"
 	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/metrics"
 )
 
 // Server holds panel API dependencies.
@@ -37,6 +39,17 @@ type Server struct {
 
 	// UploadsDir stages deploy binaries (default /var/lib/webor/uploads).
 	UploadsDir string
+	// StateDir holds SQLite state and database secrets (default /var/lib/webor).
+	StateDir string
+
+	// Sampler records host/site usage history; nil disables live CPU in
+	// /api/overview (graphs still read whatever is stored).
+	Sampler *metrics.Sampler
+	// Host reads live host stats; nil uses /proc and /.
+	Host *metrics.HostCollector
+
+	dbAdminerOnce sync.Once
+	globalDBA     *globalDBAdminer
 }
 
 func (s *Server) writeJSON(w http.ResponseWriter, status int, v any) {

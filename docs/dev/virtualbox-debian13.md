@@ -1,6 +1,8 @@
 # VirtualBox lab — Debian 13 (netinst)
 
-Lab VM for Webor Milestone 0 spikes (helper, Caddy, systemd). Not production.
+Lab VM for Webooza/Webor spikes (helper, Caddy, systemd). Not production.
+
+**Agent / SSH testing playbook:** [`lab-ssh-testing.md`](lab-ssh-testing.md) (connect with `ssh.exe`, rsync, smoke commands, M3 baseline, pitfalls).
 
 **Snapshot:** take a clean snapshot after this setup (before installing Caddy/Go extras you may want to roll back).
 

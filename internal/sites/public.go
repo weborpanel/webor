@@ -23,12 +23,25 @@ func EnsurePublicDir(domain string) error {
 }
 
 // ResolvePublicPath joins a relative path under public/ and rejects escapes.
+// Empty rel is rejected; use ResolvePublicRel for the document root itself.
 func ResolvePublicPath(domain, rel string) (string, error) {
 	rel = strings.TrimSpace(rel)
 	rel = strings.ReplaceAll(rel, "\\", "/")
 	rel = strings.TrimPrefix(rel, "/")
 	if rel == "" || rel == "." {
 		return "", fmt.Errorf("path is required")
+	}
+	return ResolvePublicRel(domain, rel)
+}
+
+// ResolvePublicRel is like ResolvePublicPath but allows "" / "." for the public root.
+func ResolvePublicRel(domain, rel string) (string, error) {
+	rel = strings.TrimSpace(rel)
+	rel = strings.ReplaceAll(rel, "\\", "/")
+	rel = strings.TrimPrefix(rel, "/")
+	root := Public(domain)
+	if rel == "" || rel == "." {
+		return filepath.Clean(root), nil
 	}
 	if strings.Contains(rel, "..") {
 		return "", fmt.Errorf("path escapes public root")
@@ -37,14 +50,11 @@ func ResolvePublicPath(domain, rel string) (string, error) {
 	if clean == "." || strings.HasPrefix(clean, "..") {
 		return "", fmt.Errorf("path escapes public root")
 	}
-	root := Public(domain)
 	full := filepath.Join(root, clean)
-	rootClean := filepath.Clean(root) + string(filepath.Separator)
-	if full != filepath.Clean(root) && !strings.HasPrefix(filepath.Clean(full)+string(filepath.Separator), rootClean) && filepath.Clean(full) != filepath.Clean(root) {
-		// file path: allow files under root
-		if !strings.HasPrefix(filepath.Clean(full), filepath.Clean(root)+string(filepath.Separator)) {
-			return "", fmt.Errorf("path escapes public root")
-		}
+	rootClean := filepath.Clean(root)
+	fullClean := filepath.Clean(full)
+	if fullClean != rootClean && !strings.HasPrefix(fullClean, rootClean+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes public root")
 	}
-	return full, nil
+	return fullClean, nil
 }

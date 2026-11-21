@@ -52,7 +52,7 @@ make lab-start           # helper + caddy + panel on :8787 / :8080
 sudo ./install/install.sh --yes --bin-dir ./bin
 ```
 
-See [docs/plan.md](docs/plan.md), [docs/spikes/m3-install.md](docs/spikes/m3-install.md), and [docs/dev/virtualbox-debian13.md](docs/dev/virtualbox-debian13.md).
+See [docs/plan.md](docs/plan.md), [docs/spikes/m3-install.md](docs/spikes/m3-install.md), [docs/dev/virtualbox-debian13.md](docs/dev/virtualbox-debian13.md), and [docs/dev/lab-ssh-testing.md](docs/dev/lab-ssh-testing.md) (agent SSH/rsync smoke playbook).
 
 ## License
 

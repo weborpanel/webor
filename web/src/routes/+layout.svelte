@@ -3,7 +3,17 @@
 	import { onMount } from 'svelte';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { fetchAuthStatus, isProtectedPath, isPublicPath } from '#lib/auth';
+	import { fetchAuthStatus, HOME_PATH, isProtectedPath, isPublicPath } from '#lib/auth.ts';
+	import { request } from '#lib/api.ts';
+	import { overview } from '#lib/stores/overview.svelte.ts';
+	import { ui } from '#lib/stores/ui.svelte.ts';
+	import Sidebar from '#lib/components/Sidebar.svelte';
+	import Topbar from '#lib/components/Topbar.svelte';
+	import CommandPalette from '#lib/components/CommandPalette.svelte';
+	import AddSiteModal from '#lib/components/AddSiteModal.svelte';
+	import Toasts from '#lib/components/Toasts.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+	import Logo from '#lib/components/Logo.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
@@ -12,9 +22,10 @@
 	let authenticated = $state(false);
 	let needsSetup = $state(false);
 	let loggingOut = $state(false);
+	let email = $state('');
 
-	let useDashboard = $derived(authReady && authenticated && !needsSetup && isProtectedPath(page.url.pathname));
-	let sitesActive = $derived(page.url.pathname.startsWith('/sites'));
+	let protectedRoute = $derived(isProtectedPath(page.url.pathname));
+	let useShell = $derived(authReady && authenticated && !needsSetup && protectedRoute);
 
 	async function refreshAuth() {
 		try {
@@ -37,11 +48,24 @@
 			return;
 		}
 		if (!needsSetup && path.startsWith('/setup')) {
-			await goto(authenticated ? '/sites' : '/login');
+			await goto(authenticated ? HOME_PATH : '/login');
 			return;
 		}
 		if (isProtectedPath(path) && !authenticated) {
 			await goto('/login');
+		}
+	}
+
+	async function loadSessionData() {
+		if (!authenticated || needsSetup) return;
+		void overview.ensure(30_000);
+		if (!email) {
+			try {
+				const r = await request<{ email?: string }>('/api/me');
+				if (r.ok) email = r.data.email || '';
+			} catch {
+				// non-fatal: topbar falls back to a generic label
+			}
 		}
 	}
 
@@ -54,81 +78,79 @@
 		}
 		authenticated = false;
 		loggingOut = false;
+		email = '';
+		overview.clear();
 		await goto('/login');
+	}
+
+	function onkeydown(e: KeyboardEvent) {
+		if (!useShell) return;
+		if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+			e.preventDefault();
+			ui.paletteOpen = !ui.paletteOpen;
+		}
 	}
 
 	onMount(async () => {
 		await refreshAuth();
 		await guard();
+		await loadSessionData();
 	});
 
 	afterNavigate(async () => {
+		ui.drawerOpen = false;
 		await refreshAuth();
 		await guard();
+		await loadSessionData();
 	});
 </script>
 
+<svelte:window {onkeydown} />
+
 <svelte:head>
-	<link rel="preconnect" href="https://fonts.googleapis.com" />
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link
-		href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap"
-		rel="stylesheet"
-	/>
 	<link rel="icon" href="/icon.svg" type="image/svg+xml" />
-	<meta name="description" content="Webor — lightweight non-Docker VPS hosting panel" />
+	<meta name="description" content="Webor: lightweight non-Docker VPS hosting panel" />
 </svelte:head>
 
-{#if useDashboard}
-	<div class="dash-shell">
-		<aside class="sidebar">
-			<a class="brand" href="/sites" aria-label="Webor home">
-				<img class="logo" src="/logo-light.svg" width="160" height="52" alt="Webor" />
-			</a>
-			<nav class="side-nav" aria-label="Panel">
-				<a class={['nav-item', sitesActive && 'active']} href="/sites" aria-current={sitesActive ? 'page' : undefined}>
-					Sites
-				</a>
-			</nav>
-			<div class="side-foot">
-				<button type="button" class="logout" disabled={loggingOut} onclick={logout}>
-					{loggingOut ? 'Signing out…' : 'Log out'}
-				</button>
-			</div>
-		</aside>
-		<main class="dash-main">
-			{#if !authReady && isProtectedPath(page.url.pathname)}
-				<p class="wbr-muted gate">Checking session…</p>
-			{:else if isProtectedPath(page.url.pathname) && !authenticated}
-				<p class="wbr-muted gate">Redirecting to log in…</p>
-			{:else}
-				{@render children()}
-			{/if}
-		</main>
-	</div>
-{:else}
+{#if useShell}
+	<a class="skip" href="#main">Skip to content</a>
 	<div class="shell">
-		<header class="top">
-			<a class="brand" href="/" aria-label="Webor home">
-				<img class="logo" src="/logo-light.svg" width="180" height="58" alt="Webor" />
-			</a>
+		<Sidebar bind:open={ui.drawerOpen} onaddsite={() => (ui.addSiteOpen = true)} />
+		<div class="column">
+			<Topbar
+				{email}
+				{loggingOut}
+				onmenu={() => (ui.drawerOpen = true)}
+				onsearch={() => (ui.paletteOpen = true)}
+				onlogout={logout}
+			/>
+			<main id="main" class="main" tabindex="-1">
+				{@render children()}
+			</main>
+		</div>
+	</div>
+	<CommandPalette bind:open={ui.paletteOpen} onaddsite={() => (ui.addSiteOpen = true)} />
+	<AddSiteModal bind:open={ui.addSiteOpen} />
+	<ConfirmDialog />
+	<Toasts />
+{:else}
+	<div class="public">
+		<header class="public-top">
+			<a href="/" aria-label="Webor home"><Logo width={124} /></a>
 			<nav>
-				{#if authReady && authenticated}
-					<a href="/sites">Sites</a>
-					<button type="button" class="linkish" disabled={loggingOut} onclick={logout}>
-						{loggingOut ? 'Signing out…' : 'Log out'}
-					</button>
+				{#if authReady && authenticated && !needsSetup}
+					<a class="wbr-btn sm" href={HOME_PATH}>Open panel</a>
 				{:else if authReady && needsSetup}
 					<a href="/setup">Setup</a>
-				{:else}
+				{:else if !page.url.pathname.startsWith('/login')}
 					<a href="/login">Log in</a>
 				{/if}
 			</nav>
 		</header>
 		<main class="public-main">
-			{#if !authReady && isProtectedPath(page.url.pathname)}
+			{#if !authReady && protectedRoute}
 				<p class="wbr-muted gate">Checking session…</p>
-			{:else if isProtectedPath(page.url.pathname) && !authenticated}
+			{:else if protectedRoute && !authenticated}
 				<p class="wbr-muted gate">Redirecting to log in…</p>
 			{:else if !isPublicPath(page.url.pathname) && needsSetup}
 				<p class="wbr-muted gate">Redirecting to setup…</p>
@@ -136,107 +158,68 @@
 				{@render children()}
 			{/if}
 		</main>
+		<footer class="public-foot">Webor · lightweight hosting for one VPS</footer>
 	</div>
+	<Toasts />
 {/if}
 
 <style>
-	.dash-shell {
-		min-height: 100vh;
-		display: grid;
-		grid-template-columns: var(--sidebar-width) 1fr;
-	}
-
-	.sidebar {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-		padding: 1.35rem 1.1rem 1.5rem;
-		background: color-mix(in srgb, var(--surface) 88%, transparent);
-		border-right: 1px solid var(--border);
-		position: sticky;
-		top: 0;
-		height: 100vh;
-	}
-
-	.brand {
-		display: inline-flex;
-		align-items: center;
-		padding: 0 0.35rem;
-	}
-
-	.logo {
-		display: block;
-		height: auto;
-		max-width: 100%;
-	}
-
-	.side-nav {
-		display: grid;
-		gap: 0.35rem;
-		flex: 1;
-	}
-
-	.nav-item {
-		display: block;
-		padding: 0.65rem 0.85rem;
+	.skip {
+		position: absolute;
+		left: -999px;
+		top: 0.5rem;
+		z-index: 200;
+		padding: 0.5rem 0.8rem;
+		background: var(--accent);
+		color: var(--accent-contrast);
 		border-radius: var(--radius-sm);
-		font-weight: 800;
-		font-size: 0.95rem;
-		color: var(--text);
-		text-decoration: none;
-	}
-
-	.nav-item:hover {
-		background: color-mix(in srgb, var(--wbr-ultramarine) 8%, transparent);
-		color: var(--text);
-	}
-
-	.nav-item.active {
-		background: color-mix(in srgb, var(--wbr-ultramarine) 14%, transparent);
-		color: var(--wbr-ultramarine);
-	}
-
-	.side-foot {
-		padding-top: 0.5rem;
-		border-top: 1px solid var(--border);
-	}
-
-	.logout {
-		width: 100%;
-		text-align: left;
-		background: none;
-		border: 0;
-		padding: 0.65rem 0.85rem;
-		border-radius: var(--radius-sm);
-		font: inherit;
 		font-weight: 700;
-		color: var(--muted);
-		cursor: pointer;
 	}
 
-	.logout:hover:not(:disabled) {
-		color: var(--text);
-		background: color-mix(in srgb, var(--text) 5%, transparent);
-	}
-
-	.logout:disabled {
-		opacity: 0.7;
-		cursor: wait;
-	}
-
-	.dash-main {
-		min-width: 0;
-		padding: var(--pane-pad);
-		padding-bottom: 3rem;
+	.skip:focus {
+		left: 0.5rem;
 	}
 
 	.shell {
 		min-height: 100vh;
+	}
+
+	.column {
+		margin-left: var(--sidebar-width);
+		min-width: 0;
+		min-height: 100vh;
 		display: flex;
 		flex-direction: column;
 	}
 
-	.top {
+	.main {
+		flex: 1;
+		width: 100%;
+		max-width: 88rem;
+		padding: 1.5rem var(--pane-pad) 4rem;
+		outline: none;
+		min-width: 0;
+	}
+
+	.public {
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+		background:
+			radial-gradient(
+				900px 480px at 10% -10%,
+				color-mix(in srgb, var(--wbr-ultramarine) 12%, transparent),
+				transparent 60%
+			),
+			radial-gradient(
+				700px 380px at 100% 0%,
+				color-mix(in srgb, var(--wbr-marigold) 10%, transparent),
+				transparent 55%
+			),
+			var(--page);
+	}
+
+	.public-top {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -244,71 +227,34 @@
 		padding: 1.25rem clamp(1rem, 4vw, 2.5rem);
 	}
 
-	.top nav {
+	.public-top nav {
 		display: flex;
-		gap: 1.1rem;
+		gap: 1rem;
 		align-items: center;
-	}
-
-	.top nav a,
-	.linkish {
 		font-weight: 700;
-		font-size: 0.95rem;
-	}
-
-	.linkish {
-		background: none;
-		border: 0;
-		padding: 0;
-		color: inherit;
-		font: inherit;
-		font-weight: 700;
-		cursor: pointer;
-		text-decoration: underline;
-		text-underline-offset: 0.15em;
-	}
-
-	.linkish:disabled {
-		opacity: 0.7;
-		cursor: wait;
 	}
 
 	.public-main {
 		flex: 1;
+		display: flex;
+		flex-direction: column;
 		padding: 0 clamp(1rem, 4vw, 2.5rem) 3rem;
+	}
+
+	.public-foot {
+		padding: 1.25rem;
+		text-align: center;
+		font-size: 0.8rem;
+		color: var(--subtle);
 	}
 
 	.gate {
 		padding: 2rem 0;
 	}
 
-	@media (max-width: 720px) {
-		.dash-shell {
-			grid-template-columns: 1fr;
-		}
-
-		.sidebar {
-			position: static;
-			height: auto;
-			border-right: 0;
-			border-bottom: 1px solid var(--border);
-			padding-bottom: 1rem;
-		}
-
-		.side-nav {
-			grid-auto-flow: column;
-			grid-auto-columns: max-content;
-			overflow-x: auto;
-			flex: 0;
-		}
-
-		.side-foot {
-			border-top: 0;
-			padding-top: 0;
-		}
-
-		.logout {
-			width: auto;
+	@media (max-width: 960px) {
+		.column {
+			margin-left: 0;
 		}
 	}
 </style>

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { fetchAuthStatus } from '#lib/auth.ts';
+	import { NETWORK_ERROR } from '#lib/api.ts';
 
 	let token = $state('');
 	let email = $state('');
@@ -11,12 +13,8 @@
 
 	onMount(async () => {
 		try {
-			const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				needs_setup?: boolean;
-			};
-			if (res.ok && data.ok && data.needs_setup === false) {
+			const status = await fetchAuthStatus();
+			if (status.ok && !status.needs_setup) {
 				await goto('/login');
 				return;
 			}
@@ -27,7 +25,7 @@
 		}
 	});
 
-	async function onSubmit(e: Event) {
+	async function onSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
 		submitting = true;
@@ -45,7 +43,7 @@
 			}
 			await goto('/login');
 		} catch {
-			error = 'Could not reach the panel API';
+			error = NETWORK_ERROR;
 		} finally {
 			submitting = false;
 		}
@@ -56,17 +54,20 @@
 	<title>First-run setup · Webor</title>
 </svelte:head>
 
-<section class="setup">
-	<h1>First-run setup</h1>
-	<p>Create the admin account with the bootstrap token from the server.</p>
+<section class="auth-card">
+	<span class="step">First-run setup</span>
+	<h1>Create the admin account</h1>
+	<p class="lede">
+		Use the bootstrap token printed by the installer (or in the panel log on first start).
+	</p>
 
 	{#if checking}
-		<p class="muted">Checking…</p>
+		<p class="wbr-muted">Checking…</p>
 	{:else}
 		<form method="post" onsubmit={onSubmit}>
 			<label class="wbr-field">
 				<span>Bootstrap token</span>
-				<input type="text" name="token" autocomplete="off" bind:value={token} required />
+				<input type="text" name="token" autocomplete="off" spellcheck="false" bind:value={token} required />
 			</label>
 			<label class="wbr-field">
 				<span>Email</span>
@@ -85,7 +86,7 @@
 			{#if error}
 				<p class="wbr-error" role="alert">{error}</p>
 			{/if}
-			<button class="wbr-btn" type="submit" disabled={submitting}>
+			<button class="wbr-btn submit" type="submit" disabled={submitting}>
 				{submitting ? 'Creating…' : 'Create admin'}
 			</button>
 		</form>
@@ -93,26 +94,34 @@
 </section>
 
 <style>
-	.setup {
-		max-width: 26rem;
-		padding: 2rem 0 4rem;
+	.auth-card {
+		width: min(28rem, 100%);
+		margin: auto;
+		padding: 2rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
+	}
+
+	.step {
+		font-size: 0.75rem;
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--accent);
 	}
 
 	h1 {
-		margin: 0 0 0.5rem;
-		font-size: clamp(2rem, 5vw, 2.6rem);
-		letter-spacing: -0.03em;
+		margin: 0.3rem 0 0.35rem;
+		font-size: 1.5rem;
 		font-weight: 800;
 	}
 
-	p {
-		margin: 0 0 1.75rem;
+	.lede {
+		margin: 0 0 1.5rem;
 		color: var(--muted);
-	}
-
-	.muted {
-		margin: 0;
-		color: var(--muted);
+		font-size: 0.92rem;
 	}
 
 	form {
@@ -120,8 +129,9 @@
 		gap: 1rem;
 	}
 
-	.wbr-btn {
-		justify-self: start;
-		margin-top: 0.2rem;
+	.submit {
+		width: 100%;
+		margin-top: 0.25rem;
+		padding-block: 0.7rem;
 	}
 </style>

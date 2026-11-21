@@ -101,9 +101,21 @@ func (r *Runner) Run(ctx context.Context, job Job) (*Result, error) {
 		return res, fmt.Errorf("systemd-run: %w", err)
 	}
 	if code != 0 {
-		return res, fmt.Errorf("build exited %d", code)
+		return res, formatBuildExit(code, stdout, stderr)
 	}
 	return res, nil
+}
+
+func formatBuildExit(code int, stdout, stderr string) error {
+	joined := strings.ToLower(stdout + "\n" + stderr)
+	oom := code == 137 || code == 143 ||
+		strings.Contains(joined, "memorymax") ||
+		strings.Contains(joined, "oom") ||
+		strings.Contains(joined, "killed") && strings.Contains(joined, "memory")
+	if oom {
+		return fmt.Errorf("build killed by memory limit (OOM, exit %d); raise site limits.memory_max or reduce the build", code)
+	}
+	return fmt.Errorf("build exited %d", code)
 }
 
 func defaultExec(ctx context.Context, name string, args ...string) (string, string, int, error) {

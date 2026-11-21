@@ -3,6 +3,7 @@ package ipc
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/weborpanel/webor/internal/audit"
@@ -64,12 +65,64 @@ func makeApprove(store *auth.Store, log *audit.Logger) HandlerFunc {
 		if by == "" {
 			by = fmt.Sprintf("uid=%d pid=%d", cred.UID, cred.PID)
 		}
+		// Load first so the CLI/panel can show what was granted.
+		prior, getErr := store.Get(args.ID)
 		if err := store.Approve(args.ID, by); err != nil {
 			_ = log.Append(by, OpApprove, args, err.Error())
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
 		_ = log.Append(by, OpApprove, args, "ok")
-		return Response{ID: req.ID, OK: true, Message: "approved " + args.ID}
+		msg := "approved " + args.ID
+		if getErr == nil && prior != nil {
+			msg = fmt.Sprintf("approved %s operation=%s args=%s", args.ID, prior.Operation, prior.ArgsJSON)
+		}
+		return Response{ID: req.ID, OK: true, Message: msg}
+	}
+}
+
+func makeGetApproval(store *auth.Store) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		if store == nil {
+			return Response{ID: req.ID, OK: false, Error: "approvals not configured"}
+		}
+		var args GetApprovalArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		id := strings.TrimSpace(args.ID)
+		if id == "" {
+			return Response{ID: req.ID, OK: false, Error: "id is required"}
+		}
+		a, err := store.Get(id)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		status := "pending"
+		expired := time.Now().UTC().After(a.ExpiresAt)
+		if a.UsedAt != nil {
+			status = "used"
+		} else if a.ApprovedBy != "" {
+			status = "approved"
+		} else if expired {
+			status = "expired"
+		}
+		out := map[string]any{
+			"id":          a.ID,
+			"operation":   a.Operation,
+			"args_json":   a.ArgsJSON,
+			"status":      status,
+			"approved":    a.ApprovedBy != "",
+			"approved_by": a.ApprovedBy,
+			"used":        a.UsedAt != nil,
+			"expired":     expired,
+			"expires_at":  a.ExpiresAt.UTC().Format(time.RFC3339),
+			"created_at":  a.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if a.UsedAt != nil {
+			out["used_at"] = a.UsedAt.UTC().Format(time.RFC3339)
+		}
+		raw, _ := json.Marshal(out)
+		return Response{ID: req.ID, OK: true, Message: string(raw)}
 	}
 }
 

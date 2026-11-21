@@ -6,6 +6,9 @@ export type AuthStatus = {
 	needs_setup: boolean;
 };
 
+/** Where the panel lands after login or setup. */
+export const HOME_PATH = '/dashboard';
+
 export async function fetchAuthStatus(): Promise<AuthStatus> {
 	const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
 	const data = (await res.json().catch(() => ({}))) as Partial<AuthStatus>;
@@ -24,7 +27,9 @@ export function isPublicPath(pathname: string): boolean {
 	return pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/setup');
 }
 
+const PROTECTED_PREFIXES = ['/dashboard', '/sites', '/activity', '/account'];
+
 /** Panel routes that require an authenticated session. */
 export function isProtectedPath(pathname: string): boolean {
-	return pathname.startsWith('/sites');
+	return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }

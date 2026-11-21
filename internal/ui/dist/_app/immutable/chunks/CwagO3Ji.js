@@ -1,0 +1,1 @@
+function e(e){return e.type===`app`?e.sampled?e.active?{tone:`ok`,label:`Running`}:{tone:`neutral`,label:`Idle`}:{tone:`neutral`,label:`Pending`}:{tone:`ok`,label:`Serving`}}export{e as t};

@@ -72,6 +72,27 @@ func runApprove(args []string) int {
 		return 0
 	}
 	id := fs.Arg(0)
+	// Preview what root is approving (operation + bound args).
+	prevRaw, _ := json.Marshal(ipc.GetApprovalArgs{ID: id})
+	prev, err := ipc.Call(*socket, ipc.Request{ID: "wbr", Operation: ipc.OpGetApproval, Args: prevRaw})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if !prev.OK {
+		fmt.Fprintln(os.Stderr, prev.Error)
+		return 1
+	}
+	fmt.Println("Approving request:")
+	var preview map[string]any
+	if err := json.Unmarshal([]byte(prev.Message), &preview); err != nil {
+		fmt.Println(prev.Message)
+	} else {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(preview)
+	}
+	fmt.Println()
 	raw, _ := json.Marshal(ipc.ApproveArgs{ID: id, ApprovedBy: "wbr"})
 	resp, err := ipc.Call(*socket, ipc.Request{ID: "wbr", Operation: ipc.OpApprove, Args: raw})
 	if err != nil {

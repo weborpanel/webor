@@ -79,6 +79,40 @@ CREATE TABLE login_attempts (
 CREATE INDEX login_attempts_key_ts ON login_attempts (key, attempted_at);
 `,
 	},
+	{
+		version: 3,
+		name:    "003_metrics",
+		sql: `
+CREATE TABLE metrics_host (
+  res INTEGER NOT NULL,
+  ts INTEGER NOT NULL,
+  cpu_pct REAL NOT NULL DEFAULT 0,
+  cpu_max REAL NOT NULL DEFAULT 0,
+  mem_used INTEGER NOT NULL DEFAULT 0,
+  mem_total INTEGER NOT NULL DEFAULT 0,
+  load1 REAL NOT NULL DEFAULT 0,
+  disk_used INTEGER NOT NULL DEFAULT 0,
+  disk_total INTEGER NOT NULL DEFAULT 0,
+  net_rx REAL NOT NULL DEFAULT 0,
+  net_tx REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (res, ts)
+);
+
+CREATE TABLE metrics_site (
+  res INTEGER NOT NULL,
+  ts INTEGER NOT NULL,
+  site TEXT NOT NULL,
+  cpu_pct REAL NOT NULL DEFAULT 0,
+  cpu_max REAL NOT NULL DEFAULT 0,
+  mem_bytes INTEGER NOT NULL DEFAULT 0,
+  disk_bytes INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (site, res, ts)
+);
+
+CREATE INDEX metrics_site_res_ts ON metrics_site (res, ts);
+`,
+	},
 }
 
 // Migrate applies all pending schema migrations in order.

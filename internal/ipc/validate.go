@@ -96,7 +96,23 @@ func ValidateDeleteSiteUserArgs(a DeleteSiteUserArgs) error {
 	if a.DeleteData && strings.TrimSpace(a.ApprovalID) == "" {
 		return fmt.Errorf("approval_id is required when delete_data is true")
 	}
-	return nil
+	for _, child := range a.CascadeDomains {
+		if strings.TrimSpace(child) == "" {
+			continue
+		}
+		if err := ValidateDomain(child); err != nil {
+			return fmt.Errorf("cascade_domains: %w", err)
+		}
+	}
+	for _, db := range a.DropDatabases {
+		if err := validateEngine(db.Engine); err != nil {
+			return fmt.Errorf("drop_databases: %w", err)
+		}
+		if err := validateDBID(a.Domain, db.ID); err != nil {
+			return fmt.Errorf("drop_databases: %w", err)
+		}
+	}
+	return validateStateDir(a.StateDir)
 }
 
 // ValidateRunBuildArgs validates RunBuild arguments.
@@ -147,10 +163,107 @@ func ValidateWritePublicFileArgs(a WritePublicFileArgs) error {
 	if err := ValidateSitePath(a.Domain, full); err != nil {
 		return err
 	}
-	if len(a.Content) > 5*1024*1024 {
-		return fmt.Errorf("content exceeds 5 MiB")
+	if len(a.Content) > 32*1024*1024 {
+		return fmt.Errorf("content exceeds 32 MiB")
 	}
 	return nil
+}
+
+func validatePublicRelPath(domain, rel string, allowEmpty bool) error {
+	if err := ValidateDomain(domain); err != nil {
+		return err
+	}
+	p := strings.TrimSpace(rel)
+	p = strings.ReplaceAll(p, `\`, "/")
+	p = strings.TrimPrefix(p, "/")
+	if p == "" || p == "." {
+		if allowEmpty {
+			return nil
+		}
+		return fmt.Errorf("path is required")
+	}
+	if strings.Contains(p, "..") {
+		return fmt.Errorf("invalid path")
+	}
+	full := filepath.Join(sitesRoot, strings.ToLower(domain), "public", p)
+	return ValidateSitePath(domain, full)
+}
+
+// ValidateListPublicDirArgs validates ListPublicDir arguments.
+func ValidateListPublicDirArgs(a ListPublicDirArgs) error {
+	return validatePublicRelPath(a.Domain, a.Path, true)
+}
+
+// ValidateMkdirPublicArgs validates MkdirPublic arguments.
+func ValidateMkdirPublicArgs(a MkdirPublicArgs) error {
+	return validatePublicRelPath(a.Domain, a.Path, false)
+}
+
+// ValidateRenamePublicArgs validates RenamePublic arguments.
+func ValidateRenamePublicArgs(a RenamePublicArgs) error {
+	if err := validatePublicRelPath(a.Domain, a.From, false); err != nil {
+		return fmt.Errorf("from: %w", err)
+	}
+	if err := validatePublicRelPath(a.Domain, a.To, false); err != nil {
+		return fmt.Errorf("to: %w", err)
+	}
+	return nil
+}
+
+// ValidateDeletePublicPathArgs validates DeletePublicPath arguments.
+func ValidateDeletePublicPathArgs(a DeletePublicPathArgs) error {
+	return validatePublicRelPath(a.Domain, a.Path, false)
+}
+
+// ValidateReadPublicFileArgs validates ReadPublicFile arguments.
+func ValidateReadPublicFileArgs(a ReadPublicFileArgs) error {
+	return validatePublicRelPath(a.Domain, a.Path, false)
+}
+
+// ValidateExtractPublicArchiveArgs validates ExtractPublicArchive arguments.
+func ValidateExtractPublicArchiveArgs(a ExtractPublicArchiveArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	if err := validatePublicRelPath(a.Domain, a.Dest, true); err != nil {
+		return fmt.Errorf("dest: %w", err)
+	}
+	p := filepath.Clean(strings.TrimSpace(a.ArchivePath))
+	if p == "" || p == "." {
+		return fmt.Errorf("archive_path is required")
+	}
+	if !filepath.IsAbs(p) {
+		return fmt.Errorf("archive_path must be absolute")
+	}
+	lower := strings.ToLower(p)
+	okExt := strings.HasSuffix(lower, ".zip") ||
+		strings.HasSuffix(lower, ".tar") ||
+		strings.HasSuffix(lower, ".tar.gz") ||
+		strings.HasSuffix(lower, ".tgz")
+	if !okExt {
+		return fmt.Errorf("archive_path must be .zip, .tar, .tar.gz or .tgz")
+	}
+	domain := strings.ToLower(a.Domain)
+	allowedPrefixes := []string{
+		filepath.Join(sitesRoot, domain, "tmp") + string(filepath.Separator),
+		filepath.Join("/var/lib/webor/uploads", domain) + string(filepath.Separator),
+	}
+	ok := false
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("archive_path %q not under allowed upload directories", p)
+	}
+	switch strings.ToLower(strings.TrimSpace(a.Format)) {
+	case "", "zip", "tar", "tar.gz", "tgz":
+		return nil
+	default:
+		return fmt.Errorf("unsupported format %q", a.Format)
+	}
 }
 
 // ValidateDeployStaticZipArgs validates DeployStaticZip arguments.
@@ -343,4 +456,122 @@ func ValidateReloadCaddyArgs(a ReloadCaddyArgs) error {
 		return fmt.Errorf("config_path %q not under allowed directories", p)
 	}
 	return nil
+}
+
+// ValidateInstallPostgresArgs requires an approval id.
+func ValidateInstallPostgresArgs(a InstallPostgresArgs) error {
+	if strings.TrimSpace(a.ApprovalID) == "" {
+		return fmt.Errorf("approval_id is required")
+	}
+	return nil
+}
+
+// ValidateInstallMariaDBArgs requires an approval id.
+func ValidateInstallMariaDBArgs(a InstallMariaDBArgs) error {
+	if strings.TrimSpace(a.ApprovalID) == "" {
+		return fmt.Errorf("approval_id is required")
+	}
+	return nil
+}
+
+// ValidateInstallValkeyArgs requires an approval id.
+func ValidateInstallValkeyArgs(a InstallValkeyArgs) error {
+	if strings.TrimSpace(a.ApprovalID) == "" {
+		return fmt.Errorf("approval_id is required")
+	}
+	return nil
+}
+
+// ValidateEnsureSiteCacheArgs validates EnsureSiteCache.
+func ValidateEnsureSiteCacheArgs(a EnsureSiteCacheArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	eng := strings.ToLower(strings.TrimSpace(a.Engine))
+	if eng != "" && eng != "valkey" && eng != "redis" {
+		return fmt.Errorf("unsupported cache engine %q", a.Engine)
+	}
+	return validateStateDir(a.StateDir)
+}
+
+// ValidateDropSiteCacheArgs validates DropSiteCache.
+func ValidateDropSiteCacheArgs(a DropSiteCacheArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	return validateStateDir(a.StateDir)
+}
+
+// ValidateRotateCachePasswordArgs validates RotateCachePassword.
+func ValidateRotateCachePasswordArgs(a RotateCachePasswordArgs) error {
+	return ValidateDropSiteCacheArgs(DropSiteCacheArgs{Domain: a.Domain, StateDir: a.StateDir})
+}
+
+func validateStateDir(stateDir string) error {
+	if stateDir == "" {
+		return nil
+	}
+	p := filepath.Clean(stateDir)
+	if !filepath.IsAbs(p) {
+		return fmt.Errorf("state_dir must be absolute")
+	}
+	if p != "/var/lib/webor" && !strings.HasPrefix(p, "/var/lib/webor/") && !strings.HasPrefix(p, "/tmp/") {
+		return fmt.Errorf("state_dir not allowed")
+	}
+	return nil
+}
+
+func validateEngine(engine string) error {
+	e := strings.ToLower(strings.TrimSpace(engine))
+	switch e {
+	case "sqlite", "postgres", "mariadb":
+		return nil
+	case "":
+		return fmt.Errorf("engine is required")
+	default:
+		return fmt.Errorf("unsupported engine %q", engine)
+	}
+}
+
+var dbIDRE = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
+
+// validateDBID allows blank (default slug) or a normalized id matching dbIDRE.
+func validateDBID(domain, id string) error {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if id == "" {
+		return nil
+	}
+	if !dbIDRE.MatchString(id) {
+		return fmt.Errorf("invalid database id %q", id)
+	}
+	_ = domain
+	return nil
+}
+
+// ValidateEnsureSiteDatabaseArgs validates EnsureSiteDatabase arguments.
+func ValidateEnsureSiteDatabaseArgs(a EnsureSiteDatabaseArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	if err := validateEngine(a.Engine); err != nil {
+		return err
+	}
+	if err := validateDBID(a.Domain, a.ID); err != nil {
+		return err
+	}
+	return validateStateDir(a.StateDir)
+}
+
+// ValidateDropSiteDatabaseArgs validates DropSiteDatabase arguments.
+func ValidateDropSiteDatabaseArgs(a DropSiteDatabaseArgs) error {
+	return ValidateEnsureSiteDatabaseArgs(EnsureSiteDatabaseArgs{
+		Domain: a.Domain, Engine: a.Engine, ID: a.ID, StateDir: a.StateDir,
+	})
+}
+
+// ValidateRotateDatabasePasswordArgs validates RotateDatabasePassword arguments.
+func ValidateRotateDatabasePasswordArgs(a RotateDatabasePasswordArgs) error {
+	return ValidateEnsureSiteDatabaseArgs(EnsureSiteDatabaseArgs{
+		Domain: a.Domain, Engine: a.Engine, ID: a.ID, StateDir: a.StateDir,
+	})
 }

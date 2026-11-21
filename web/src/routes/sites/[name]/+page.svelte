@@ -1,56 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
+	import Card from '#lib/components/Card.svelte';
+	import Icon from '#lib/components/Icon.svelte';
+	import Skeleton from '#lib/components/Skeleton.svelte';
+	import Gauge from '#lib/charts/Gauge.svelte';
+	import TimeSeriesChart from '#lib/charts/TimeSeriesChart.svelte';
+	import type { IconName } from '#lib/icons/paths.ts';
+	import { getSite } from '#lib/site/context.svelte.ts';
+	import { MetricsQuery, poll } from '#lib/stores/metrics.svelte.ts';
+	import { overview } from '#lib/stores/overview.svelte.ts';
+	import { request } from '#lib/api.ts';
+	import { formatBytes, formatPct, pctOf } from '#lib/format.ts';
 
-	type DnsItem = {
-		record: string;
-		host: string;
-		want?: string;
-		got?: string;
-		status: string;
-		detail?: string;
-	};
-
-	type DeployMode = 'binary' | 'git';
-
-	let name = $derived(page.params.name || '');
-	let error = $state('');
-	let loading = $state(true);
-	let exists = $state(false);
-	let root = $state('public');
-	let siteType = $state('static');
-	let dnsItems = $state<DnsItem[]>([]);
-	let dnsCanCert = $state(false);
-	let dnsChecked = $state(false);
-	let dnsLoading = $state(false);
-	let expectedA = $state('');
-
-	let deployMode = $state<DeployMode>('binary');
-	let deployBusy = $state(false);
-	let deployError = $state('');
-	let deploySuccess = $state('');
-	let binaryFiles = $state<FileList | null>(null);
-	let gitUrl = $state('');
-	let gitRef = $state('');
-	let buildCommand = $state('');
-	let artifact = $state('');
-	let isApp = $derived(siteType === 'app');
-
-	let uploadPath = $state('index.html');
-	let uploadFile = $state<FileList | null>(null);
-	let uploading = $state(false);
-	let uploadOk = $state('');
-
-	let socketProxy = $state(false);
-	let cronNames = $state<string[]>([]);
-	let jobNames = $state<string[]>([]);
-
-	let logUnit = $state('app');
-	let logText = $state('');
-	let logUnitName = $state('');
-	let logLoading = $state(false);
-	let logError = $state('');
+	const site = getSite();
 
 	type Resources = {
 		disk_used_bytes?: number;
@@ -62,754 +24,357 @@
 		app_active?: boolean;
 		unit?: string;
 	};
-	let resources = $state<Resources | null>(null);
-	let resourcesLoading = $state(false);
+
+	let resources = $state.raw<Resources | null>(null);
 	let resourcesError = $state('');
+	let resourcesLoading = $state(false);
+	let dbCount = $state<number | null>(null);
+	let cacheAttached = $state<boolean | null>(null);
 
-	async function load() {
-		loading = true;
-		error = '';
-		try {
-			const res = await fetch('/api/sites', { credentials: 'same-origin' });
-			if (res.status === 401) {
-				await goto('/login');
-				return;
-			}
-			const data = (await res.json()) as {
-				ok?: boolean;
-				error?: string;
-				sites?: {
-					name: string;
-					type?: string;
-					root?: string;
-					socket_proxy?: boolean;
-					cron?: string[];
-					jobs?: string[];
-				}[];
-			};
-			if (!res.ok || !data.ok) {
-				error = data.error || 'Failed to load site';
-				return;
-			}
-			const site = (data.sites || []).find((s) => s.name.toLowerCase() === name.toLowerCase());
-			exists = !!site;
-			root = site?.root || 'public';
-			siteType = site?.type || 'static';
-			socketProxy = !!site?.socket_proxy;
-			cronNames = site?.cron || [];
-			jobNames = site?.jobs || [];
-			if (socketProxy) logUnit = 'backend';
-			else if (siteType === 'app') logUnit = 'app';
-			else if (cronNames.length) logUnit = `cron:${cronNames[0]}`;
-			else if (jobNames.length) logUnit = `job:${jobNames[0]}`;
-		} catch {
-			error = 'Could not reach the panel API';
-		} finally {
-			loading = false;
-		}
-		if (exists) {
-			await Promise.all([loadLogs(), loadResources()]);
-		}
-	}
+	const metrics = new MetricsQuery(site.path('/metrics'), '24h');
 
-	async function loadLogs() {
-		logLoading = true;
-		logError = '';
-		try {
-			const q = new URLSearchParams({ unit: logUnit, lines: '120' });
-			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/logs?${q}`, {
-				credentials: 'same-origin'
-			});
-			if (res.status === 401) {
-				await goto('/login');
-				return;
-			}
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				error?: string;
-				text?: string;
-				unit?: string;
-			};
-			if (!res.ok || !data.ok) {
-				logError = data.error || 'Could not load logs';
-				logText = '';
-				return;
-			}
-			logText = data.text || '';
-			logUnitName = data.unit || '';
-		} catch {
-			logError = 'Could not reach the panel API';
-		} finally {
-			logLoading = false;
+	let summary = $derived(overview.sites.find((s) => s.name.toLowerCase() === site.name.toLowerCase()));
+	let memLimit = $derived(summary?.mem_limit_bytes || metrics.memLimit || 0);
+	let diskQuota = $derived(summary?.disk_quota_bytes || metrics.diskQuota || 0);
+
+	let memUsed = $derived(resources?.memory_current_bytes ?? summary?.mem_bytes ?? 0);
+	let diskUsed = $derived(resources?.disk_used_bytes ?? summary?.disk_bytes ?? 0);
+
+	type Step = { key: string; label: string; done: boolean | null; href: string; icon: IconName; hint: string };
+
+	let steps = $derived.by((): Step[] => [
+		site.isApp
+			? {
+					key: 'deploy',
+					label: 'Deploy a release',
+					done: resources ? !!resources.app_active || !!summary?.active : null,
+					href: site.href('/deploy'),
+					icon: 'rocket',
+					hint: 'Upload a binary or build from git'
+				}
+			: {
+					key: 'upload',
+					label: 'Upload site files',
+					done: null,
+					href: site.href('/files'),
+					icon: 'upload',
+					hint: `Files go under ${site.root}/`
+				},
+		{
+			key: 'dns',
+			label: 'Point DNS at this server',
+			done: site.https ? true : null,
+			href: site.href('/domains'),
+			icon: 'globe',
+			hint: 'Run the DNS check'
+		},
+		{
+			key: 'https',
+			label: 'Enable HTTPS',
+			done: site.https,
+			href: site.href('/domains'),
+			icon: 'lock',
+			hint: "Free certificate from Let's Encrypt"
+		},
+		{
+			key: 'db',
+			label: 'Attach a database',
+			done: dbCount == null ? null : dbCount > 0,
+			href: site.href('/databases'),
+			icon: 'database',
+			hint: 'SQLite, Postgres or MariaDB (optional)'
+		},
+		{
+			key: 'cache',
+			label: 'Attach a cache',
+			done: cacheAttached,
+			href: site.href('/cache'),
+			icon: 'zap',
+			hint: 'Install Valkey as root, then attach (optional)'
 		}
-	}
+	]);
+
+	let doneCount = $derived(steps.filter((s) => s.done).length);
 
 	async function loadResources() {
 		resourcesLoading = true;
-		resourcesError = '';
 		try {
-			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/resources`, {
-				credentials: 'same-origin'
-			});
-			if (res.status === 401) {
-				await goto('/login');
-				return;
+			const r = await request<{ resources?: Resources }>(site.path('/resources'));
+			if (r.ok) {
+				resources = r.data.resources ?? null;
+				resourcesError = '';
+			} else {
+				resourcesError = r.data.error || 'Could not load resources';
 			}
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				error?: string;
-				resources?: Resources;
-			};
-			if (!res.ok || !data.ok) {
-				resourcesError = data.error || 'Could not load resources';
-				resources = null;
-				return;
-			}
-			resources = data.resources || null;
-		} catch {
-			resourcesError = 'Could not reach the panel API';
+		} catch (e) {
+			resourcesError = e instanceof Error ? e.message : 'Could not load resources';
 		} finally {
 			resourcesLoading = false;
 		}
 	}
 
-	function formatBytes(n?: number): string {
-		if (n == null || n < 0 || Number.isNaN(n)) return '—';
-		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-		let v = n;
-		let i = 0;
-		while (v >= 1024 && i < units.length - 1) {
-			v /= 1024;
-			i++;
-		}
-		return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
-	}
-
-	async function checkDNS() {
-		dnsLoading = true;
-		error = '';
+	async function loadExtras() {
 		try {
-			const q = expectedA.trim() ? `?a=${encodeURIComponent(expectedA.trim())}` : '';
-			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/dns${q}`, {
-				credentials: 'same-origin'
-			});
-			const data = (await res.json()) as {
-				ok?: boolean;
-				error?: string;
-				can_issue_certificate?: boolean;
-				reports?: { items: DnsItem[] }[];
-			};
-			if (!res.ok || !data.ok) {
-				error = data.error || 'DNS check failed';
-				return;
+			const [db, cache] = await Promise.all([
+				request<{ databases?: unknown[] }>(site.path('/databases')),
+				request<{ attached?: boolean; username?: string; cache?: { attached?: boolean; username?: string } | null }>(
+					site.path('/cache')
+				)
+			]);
+			if (db.ok) dbCount = db.data.databases?.length ?? 0;
+			if (cache.ok) {
+				const c = cache.data.cache;
+				cacheAttached = !!(c ? (c.attached ?? c.username) : (cache.data.attached ?? cache.data.username));
 			}
-			dnsItems = data.reports?.[0]?.items || [];
-			dnsCanCert = !!data.can_issue_certificate;
-			dnsChecked = true;
 		} catch {
-			error = 'Could not reach the panel API';
-		} finally {
-			dnsLoading = false;
+			// checklist falls back to "unknown"
 		}
 	}
 
-	async function upload(e: Event) {
-		e.preventDefault();
-		uploadOk = '';
-		error = '';
-		if (!uploadFile?.length) {
-			error = 'Choose a file to upload';
-			return;
-		}
-		uploading = true;
-		try {
-			const file = uploadFile[0];
-			const path = uploadPath.trim() || file.name;
-			const res = await fetch(
-				`/api/sites/${encodeURIComponent(name)}/files/${path.split('/').map(encodeURIComponent).join('/')}`,
-				{
-					method: 'PUT',
-					credentials: 'same-origin',
-					headers: { 'Content-Type': 'application/octet-stream' },
-					body: await file.arrayBuffer()
-				}
-			);
-			if (res.status === 401) {
-				await goto('/login');
-				return;
-			}
-			const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-			if (!res.ok || !data.ok) {
-				error = data.error || 'Upload failed';
-				return;
-			}
-			uploadOk = `Uploaded to ${root}/${path}`;
-			uploadFile = null;
-		} catch {
-			error = 'Could not reach the panel API';
-		} finally {
-			uploading = false;
-		}
-	}
-
-	async function deployBinary(e: Event) {
-		e.preventDefault();
-		deployError = '';
-		deploySuccess = '';
-		if (!binaryFiles?.length) {
-			deployError = 'Choose a binary file';
-			return;
-		}
-		deployBusy = true;
-		try {
-			const body = new FormData();
-			body.append('file', binaryFiles[0]);
-			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/deploy`, {
-				method: 'POST',
-				credentials: 'same-origin',
-				body
-			});
-			if (res.status === 401) {
-				await goto('/login');
-				return;
-			}
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				error?: string;
-				release_id?: string;
-			};
-			if (!res.ok || !data.ok) {
-				deployError = data.error || 'Deploy failed';
-				return;
-			}
-			deploySuccess = data.release_id
-				? `Deployed release ${data.release_id}`
-				: 'Deploy succeeded';
-			binaryFiles = null;
-		} catch {
-			deployError = 'Could not reach the panel API';
-		} finally {
-			deployBusy = false;
-		}
-	}
-
-	async function deployGit(e: Event) {
-		e.preventDefault();
-		deployError = '';
-		deploySuccess = '';
-		const url = gitUrl.trim();
-		if (!url) {
-			deployError = 'git_url is required';
-			return;
-		}
-		deployBusy = true;
-		try {
-			const payload: Record<string, string> = { git_url: url };
-			const ref = gitRef.trim();
-			const cmd = buildCommand.trim();
-			const art = artifact.trim();
-			if (ref) payload.git_ref = ref;
-			if (cmd) payload.build_command = cmd;
-			if (art) payload.artifact = art;
-
-			const res = await fetch(`/api/sites/${encodeURIComponent(name)}/deploy/git`, {
-				method: 'POST',
-				credentials: 'same-origin',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(payload)
-			});
-			if (res.status === 401) {
-				await goto('/login');
-				return;
-			}
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				error?: string;
-				release_id?: string;
-			};
-			if (!res.ok || !data.ok) {
-				deployError = data.error || 'Git deploy failed';
-				return;
-			}
-			deploySuccess = data.release_id
-				? `Deployed release ${data.release_id}`
-				: 'Deploy succeeded';
-		} catch {
-			deployError = 'Could not reach the panel API';
-		} finally {
-			deployBusy = false;
-		}
-	}
-
-	onMount(load);
+	onMount(() => {
+		void loadResources();
+		void loadExtras();
+		void metrics.load();
+		void overview.ensure(30_000);
+		return poll(() => {
+			void metrics.load();
+			void overview.refresh();
+		}, 60_000);
+	});
 </script>
 
-<svelte:head>
-	<title>{name} · Webor</title>
-</svelte:head>
-
-<section class="page">
-	<p class="crumb"><a href="/sites">Sites</a> <span aria-hidden="true">/</span> <span>{name || '…'}</span></p>
-
-	{#if loading}
-		<p class="wbr-muted">Loading…</p>
-	{:else if !exists}
-		<p class="wbr-error" role="alert">Site not found in config.</p>
-	{:else}
-		<header class="page-head">
-			<div class="title-row">
-				<h1>{name}</h1>
-				<span class="wbr-badge">{siteType}</span>
-			</div>
-			<p class="wbr-muted">
-				{#if isApp}
-					App site · releases under <code>/srv/sites/{name}/</code>
-				{:else}
-					Document root <code>/srv/sites/{name}/{root}/</code>
-				{/if}
-			</p>
-		</header>
-
-		{#if error}
-			<p class="wbr-error" role="alert">{error}</p>
-		{/if}
-
-		<section class="wbr-panel" aria-labelledby="overview-heading">
-			<h2 id="overview-heading">Overview</h2>
-			<p class="lede">
-				{#if isApp}
-					Deploy a release, then confirm DNS before HTTPS.
-				{:else}
-					Upload into <code>{root}/</code>, then confirm DNS before HTTPS.
-				{/if}
-			</p>
-			<ul class="facts">
-				<li><span>Type</span> <strong>{siteType}</strong></li>
-				<li><span>Path</span> <code>/srv/sites/{name}/</code></li>
-				{#if socketProxy}
-					<li><span>Socket</span> <strong>proxyd idle</strong></li>
-				{/if}
-				<li>
-					<span>HTTPS</span>
-					<strong>
-						{#if !dnsChecked}
-							Not checked yet
-						{:else if dnsCanCert}
-							DNS ready
-						{:else}
-							DNS not ready
-						{/if}
-					</strong>
-				</li>
-			</ul>
-		</section>
-
-		<section class="wbr-panel" aria-labelledby="resources-heading">
-			<h2 id="resources-heading">Resources</h2>
-			<p class="lede">Disk under the site root and memory for the app unit (when running).</p>
-			{#if resourcesError}
-				<p class="wbr-error" role="alert">{resourcesError}</p>
-			{/if}
-			{#if resourcesLoading && !resources}
-				<p class="wbr-muted">Loading…</p>
-			{:else if resources}
-				<ul class="facts">
-					<li><span>Disk used</span> <strong>{formatBytes(resources.disk_used_bytes)}</strong></li>
-					<li><span>Disk free</span> <strong>{formatBytes(resources.disk_avail_bytes)}</strong></li>
-					{#if resources.disk_quota}
-						<li><span>Quota</span> <strong>{resources.disk_quota}</strong></li>
-					{/if}
-					<li>
-						<span>Memory</span>
-						<strong>
-							{formatBytes(resources.memory_current_bytes)}
-							{#if resources.memory_max}
-								<span class="wbr-muted"> / {resources.memory_max}</span>
-							{/if}
-						</strong>
-					</li>
-					<li>
-						<span>App</span>
-						<strong>{resources.app_active ? 'active' : 'inactive'}</strong>
-					</li>
-				</ul>
-			{/if}
-			<button class="wbr-btn wbr-btn-ghost" type="button" disabled={resourcesLoading} onclick={loadResources}>
-				{resourcesLoading ? 'Refreshing…' : 'Refresh'}
-			</button>
-		</section>
-
-		{#if isApp}
-			<section class="wbr-panel" aria-labelledby="deploy-heading">
-				<h2 id="deploy-heading">Deploy</h2>
-				<p class="lede">Upload a binary or build from git. Failed health checks roll back automatically.</p>
-
-				<div class="mode" role="group" aria-label="Deploy mode">
-					<button
-						type="button"
-						class={['wbr-btn', 'wbr-btn-ghost', 'mode-btn', deployMode === 'binary' && 'active']}
-						disabled={deployBusy}
-						onclick={() => (deployMode = 'binary')}
-					>
-						Binary upload
-					</button>
-					<button
-						type="button"
-						class={['wbr-btn', 'wbr-btn-ghost', 'mode-btn', deployMode === 'git' && 'active']}
-						disabled={deployBusy}
-						onclick={() => (deployMode = 'git')}
-					>
-						Git deploy
-					</button>
+<div class="layout">
+	<div class="main">
+		<Card title="Resources" description="Live usage compared with this site's limits">
+			{#snippet actions()}
+				<button
+					type="button"
+					class="wbr-btn wbr-btn-ghost sm"
+					disabled={resourcesLoading}
+					onclick={loadResources}
+				>
+					<Icon name="refresh" size={14} />
+					{resourcesLoading ? 'Refreshing…' : 'Refresh'}
+				</button>
+			{/snippet}
+			{#if resourcesError}<p class="wbr-error">{resourcesError}</p>{/if}
+			{#if !resources && resourcesLoading}
+				<Skeleton height="8rem" radius="10px" />
+			{:else}
+				<div class="gauges">
+					<Gauge
+						label="CPU"
+						value={formatPct(summary?.cpu_pct ?? 0)}
+						pct={summary?.cpu_pct ?? 0}
+						sub="of server capacity"
+					/>
+					<Gauge
+						label="Memory"
+						value={formatBytes(memUsed)}
+						pct={memLimit ? pctOf(memUsed, memLimit) : undefined}
+						sub={memLimit ? `limit ${resources?.memory_max || summary?.memory_max}` : site.isApp ? 'no limit set' : 'served by Caddy'}
+					/>
+					<Gauge
+						label="Disk"
+						value={formatBytes(diskUsed)}
+						pct={diskQuota ? pctOf(diskUsed, diskQuota) : undefined}
+						sub={diskQuota
+							? `quota ${resources?.disk_quota || summary?.disk_quota}`
+							: resources?.disk_avail_bytes
+								? `${formatBytes(resources.disk_avail_bytes)} free on volume`
+								: 'no quota set'}
+					/>
 				</div>
+			{/if}
+		</Card>
 
-				{#if deployError}
-					<p class="wbr-error" role="alert">{deployError}</p>
-				{/if}
-				{#if deploySuccess}
-					<p class="wbr-ok" role="status">{deploySuccess}</p>
-				{/if}
-
-				{#if deployMode === 'binary'}
-					<form class="stack" onsubmit={deployBinary}>
-						<label class="wbr-field">
-							<span>Binary file</span>
-							<input
-								type="file"
-								name="file"
-								disabled={deployBusy}
-								onchange={(e) => {
-									binaryFiles = e.currentTarget.files;
-								}}
-							/>
-						</label>
-						<button class="wbr-btn" type="submit" disabled={deployBusy}>
-							{deployBusy ? 'Deploying…' : 'Deploy'}
-						</button>
-					</form>
-				{:else}
-					<form class="stack" onsubmit={deployGit}>
-						<label class="wbr-field">
-							<span>Git URL</span>
-							<input
-								name="git_url"
-								bind:value={gitUrl}
-								placeholder="https://github.com/org/repo.git"
-								required
-								disabled={deployBusy}
-							/>
-						</label>
-						<label class="wbr-field">
-							<span>Git ref (optional)</span>
-							<input name="git_ref" bind:value={gitRef} placeholder="main" disabled={deployBusy} />
-						</label>
-						<label class="wbr-field">
-							<span>Build command (optional)</span>
-							<input
-								name="build_command"
-								bind:value={buildCommand}
-								placeholder="go build -o server ."
-								disabled={deployBusy}
-							/>
-						</label>
-						<label class="wbr-field">
-							<span>Artifact (optional)</span>
-							<input
-								name="artifact"
-								bind:value={artifact}
-								placeholder="server"
-								disabled={deployBusy}
-							/>
-						</label>
-						<button class="wbr-btn" type="submit" disabled={deployBusy}>
-							{deployBusy ? 'Deploying…' : 'Deploy from git'}
-						</button>
-					</form>
-				{/if}
-			</section>
-		{:else}
-			<section class="wbr-panel" aria-labelledby="upload-heading">
-				<h2 id="upload-heading">Upload</h2>
-				<p class="lede">Files land under <code>{root}/</code> and are served by Caddy.</p>
-				{#if uploadOk}
-					<p class="wbr-ok" role="status">{uploadOk}</p>
-				{/if}
-				<form class="stack" onsubmit={upload}>
-					<label class="wbr-field">
-						<span>Path under {root}/</span>
-						<input name="path" bind:value={uploadPath} placeholder="index.html" required />
-					</label>
-					<label class="wbr-field">
-						<span>File</span>
-						<input
-							type="file"
-							onchange={(e) => {
-								uploadFile = e.currentTarget.files;
-							}}
+		<Card title="Last 24 hours">
+			{#snippet actions()}
+				<a class="wbr-btn wbr-btn-ghost sm" href={site.href('/metrics')}>
+					All metrics <Icon name="chevronRight" size={14} />
+				</a>
+			{/snippet}
+			{#if metrics.data}
+				<div class="minis">
+					<div>
+						<h3>CPU</h3>
+						<TimeSeriesChart
+							label={`${site.name} CPU, last 24 hours`}
+							t={metrics.data.t}
+							step={metrics.data.step}
+							from={metrics.data.from}
+							to={metrics.data.to}
+							kind="pct"
+							height={150}
+							series={[{ key: 'cpu', label: 'CPU', values: metrics.values('cpu_pct'), color: 'var(--chart-1)' }]}
 						/>
-					</label>
-					<button class="wbr-btn" type="submit" disabled={uploading}>
-						{uploading ? 'Uploading…' : 'Upload'}
-					</button>
-				</form>
-			</section>
-		{/if}
+					</div>
+					<div>
+						<h3>Memory</h3>
+						<TimeSeriesChart
+							label={`${site.name} memory, last 24 hours`}
+							t={metrics.data.t}
+							step={metrics.data.step}
+							from={metrics.data.from}
+							to={metrics.data.to}
+							kind="bytes"
+							height={150}
+							threshold={memLimit ? { value: memLimit, label: 'limit' } : undefined}
+							series={[{ key: 'mem', label: 'Memory', values: metrics.values('mem_bytes'), color: 'var(--chart-3)' }]}
+						/>
+					</div>
+				</div>
+			{:else if metrics.error}
+				<p class="wbr-error">{metrics.error}</p>
+			{:else}
+				<Skeleton height="150px" radius="10px" />
+			{/if}
+		</Card>
+	</div>
 
-		<section class="wbr-panel" aria-labelledby="logs-heading">
-			<h2 id="logs-heading">Logs</h2>
-			<p class="lede">Recent journal lines for this site’s units.</p>
-			<div class="log-controls">
-				<label class="wbr-field">
-					<span>Unit</span>
-					<select bind:value={logUnit} onchange={loadLogs}>
-						{#if isApp}
-							<option value="app">{socketProxy ? 'Proxyd' : 'App'}</option>
-							{#if socketProxy}
-								<option value="backend">Backend</option>
-							{/if}
-						{/if}
-						{#each cronNames as cron (cron)}
-							<option value={`cron:${cron}`}>Cron · {cron}</option>
-						{/each}
-						{#each jobNames as job (job)}
-							<option value={`job:${job}`}>Job · {job}</option>
-						{/each}
-					</select>
-				</label>
-				<button class="wbr-btn wbr-btn-ghost" type="button" disabled={logLoading} onclick={loadLogs}>
-					{logLoading ? 'Loading…' : 'Refresh'}
-				</button>
-			</div>
-			{#if logUnitName}
-				<p class="wbr-muted unit-name"><code>{logUnitName}</code></p>
-			{/if}
-			{#if logError}
-				<p class="wbr-error" role="alert">{logError}</p>
-			{/if}
-			<pre class="log-tail">{logText || (logLoading ? '…' : '(no log lines)')}</pre>
-		</section>
+	<aside class="side">
+		<Card title="Setup checklist" description={`${doneCount} of ${steps.length} done`}>
+			<ol class="steps">
+				{#each steps as s (s.key)}
+					<li class={[s.done === true && 'done']}>
+						<span class="check" aria-hidden="true">
+							{#if s.done}<Icon name="check" size={13} />{:else}<Icon name={s.icon} size={13} />{/if}
+						</span>
+						<a href={s.href}>
+							<strong>{s.label}</strong>
+							<span>{s.done === true ? 'Done' : s.hint}</span>
+						</a>
+						<span class="visually-hidden">
+							{s.done === true ? 'complete' : s.done === false ? 'not done' : 'status unknown'}
+						</span>
+					</li>
+				{/each}
+			</ol>
+		</Card>
 
-		<section class="wbr-panel" aria-labelledby="dns-heading">
-			<h2 id="dns-heading">DNS checklist</h2>
-			<p class="lede">Point the domain at this VPS, then run the check. Certificate issuance waits for a green A record.</p>
-			<form
-				class="stack dns-form"
-				onsubmit={(e) => {
-					e.preventDefault();
-					checkDNS();
-				}}
-			>
-				<label class="wbr-field">
-					<span>Expected A (optional override)</span>
-					<input bind:value={expectedA} placeholder="203.0.113.10" />
-				</label>
-				<button class="wbr-btn" type="submit" disabled={dnsLoading}>
-					{dnsLoading ? 'Checking…' : 'Check DNS'}
-				</button>
-			</form>
-			{#if dnsChecked}
-				<p class={['summary', dnsCanCert ? 'good' : 'bad']}>
-					{dnsCanCert ? 'DNS ready for certificate issuance' : 'DNS not ready for HTTPS yet'}
-				</p>
-				<table>
-					<thead>
-						<tr>
-							<th>Record</th>
-							<th>Status</th>
-							<th>Detail</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each dnsItems as item, i (item.record + item.host + i)}
-							<tr>
-								<td>{item.record}</td>
-								<td class={item.status}>{item.status}</td>
-								<td>{item.got || item.detail || item.want || '—'}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			{/if}
-		</section>
-	{/if}
-</section>
+		<Card title="Details">
+			<ul class="wbr-facts">
+				<li><span>Type</span> <strong>{site.type}</strong></li>
+				<li><span>Home</span> <code>/srv/sites/{site.name}/</code></li>
+				{#if !site.isApp}<li><span>Web root</span> <code>{site.root}/</code></li>{/if}
+				{#if resources?.unit}<li><span>Unit</span> <code>{resources.unit}</code></li>{/if}
+				{#if site.isChild}
+					<li>
+						<span>Parent</span>
+						<a href={`/sites/${encodeURIComponent(site.parent)}`}>{site.parent}</a>
+					</li>
+				{/if}
+				{#if site.socketProxy}<li><span>Socket</span> <strong>proxyd (idle-stop)</strong></li>{/if}
+				{#if site.cron.length}<li><span>Cron</span> <span class="list">{site.cron.join(', ')}</span></li>{/if}
+				{#if site.jobs.length}<li><span>Jobs</span> <span class="list">{site.jobs.join(', ')}</span></li>{/if}
+			</ul>
+		</Card>
+	</aside>
+</div>
 
 <style>
-	.page {
-		max-width: 44rem;
+	.layout {
 		display: grid;
-		gap: 1.15rem;
+		grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
+		gap: 1rem;
+		align-items: start;
 	}
 
-	.crumb {
-		margin: 0;
-		font-size: 0.9rem;
-		color: var(--muted);
-		font-weight: 700;
+	.main,
+	.side {
+		display: grid;
+		gap: 1rem;
+		min-width: 0;
 	}
 
-	.crumb a {
-		text-decoration: none;
+	.gauges {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+		gap: 1rem;
+		padding: 0.25rem 0;
+	}
+
+	.minis {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+		gap: 1rem;
+	}
+
+	h3 {
+		margin: 0 0 0.4rem;
+		font-size: 0.78rem;
 		font-weight: 800;
+		color: var(--subtle);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
-	.crumb span[aria-hidden='true'] {
-		margin: 0 0.35rem;
-		opacity: 0.5;
-	}
-
-	.page-head h1 {
-		margin: 0;
-		font-size: clamp(1.85rem, 4vw, 2.35rem);
-		letter-spacing: -0.03em;
-		font-weight: 800;
-	}
-
-	.title-row {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.65rem;
-		margin-bottom: 0.35rem;
-	}
-
-	.page-head p {
-		margin: 0;
-	}
-
-	.facts {
+	.steps {
 		list-style: none;
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.55rem;
+		gap: 0.15rem;
 	}
 
-	.facts li {
+	.steps li {
 		display: grid;
-		grid-template-columns: 5.5rem 1fr;
-		gap: 0.75rem;
-		align-items: baseline;
-		font-size: 0.95rem;
+		grid-template-columns: auto 1fr;
+		gap: 0.65rem;
+		align-items: center;
 	}
 
-	.facts span {
-		color: var(--muted);
-		font-weight: 700;
-		font-size: 0.82rem;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
+	.check {
+		display: grid;
+		place-items: center;
+		width: 1.6rem;
+		height: 1.6rem;
+		border-radius: 50%;
+		border: 1.5px solid var(--border-strong);
+		color: var(--subtle);
 	}
 
-	.mode {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		margin: 0 0 1rem;
-	}
-
-	.mode-btn.active {
-		background: var(--wbr-ultramarine);
+	.done .check {
+		background: var(--ok);
+		border-color: var(--ok);
 		color: #fff;
-		border-color: transparent;
 	}
 
-	.stack {
+	.steps a {
 		display: grid;
-		gap: 0.9rem;
-		max-width: 28rem;
-	}
-
-	.stack .wbr-btn {
-		justify-self: start;
-	}
-
-	.dns-form {
-		margin-bottom: 1rem;
-	}
-
-	.log-controls {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		align-items: end;
-		margin-bottom: 0.75rem;
-	}
-
-	.log-controls .wbr-field {
-		min-width: 12rem;
-	}
-
-	.unit-name {
-		margin: 0 0 0.5rem;
-		font-size: 0.85rem;
-	}
-
-	.log-tail {
-		margin: 0;
-		padding: 0.85rem 1rem;
-		max-height: 18rem;
-		overflow: auto;
-		font-size: 0.8rem;
-		line-height: 1.45;
+		padding: 0.4rem 0.5rem;
 		border-radius: var(--radius-sm);
-		border: 1px solid var(--border);
-		background: color-mix(in srgb, var(--wbr-ink) 4%, var(--surface));
-		white-space: pre-wrap;
-		word-break: break-word;
+		text-decoration: none;
+		color: var(--text);
 	}
 
-	.summary {
-		font-weight: 800;
-		margin: 0 0 0.75rem;
+	.steps a:hover {
+		background: var(--surface-3);
 	}
 
-	.summary.good {
-		color: var(--ok);
+	.steps strong {
+		font-size: 0.88rem;
 	}
 
-	.summary.bad {
-		color: var(--danger);
-	}
-
-	table {
-		width: 100%;
-		border-collapse: collapse;
-		font-size: 0.9rem;
-	}
-
-	th,
-	td {
-		text-align: left;
-		padding: 0.5rem 0.35rem;
-		border-bottom: 1px solid var(--border);
-	}
-
-	th {
-		font-size: 0.78rem;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
+	.done strong {
 		color: var(--muted);
-		font-weight: 800;
+		text-decoration: line-through;
+		text-decoration-color: var(--border-strong);
 	}
 
-	td.pass {
-		color: var(--ok);
-		font-weight: 700;
+	.steps a span {
+		font-size: 0.78rem;
+		color: var(--subtle);
 	}
 
-	td.fail {
-		color: var(--danger);
-		font-weight: 700;
+	.list {
+		font-size: 0.88rem;
+		overflow-wrap: anywhere;
 	}
 
-	td.warn,
-	td.skip {
-		color: var(--warn);
-		font-weight: 700;
-	}
-
-	code {
-		font-size: 0.92em;
+	@media (max-width: 1100px) {
+		.layout {
+			grid-template-columns: 1fr;
+		}
 	}
 </style>

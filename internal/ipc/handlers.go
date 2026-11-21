@@ -25,8 +25,14 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 	h := map[string]HandlerFunc{
 		OpCreateSiteUser:  makeCreateSiteUser(ops),
 		OpDeleteSiteUser:  makeDeleteSiteUser(ops, store, log),
-		OpWritePublicFile: makeWritePublicFile(ops),
-		OpDeployStaticZip: makeDeployStaticZip(ops),
+		OpWritePublicFile:      makeWritePublicFile(ops),
+		OpListPublicDir:        makeListPublicDir(ops),
+		OpMkdirPublic:          makeMkdirPublic(ops),
+		OpRenamePublic:         makeRenamePublic(ops),
+		OpDeletePublicPath:     makeDeletePublicPath(ops),
+		OpReadPublicFile:       makeReadPublicFile(ops),
+		OpExtractPublicArchive: makeExtractPublicArchive(ops),
+		OpDeployStaticZip:      makeDeployStaticZip(ops),
 		OpDeployAppBinary: makeDeployAppBinary(ops),
 		OpDeployAppGit:    makeDeployAppGit(ops),
 		OpRunBuild:        makeRunBuild(ops),
@@ -38,7 +44,20 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpRequestApproval: makeRequestApproval(store, log),
 		OpApprove:         makeApprove(store, log),
 		OpListApprovals:   makeListApprovals(store),
+		OpGetApproval:     makeGetApproval(store),
 		OpDangerousDemo:   makeDangerousDemo(store, log),
+		OpInstallPostgres:        makeInstallPostgres(ops, store, log),
+		OpInstallMariaDB:         makeInstallMariaDB(ops, store, log),
+		OpInstallValkey:          makeInstallValkey(ops, store, log),
+		OpEnsureSiteDatabase:     makeEnsureSiteDatabase(ops, store, log),
+		OpDropSiteDatabase:       makeDropSiteDatabase(ops, store, log),
+		OpRotateDatabasePassword: makeRotateDatabasePassword(ops, log),
+		OpEnsureSiteCache:        makeEnsureSiteCache(ops, log),
+		OpDropSiteCache:          makeDropSiteCache(ops, log),
+		OpRotateCachePassword:    makeRotateCachePassword(ops, log),
+		OpPostgresStatus:         makePostgresStatus(ops),
+		OpMariaDBStatus:          makeMariaDBStatus(ops),
+		OpValkeyStatus:           makeValkeyStatus(ops),
 	}
 	return h
 }
@@ -72,13 +91,14 @@ func makeDeleteSiteUser(ops *helper.Ops, store *auth.Store, log *audit.Logger) H
 		if err := ValidateDeleteSiteUserArgs(args); err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
+		domain := strings.ToLower(strings.TrimSpace(args.Domain))
 		actor := fmt.Sprintf("uid=%d", cred.UID)
 		if args.DeleteData {
 			if store == nil {
 				return Response{ID: req.ID, OK: false, Error: "approvals not configured"}
 			}
 			bound := map[string]any{
-				"domain":      strings.ToLower(strings.TrimSpace(args.Domain)),
+				"domain":      domain,
 				"delete_data": true,
 			}
 			if err := store.Consume(args.ApprovalID, OpDeleteSiteUser, bound); err != nil {
@@ -86,13 +106,43 @@ func makeDeleteSiteUser(ops *helper.Ops, store *auth.Store, log *audit.Logger) H
 				return Response{ID: req.ID, OK: false, Error: "approval: " + err.Error()}
 			}
 		}
-		if err := ops.DeleteSiteUser(args.Domain, args.DeleteData); err != nil {
+		if err := ops.DeleteSiteUser(domain, args.DeleteData); err != nil {
 			_ = log.Append(actor, OpDeleteSiteUser, args, err.Error())
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
-		msg := fmt.Sprintf("deleted site user %s", helper.SiteUsername(args.Domain))
 		if args.DeleteData {
-			msg += " and data under " + helper.SiteRoot(args.Domain)
+			for _, child := range args.CascadeDomains {
+				child = strings.ToLower(strings.TrimSpace(child))
+				if child == "" || child == domain {
+					continue
+				}
+				if err := ops.DeleteSiteUser(child, true); err != nil {
+					_ = log.Append(actor, OpDeleteSiteUser, map[string]any{"domain": child, "cascade": true}, err.Error())
+					return Response{ID: req.ID, OK: false, Error: "cascade " + child + ": " + err.Error()}
+				}
+			}
+			stateDir := strings.TrimSpace(args.StateDir)
+			for _, db := range args.DropDatabases {
+				eng := strings.ToLower(strings.TrimSpace(db.Engine))
+				id := strings.TrimSpace(db.ID)
+				if eng == "" {
+					continue
+				}
+				if err := ops.DropSiteDatabase(domain, eng, id, stateDir); err != nil {
+					_ = log.Append(actor, OpDropSiteDatabase, map[string]any{"domain": domain, "engine": eng, "id": id}, err.Error())
+					return Response{ID: req.ID, OK: false, Error: "drop database " + id + ": " + err.Error()}
+				}
+			}
+		}
+		msg := fmt.Sprintf("deleted site user %s", helper.SiteUsername(domain))
+		if args.DeleteData {
+			msg += " and data under " + helper.SiteRoot(domain)
+			if len(args.CascadeDomains) > 0 {
+				msg += fmt.Sprintf(" (+%d subdomains)", len(args.CascadeDomains))
+			}
+			if len(args.DropDatabases) > 0 {
+				msg += fmt.Sprintf(" (+%d databases)", len(args.DropDatabases))
+			}
 		}
 		_ = log.Append(actor, OpDeleteSiteUser, args, "ok")
 		return Response{ID: req.ID, OK: true, Message: msg}

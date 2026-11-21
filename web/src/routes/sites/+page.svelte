@@ -1,281 +1,377 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+	import PageHeader from '#lib/components/PageHeader.svelte';
+	import Card from '#lib/components/Card.svelte';
+	import StatusPill from '#lib/components/StatusPill.svelte';
+	import EmptyState from '#lib/components/EmptyState.svelte';
+	import Skeleton from '#lib/components/Skeleton.svelte';
+	import Icon from '#lib/components/Icon.svelte';
+	import Sparkline from '#lib/charts/Sparkline.svelte';
+	import UsageBar from '#lib/charts/UsageBar.svelte';
+	import { overview } from '#lib/stores/overview.svelte.ts';
+	import { poll } from '#lib/stores/metrics.svelte.ts';
+	import { ui } from '#lib/stores/ui.svelte.ts';
+	import { formatBytes, formatPct } from '#lib/format.ts';
+	import { siteStatus } from '#lib/siteStatus.ts';
+	import type { OverviewSite } from '#lib/types.ts';
 
-	type Site = {
-		name: string;
-		type: string;
-		root?: string;
-	};
+	type SortKey = 'name' | 'cpu' | 'mem' | 'disk';
 
-	let sites = $state<Site[]>([]);
-	let error = $state('');
-	let loading = $state(true);
-	let name = $state('');
-	let siteKind = $state<'static' | 'app'>('static');
-	let submitting = $state(false);
-	let removing = $state('');
+	let query = $state('');
+	let typeFilter = $state<'all' | 'static' | 'app'>('all');
+	let statusFilter = $state<'all' | 'running' | 'idle' | 'nohttps'>('all');
+	let sortKey = $state<SortKey>('name');
+	let sortDesc = $state(false);
 
-	async function load() {
-		loading = true;
-		error = '';
-		try {
-			const res = await fetch('/api/sites', { credentials: 'same-origin' });
-			if (res.status === 401) {
-				await goto('/login');
-				return;
-			}
-			const data = (await res.json()) as { ok?: boolean; sites?: Site[]; error?: string };
-			if (!res.ok || !data.ok) {
-				error = data.error || 'Failed to load sites';
-				return;
-			}
-			sites = data.sites || [];
-		} catch {
-			error = 'Could not reach the panel API';
-		} finally {
-			loading = false;
+	let sites = $derived(overview.sites);
+	let loading = $derived(!overview.data && overview.loading);
+
+	let rows = $derived.by(() => {
+		const q = query.trim().toLowerCase();
+		const filtered = sites.filter((s) => {
+			if (q && !s.name.toLowerCase().includes(q) && !(s.parent ?? '').toLowerCase().includes(q)) return false;
+			if (typeFilter !== 'all' && s.type !== typeFilter) return false;
+			if (statusFilter === 'running' && !(s.type !== 'app' || s.active)) return false;
+			if (statusFilter === 'idle' && !(s.type === 'app' && !s.active)) return false;
+			if (statusFilter === 'nohttps' && s.https) return false;
+			return true;
+		});
+		const val = (s: OverviewSite): number | string =>
+			sortKey === 'name' ? s.name : sortKey === 'cpu' ? s.cpu_pct : sortKey === 'mem' ? s.mem_bytes : s.disk_bytes;
+		return filtered.sort((a, b) => {
+			const va = val(a);
+			const vb = val(b);
+			const cmp = typeof va === 'string' ? va.localeCompare(vb as string) : va - (vb as number);
+			return sortDesc ? -cmp : cmp;
+		});
+	});
+
+	let filtersActive = $derived(!!query || typeFilter !== 'all' || statusFilter !== 'all');
+
+	function setSort(k: SortKey) {
+		if (sortKey === k) sortDesc = !sortDesc;
+		else {
+			sortKey = k;
+			sortDesc = k !== 'name';
 		}
 	}
 
-	function isValidHostname(domain: string): boolean {
-		return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain);
+	function ariaSort(k: SortKey) {
+		if (sortKey !== k) return 'none';
+		return sortDesc ? 'descending' : 'ascending';
 	}
 
-	async function addSite(e: Event) {
-		e.preventDefault();
-		error = '';
-		const domain = name.trim().toLowerCase();
-		name = domain;
-		if (!isValidHostname(domain)) {
-			error =
-				'Enter a valid domain hostname (lowercase letters, digits, hyphens, and at least one dot), e.g. example.com';
-			return;
-		}
-		submitting = true;
-		try {
-			const res = await fetch('/api/sites', {
-				method: 'POST',
-				credentials: 'same-origin',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: domain, type: siteKind })
-			});
-			const data = (await res.json().catch(() => ({}))) as {
-				ok?: boolean;
-				error?: string;
-			};
-			if (!res.ok || !data.ok) {
-				error = data.error || 'Could not add site';
-				return;
-			}
-			await goto(`/sites/${encodeURIComponent(domain)}`);
-		} catch {
-			error = 'Could not reach the panel API';
-		} finally {
-			submitting = false;
-		}
+	function clearFilters() {
+		query = '';
+		typeFilter = 'all';
+		statusFilter = 'all';
 	}
 
-	async function removeSite(siteName: string) {
-		error = '';
-		removing = siteName;
-		try {
-			const res = await fetch(`/api/sites/${encodeURIComponent(siteName)}`, {
-				method: 'DELETE',
-				credentials: 'same-origin'
-			});
-			const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-			if (!res.ok || !data.ok) {
-				error = data.error || 'Could not remove site';
-				return;
-			}
-			await load();
-		} finally {
-			removing = '';
-		}
-	}
+	const siteHref = (s: OverviewSite, rest = '') => `/sites/${encodeURIComponent(s.name)}${rest}`;
 
-	onMount(load);
+	onMount(() => {
+		void overview.refresh();
+		return poll(() => void overview.refresh(), 30_000);
+	});
 </script>
 
 <svelte:head>
 	<title>Sites · Webor</title>
 </svelte:head>
 
-<section class="page">
-	<header class="page-head">
-		<h1>Sites</h1>
-		<p class="wbr-muted">Static and app sites on this VPS. Open a site to upload, deploy, or check DNS.</p>
-	</header>
-
-	{#if error}
-		<p class="wbr-error" role="alert">{error}</p>
-	{/if}
-
-	<div class="layout">
-		<section class="wbr-panel inventory" aria-labelledby="inventory-heading">
-			<h2 id="inventory-heading">Your sites</h2>
-			{#if loading}
-				<p class="wbr-muted">Loading…</p>
-			{:else if sites.length === 0}
-				<p class="wbr-muted empty">No sites yet. Add a domain to get started.</p>
-			{:else}
-				<table>
-					<thead>
-						<tr>
-							<th>Domain</th>
-							<th>Type</th>
-							<th></th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each sites as site (site.name)}
-							<tr>
-								<td>
-									<a class="site-link" href={`/sites/${encodeURIComponent(site.name)}`}>
-										{site.name}
-									</a>
-								</td>
-								<td>
-									<span class="wbr-badge">{site.type}</span>
-								</td>
-								<td class="actions">
-									<a class="open" href={`/sites/${encodeURIComponent(site.name)}`}>Open</a>
-									<button
-										type="button"
-										class="wbr-btn-danger"
-										disabled={removing === site.name}
-										onclick={() => removeSite(site.name)}
-									>
-										{removing === site.name ? 'Removing…' : 'Remove'}
-									</button>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
+{#snippet sortHead(k: SortKey, label: string, cls = '')}
+	<th class={cls} aria-sort={ariaSort(k)}>
+		<button type="button" class="sort" onclick={() => setSort(k)}>
+			{label}
+			{#if sortKey === k}
+				<Icon name="chevronDown" size={13} class={sortDesc ? '' : 'flip'} />
 			{/if}
-		</section>
+		</button>
+	</th>
+{/snippet}
 
-		<form class="wbr-panel add" onsubmit={addSite} aria-labelledby="add-heading">
-			<h2 id="add-heading">Add site</h2>
-			<p class="lede">Creates the site user, directories, and Caddy route.</p>
-			<label class="wbr-field">
-				<span>Domain</span>
-				<input name="name" bind:value={name} placeholder="example.com" required autocomplete="off" />
-			</label>
-			<label class="wbr-field">
-				<span>Type</span>
-				<select name="type" bind:value={siteKind}>
-					<option value="static">Static</option>
-					<option value="app">App</option>
-				</select>
-			</label>
-			<button class="wbr-btn" type="submit" disabled={submitting}>
-				{submitting ? 'Adding…' : 'Add site'}
-			</button>
-		</form>
+<PageHeader title="Sites" subtitle="Static and app sites hosted on this server">
+	{#snippet meta()}
+		{#if sites.length}<span class="wbr-badge neutral">{sites.length}</span>{/if}
+	{/snippet}
+	{#snippet actions()}
+		<button type="button" class="wbr-btn" onclick={() => (ui.addSiteOpen = true)}>
+			<Icon name="plus" size={15} /> Add site
+		</button>
+	{/snippet}
+</PageHeader>
+
+{#if overview.error && !overview.data}
+	<p class="wbr-error" role="alert">{overview.error}</p>
+{/if}
+
+<Card flush>
+	<div class="toolbar">
+		<label class="search">
+			<Icon name="search" size={15} />
+			<span class="visually-hidden">Search sites</span>
+			<input bind:value={query} placeholder="Search by domain…" autocomplete="off" spellcheck="false" />
+		</label>
+		<label class="select">
+			<span class="visually-hidden">Type</span>
+			<select class="wbr-input" bind:value={typeFilter}>
+				<option value="all">All types</option>
+				<option value="static">Static</option>
+				<option value="app">App</option>
+			</select>
+		</label>
+		<label class="select">
+			<span class="visually-hidden">Status</span>
+			<select class="wbr-input" bind:value={statusFilter}>
+				<option value="all">Any status</option>
+				<option value="running">Serving / running</option>
+				<option value="idle">Idle apps</option>
+				<option value="nohttps">Without HTTPS</option>
+			</select>
+		</label>
+		{#if filtersActive}
+			<button type="button" class="wbr-btn wbr-btn-ghost sm" onclick={clearFilters}>Clear</button>
+		{/if}
+		<span class="result-count">{rows.length} of {sites.length}</span>
 	</div>
-</section>
+
+	{#if loading}
+		<div class="pad"><Skeleton lines={6} height="2rem" /></div>
+	{:else if sites.length === 0}
+		<EmptyState
+			icon="globe"
+			title="No sites yet"
+			description="Add a domain to create its site user, directories and Caddy route."
+		>
+			<button type="button" class="wbr-btn" onclick={() => (ui.addSiteOpen = true)}>
+				<Icon name="plus" size={15} /> Add your first site
+			</button>
+		</EmptyState>
+	{:else if rows.length === 0}
+		<EmptyState icon="search" title="No sites match" description="Try a different search or clear the filters.">
+			<button type="button" class="wbr-btn wbr-btn-ghost" onclick={clearFilters}>Clear filters</button>
+		</EmptyState>
+	{:else}
+		<div class="table-wrap">
+			<table class="wbr-table">
+				<thead>
+					<tr>
+						{@render sortHead('name', 'Site')}
+						<th>Status</th>
+						{@render sortHead('cpu', 'CPU', 'num')}
+						{@render sortHead('mem', 'Memory', 'mem-col')}
+						{@render sortHead('disk', 'Disk', 'num hide-md')}
+						<th class="hide-md">CPU · 1h</th>
+						<th><span class="visually-hidden">Actions</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each rows as s (s.name)}
+						{@const st = siteStatus(s)}
+						<tr>
+							<td>
+								<a class="site" href={siteHref(s)}>{s.name}</a>
+								<div class="tags">
+									<span class="wbr-badge neutral">{s.type}</span>
+									{#if s.https}
+										<span class="wbr-badge ok"><Icon name="lock" size={11} /> HTTPS</span>
+									{:else}
+										<span class="wbr-badge warn">HTTP only</span>
+									{/if}
+									{#if s.parent}
+										<span class="wbr-badge neutral" title={`Subdomain of ${s.parent}`}>sub of {s.parent}</span>
+									{:else if (s.subdomain_count ?? 0) > 0}
+										<span class="wbr-badge neutral">{s.subdomain_count} sub</span>
+									{/if}
+									{#if s.database_count}<span class="wbr-badge neutral"><Icon name="database" size={11} /> {s.database_count}</span>{/if}
+									{#if s.cache}<span class="wbr-badge neutral"><Icon name="zap" size={11} /> cache</span>{/if}
+								</div>
+							</td>
+							<td><StatusPill tone={st.tone} label={st.label} /></td>
+							<td class="num">{formatPct(s.cpu_pct)}</td>
+							<td class="mem-col">
+								<span class="mem-val">
+									{formatBytes(s.mem_bytes)}
+									{#if s.memory_max}<small class="quota">/ {s.memory_max}</small>{/if}
+								</span>
+								{#if s.mem_limit_bytes}
+									<UsageBar compact used={s.mem_bytes} total={s.mem_limit_bytes} format={(v) => formatBytes(v)} />
+								{/if}
+							</td>
+							<td class="num hide-md">
+								{formatBytes(s.disk_bytes)}
+								{#if s.disk_quota}<small class="quota">/ {s.disk_quota}</small>{/if}
+							</td>
+							<td class="spark hide-md">
+								<Sparkline values={s.spark?.series.cpu_pct ?? []} height={26} label={`${s.name} CPU last hour`} />
+							</td>
+							<td class="actions">
+								<a class="wbr-btn wbr-btn-ghost sm" href={siteHref(s)}>Open</a>
+								<a class="icon-link" href={siteHref(s, '/settings')} aria-label={`${s.name} settings`} title="Settings">
+									<Icon name="settings" size={15} />
+								</a>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	{/if}
+</Card>
 
 <style>
-	.page {
-		max-width: 56rem;
-		display: grid;
-		gap: 1.25rem;
-	}
-
-	.page-head h1 {
-		margin: 0 0 0.35rem;
-		font-size: clamp(1.85rem, 4vw, 2.35rem);
-		letter-spacing: -0.03em;
-		font-weight: 800;
-	}
-
-	.page-head p {
-		margin: 0;
-		max-width: 42ch;
-	}
-
-	.layout {
-		display: grid;
-		gap: 1.15rem;
-		grid-template-columns: minmax(0, 1.4fr) minmax(16rem, 0.9fr);
-		align-items: start;
-	}
-
-	.inventory {
-		min-width: 0;
-	}
-
-	.empty {
-		margin: 0.25rem 0 0;
-	}
-
-	table {
-		width: 100%;
-		border-collapse: collapse;
-		font-size: 0.95rem;
-	}
-
-	th,
-	td {
-		text-align: left;
-		padding: 0.7rem 0.35rem;
+	.toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.25rem 1.25rem 0.9rem;
 		border-bottom: 1px solid var(--border);
-		vertical-align: middle;
 	}
 
-	th {
-		font-size: 0.78rem;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--muted);
-		font-weight: 800;
+	.search {
+		flex: 1 1 16rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.45rem 0.7rem;
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--subtle);
 	}
 
-	.site-link {
-		font-weight: 800;
-		text-decoration: none;
+	.search:focus-within {
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+	}
+
+	.search input {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+		outline: none;
+		background: none;
+		font: inherit;
+		font-size: 0.9rem;
 		color: var(--text);
 	}
 
-	.site-link:hover {
-		color: var(--wbr-ultramarine);
+	.select select {
+		padding-block: 0.45rem;
 	}
 
-	.actions {
+	.result-count {
+		margin-left: auto;
+		font-size: 0.8rem;
+		color: var(--subtle);
+		white-space: nowrap;
+	}
+
+	.pad {
+		padding: 1rem 1.25rem;
+	}
+
+	.table-wrap {
+		overflow-x: auto;
+	}
+
+	.sort {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+		background: none;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		text-transform: inherit;
+		letter-spacing: inherit;
+		color: inherit;
+		cursor: pointer;
+	}
+
+	.sort:hover {
+		color: var(--text);
+	}
+
+	.sort :global(.flip) {
+		transform: rotate(180deg);
+	}
+
+	.site {
+		font-weight: 800;
+		color: var(--text);
+		text-decoration: none;
+		overflow-wrap: anywhere;
+	}
+
+	.site:hover {
+		color: var(--accent);
+	}
+
+	.tags {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.55rem;
-		justify-content: flex-end;
-		align-items: center;
-	}
-
-	.open {
-		font-weight: 800;
-		font-size: 0.9rem;
-		text-decoration: none;
-		color: var(--wbr-ultramarine);
-	}
-
-	.add {
-		display: grid;
-		gap: 0.9rem;
-	}
-
-	.add .wbr-btn {
-		justify-self: start;
+		gap: 0.3rem;
 		margin-top: 0.25rem;
 	}
 
-	@media (max-width: 820px) {
-		.layout {
-			grid-template-columns: 1fr;
-		}
+	.num {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
 
-		.actions {
-			justify-content: flex-start;
+	.num .sort {
+		justify-content: flex-end;
+	}
+
+	.mem-col {
+		min-width: 9rem;
+		width: 12rem;
+	}
+
+	.quota {
+		color: var(--subtle);
+	}
+
+	.mem-val {
+		display: block;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+		margin-bottom: 0.3rem;
+		font-size: 0.88rem;
+	}
+
+	.spark {
+		width: 8rem;
+		min-width: 6rem;
+	}
+
+	.actions {
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.icon-link {
+		display: inline-grid;
+		place-items: center;
+		vertical-align: middle;
+		width: 2rem;
+		height: 2rem;
+		margin-left: 0.25rem;
+		border-radius: var(--radius-sm);
+		color: var(--muted);
+	}
+
+	.icon-link:hover {
+		background: var(--surface-3);
+		color: var(--text);
+	}
+
+	@media (max-width: 900px) {
+		.hide-md {
+			display: none;
 		}
 	}
 </style>
