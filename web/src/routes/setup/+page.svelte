@@ -53,7 +53,7 @@
 </script>
 
 <svelte:head>
-	<title>First-run setup · Webooza</title>
+	<title>First-run setup · Webor</title>
 </svelte:head>
 
 <section class="setup">
@@ -64,15 +64,15 @@
 		<p class="muted">Checking…</p>
 	{:else}
 		<form method="post" onsubmit={onSubmit}>
-			<label class="wbz-field">
+			<label class="wbr-field">
 				<span>Bootstrap token</span>
 				<input type="text" name="token" autocomplete="off" bind:value={token} required />
 			</label>
-			<label class="wbz-field">
+			<label class="wbr-field">
 				<span>Email</span>
 				<input type="email" name="email" autocomplete="username" bind:value={email} required />
 			</label>
-			<label class="wbz-field">
+			<label class="wbr-field">
 				<span>Password</span>
 				<input
 					type="password"
@@ -83,9 +83,9 @@
 				/>
 			</label>
 			{#if error}
-				<p class="wbz-error" role="alert">{error}</p>
+				<p class="wbr-error" role="alert">{error}</p>
 			{/if}
-			<button class="wbz-btn" type="submit" disabled={submitting}>
+			<button class="wbr-btn" type="submit" disabled={submitting}>
 				{submitting ? 'Creating…' : 'Create admin'}
 			</button>
 		</form>
@@ -120,7 +120,7 @@
 		gap: 1rem;
 	}
 
-	.wbz-btn {
+	.wbr-btn {
 		justify-self: start;
 		margin-top: 0.2rem;
 	}

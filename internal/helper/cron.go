@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/providers/systemd"
 )
 
 // CronStatusResult is a thin status snapshot for a site cron job.

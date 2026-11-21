@@ -1,6 +1,6 @@
 # Security Policy
 
-Webooza ships a root helper (`webooza-helper`) that performs privileged operations
+Webor ships a root helper (`webor-helper`) that performs privileged operations
 on behalf of the unprivileged panel. Treat security reports as high priority.
 
 ## Supported versions
@@ -15,7 +15,7 @@ on behalf of the unprivileged panel. Treat security reports as high priority.
 Please report vulnerabilities privately. Do **not** open a public GitHub issue
 for security-sensitive findings.
 
-Email: **security@webooza.dev**
+Email: **security@webor.dev**
 
 (This address is provisional until the project domain is finalized.)
 

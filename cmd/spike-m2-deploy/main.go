@@ -12,14 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/helper"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 func main() {
 	domain := flag.String("domain", "app.example.com", "app site domain")
 	binary := flag.String("binary", "", "absolute path to a healthy app binary")
-	expect := flag.String("expect", "webooza-spike-b-go ok", "substring required in curl response after rollback")
+	expect := flag.String("expect", "webor-spike-b-go ok", "substring required in curl response after rollback")
 	flag.Parse()
 
 	if *binary == "" {

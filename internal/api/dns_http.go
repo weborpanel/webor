@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/dnscheck"
+	"github.com/weborpanel/webor/internal/dnscheck"
 )
 
 func (s *Server) resolver() dnscheck.Resolver {

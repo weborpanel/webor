@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // CronUnits holds rendered oneshot service + timer for one cron job.
@@ -42,14 +42,14 @@ func CronJobSlug(name string) string {
 	return s
 }
 
-// CronServiceUnitName returns webooza-cron-<domain>-<job>.service.
+// CronServiceUnitName returns webor-cron-<domain>-<job>.service.
 func CronServiceUnitName(domain, job string) string {
-	return "webooza-cron-" + UnitBase(domain) + "-" + CronJobSlug(job) + ".service"
+	return "webor-cron-" + UnitBase(domain) + "-" + CronJobSlug(job) + ".service"
 }
 
-// CronTimerUnitName returns webooza-cron-<domain>-<job>.timer.
+// CronTimerUnitName returns webor-cron-<domain>-<job>.timer.
 func CronTimerUnitName(domain, job string) string {
-	return "webooza-cron-" + UnitBase(domain) + "-" + CronJobSlug(job) + ".timer"
+	return "webor-cron-" + UnitBase(domain) + "-" + CronJobSlug(job) + ".timer"
 }
 
 // RenderCronUnits builds a Type=oneshot service and matching timer for a cron job.
@@ -76,7 +76,7 @@ func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
 
 	var svc strings.Builder
 	fmt.Fprintf(&svc, "[Unit]\n")
-	fmt.Fprintf(&svc, "Description=Webooza cron %s (%s)\n", job.Name, site.Name)
+	fmt.Fprintf(&svc, "Description=Webor cron %s (%s)\n", job.Name, site.Name)
 	fmt.Fprintf(&svc, "\n[Service]\n")
 	fmt.Fprintf(&svc, "Type=oneshot\n")
 	fmt.Fprintf(&svc, "User=%s\n", user)
@@ -95,7 +95,7 @@ func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
 
 	var tim strings.Builder
 	fmt.Fprintf(&tim, "[Unit]\n")
-	fmt.Fprintf(&tim, "Description=Webooza cron timer %s (%s)\n", job.Name, site.Name)
+	fmt.Fprintf(&tim, "Description=Webor cron timer %s (%s)\n", job.Name, site.Name)
 	fmt.Fprintf(&tim, "Requires=%s\n", svcName)
 	fmt.Fprintf(&tim, "\n[Timer]\n")
 	for _, cal := range cals {

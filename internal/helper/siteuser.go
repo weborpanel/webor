@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // SiteUsername derives a Linux username from a domain (max 32 chars).
@@ -58,6 +58,14 @@ func (o *Ops) CreateSiteUser(domain string) error {
 	if err := sites.EnsurePublicDir(domain); err != nil {
 		return fmt.Errorf("public dir: %w", err)
 	}
+	// Seed a demo index when public/ is empty (panel may not write /srv/sites).
+	index := filepath.Join(sites.Public(domain), "index.html")
+	if _, err := os.Stat(index); os.IsNotExist(err) {
+		body := []byte("<!doctype html><title>Webor</title><h1>webor-m0-static-ok</h1>\n")
+		if err := os.WriteFile(index, body, 0o644); err == nil {
+			_ = os.Chmod(index, 0o644) // resist restrictive process umask
+		}
+	}
 
 	u, err := user.Lookup(username)
 	if err != nil {
@@ -95,7 +103,7 @@ func (o *Ops) WritePublicFile(domain, relPath string, data []byte) error {
 		_ = os.Remove(tmp)
 		return err
 	}
-	_ = os.Chmod(full, 0o644)
+	_ = os.Chmod(full, 0o644) // resist restrictive process umask
 	return nil
 }
 

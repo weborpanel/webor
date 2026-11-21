@@ -8,7 +8,7 @@ jobs:
     exec: ./bin/worker
 ```
 
-Renders `webooza-job-<domain>-<job>.service` (`Type=simple`, `Restart=on-failure`).
+Renders `webor-job-<domain>-<job>.service` (`Type=simple`, `Restart=on-failure`).
 Installed on app reconcile via `InstallSiteJobs`.
 
 ```bash

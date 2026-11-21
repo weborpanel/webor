@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/deploy"
-	"github.com/webooza/webooza/internal/helper"
-	"github.com/webooza/webooza/internal/providers/caddy"
-	"github.com/webooza/webooza/internal/providers/systemd"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/deploy"
+	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/providers/caddy"
+	"github.com/weborpanel/webor/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // AppApplyOptions controls the Milestone 2 app-site apply path.
@@ -38,7 +38,7 @@ func ApplyAppSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, opt
 		ops = helper.DefaultOps()
 	}
 	if opt.CaddyConfigPath == "" {
-		opt.CaddyConfigPath = "/etc/webooza/caddy.json"
+		opt.CaddyConfigPath = "/etc/webor/caddy.json"
 	}
 	if opt.HTTPListen == "" {
 		opt.HTTPListen = ":8080"
@@ -95,7 +95,7 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 	if err := os.MkdirAll(sites.BinDir(site.Name), 0o755); err != nil {
 		return fmt.Errorf("bin dir: %w", err)
 	}
-	// Site user must own the runtime dir so socket_proxy backends can bind WBZ_SOCK.
+	// Site user must own the runtime dir so socket_proxy backends can bind WBR_SOCK.
 	uEarly := sites.Username(site.Name)
 	if out, err := exec.Command("chown", uEarly+":"+uEarly, sites.SiteRuntime(site.Name)).CombinedOutput(); err != nil {
 		return fmt.Errorf("chown runtime: %w (%s)", err, strings.TrimSpace(string(out)))

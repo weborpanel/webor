@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/providers/systemd"
 )
 
 // InstallJob writes and enables a long-running job service.

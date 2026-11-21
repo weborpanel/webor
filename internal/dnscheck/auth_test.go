@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/webooza/webooza/internal/dnscheck"
+	"github.com/weborpanel/webor/internal/dnscheck"
 )
 
 func TestCanIssueCertificate(t *testing.T) {

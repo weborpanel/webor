@@ -4,13 +4,15 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 
 	_ "modernc.org/sqlite"
 )
 
 // DefaultStateDir is the production runtime state directory.
-const DefaultStateDir = "/var/lib/webooza"
+const DefaultStateDir = "/var/lib/webor"
 
 // OpenDB opens (or creates) the SQLite state database under stateDir and
 // applies pending migrations.
@@ -35,5 +37,31 @@ func OpenDB(stateDir string) (*sql.DB, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	// Helper runs as root and opens first; panel runs as webor and needs RW.
+	shareStateWithPanel(stateDir, dbPath)
 	return db, nil
+}
+
+func shareStateWithPanel(stateDir, dbPath string) {
+	if os.Geteuid() != 0 {
+		return
+	}
+	u, err := user.Lookup("webor")
+	if err != nil {
+		return
+	}
+	uid, err1 := strconv.Atoi(u.Uid)
+	gid, err2 := strconv.Atoi(u.Gid)
+	if err1 != nil || err2 != nil {
+		return
+	}
+	_ = os.Chmod(stateDir, 0o770)
+	_ = os.Chown(stateDir, uid, gid)
+	for _, p := range []string{dbPath, dbPath + "-wal", dbPath + "-shm"} {
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		_ = os.Chmod(p, 0o660)
+		_ = os.Chown(p, uid, gid)
+	}
 }

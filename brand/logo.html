@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Webooza logo</title>
+<title>Webor logo</title>
 <link rel="stylesheet" href="colors.css">
 <style>
 :root{
-  --page: var(--wbz-chalk); --text: var(--wbz-ink); --muted: var(--wbz-muted);
+  --page: var(--wbr-chalk); --text: var(--wbr-ink); --muted: var(--wbr-muted);
   color-scheme: light;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){ --page: #0a0e24; --text: #eef1fa; --muted: var(--wbz-muted-dark); color-scheme: dark; }
+  :root:not([data-theme="light"]){ --page: #0a0e24; --text: #eef1fa; --muted: var(--wbr-muted-dark); color-scheme: dark; }
 }
-:root[data-theme="dark"]{ --page: #0a0e24; --text: #eef1fa; --muted: var(--wbz-muted-dark); color-scheme: dark; }
+:root[data-theme="dark"]{ --page: #0a0e24; --text: #eef1fa; --muted: var(--wbr-muted-dark); color-scheme: dark; }
 html{ scroll-padding-top: env(safe-area-inset-top, 0px); }
 *{ box-sizing: border-box; }
 body{
@@ -28,7 +28,7 @@ h1{ font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0 0 12px; lette
 p{ max-width: 62ch; margin: 0 0 28px; color: var(--muted); }
 .panel{ border-radius: 18px; padding: clamp(20px, 5vw, 48px); display: flex; align-items: center; justify-content: center; }
 .light{ background: #ffffff; border: 1px solid rgba(14, 19, 48, .12); }
-.dark{ background: var(--wbz-ink); }
+.dark{ background: var(--wbr-ink); }
 .row{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 @media (max-width: 640px){ .row{ grid-template-columns: 1fr; } }
 img, svg{ max-width: 100%; height: auto; display: block; }
@@ -40,30 +40,30 @@ img, svg{ max-width: 100%; height: auto; display: block; }
 </head>
 <body>
 <main>
-  <h1>Webooza logo</h1>
-  <p>Two rings that overlap: two sites sharing one server, and the “oo” in the name. The overlap is the idea, and everything else stays quiet. Text is live type here, so convert it to outlines before using the logo in print.</p>
+  <h1>Webor logo</h1>
+  <p>The “o” is a ring with a live dot at its centre: one site, running. It also reads as a port or a status light, which suits a panel that keeps sites up. Text is live type here, so convert it to outlines before using the logo in print.</p>
 
   <div class="panel light">
-    <img src="logo-light.svg" width="520" alt="Webooza logo">
+    <img src="logo-light.svg" width="460" alt="Webor logo">
   </div>
 
   <div class="row">
     <div class="panel dark">
-      <img src="logo-dark.svg" width="360" alt="Webooza logo, reversed">
+      <img src="logo-dark.svg" width="340" alt="Webor logo, reversed">
     </div>
     <div class="panel sizes">
-      <img src="icon.svg" width="96" height="96" alt="Webooza icon">
+      <img src="icon.svg" width="96" height="96" alt="Webor icon">
       <img src="icon.svg" width="48" height="48" alt="" aria-hidden="true">
       <img src="icon.svg" width="24" height="24" alt="" aria-hidden="true">
     </div>
   </div>
 
   <div class="swatches">
-    <div class="sw"><i style="background: var(--wbz-ultramarine)"></i>Ultramarine #2B3FD6</div>
-    <div class="sw"><i style="background: var(--wbz-marigold)"></i>Marigold #FFB400</div>
-    <div class="sw"><i style="background: var(--wbz-ink)"></i>Ink #0E1330</div>
-    <div class="sw"><i style="background: var(--wbz-chalk)"></i>Chalk #F5F7FA</div>
-    <div class="sw"><i style="background: var(--wbz-ultramarine-light)"></i>Ultramarine light #7D8CFF</div>
+    <div class="sw"><i style="background: var(--wbr-ultramarine)"></i>Ultramarine #2B3FD6</div>
+    <div class="sw"><i style="background: var(--wbr-marigold)"></i>Marigold #FFB400</div>
+    <div class="sw"><i style="background: var(--wbr-ink)"></i>Ink #0E1330</div>
+    <div class="sw"><i style="background: var(--wbr-chalk)"></i>Chalk #F5F7FA</div>
+    <div class="sw"><i style="background: var(--wbr-ultramarine-light)"></i>Ultramarine light #7D8CFF</div>
   </div>
 </main>
 </body>

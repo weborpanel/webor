@@ -99,26 +99,26 @@
 </script>
 
 <svelte:head>
-	<title>Sites · Webooza</title>
+	<title>Sites · Webor</title>
 </svelte:head>
 
 <section class="page">
 	<header class="page-head">
 		<h1>Sites</h1>
-		<p class="wbz-muted">Static and app sites on this VPS. Open a site to upload, deploy, or check DNS.</p>
+		<p class="wbr-muted">Static and app sites on this VPS. Open a site to upload, deploy, or check DNS.</p>
 	</header>
 
 	{#if error}
-		<p class="wbz-error" role="alert">{error}</p>
+		<p class="wbr-error" role="alert">{error}</p>
 	{/if}
 
 	<div class="layout">
-		<section class="wbz-panel inventory" aria-labelledby="inventory-heading">
+		<section class="wbr-panel inventory" aria-labelledby="inventory-heading">
 			<h2 id="inventory-heading">Your sites</h2>
 			{#if loading}
-				<p class="wbz-muted">Loading…</p>
+				<p class="wbr-muted">Loading…</p>
 			{:else if sites.length === 0}
-				<p class="wbz-muted empty">No sites yet. Add a domain to get started.</p>
+				<p class="wbr-muted empty">No sites yet. Add a domain to get started.</p>
 			{:else}
 				<table>
 					<thead>
@@ -137,13 +137,13 @@
 									</a>
 								</td>
 								<td>
-									<span class="wbz-badge">{site.type}</span>
+									<span class="wbr-badge">{site.type}</span>
 								</td>
 								<td class="actions">
 									<a class="open" href={`/sites/${encodeURIComponent(site.name)}`}>Open</a>
 									<button
 										type="button"
-										class="wbz-btn-danger"
+										class="wbr-btn-danger"
 										disabled={removing === site.name}
 										onclick={() => removeSite(site.name)}
 									>
@@ -157,21 +157,21 @@
 			{/if}
 		</section>
 
-		<form class="wbz-panel add" onsubmit={addSite} aria-labelledby="add-heading">
+		<form class="wbr-panel add" onsubmit={addSite} aria-labelledby="add-heading">
 			<h2 id="add-heading">Add site</h2>
 			<p class="lede">Creates the site user, directories, and Caddy route.</p>
-			<label class="wbz-field">
+			<label class="wbr-field">
 				<span>Domain</span>
 				<input name="name" bind:value={name} placeholder="example.com" required autocomplete="off" />
 			</label>
-			<label class="wbz-field">
+			<label class="wbr-field">
 				<span>Type</span>
 				<select name="type" bind:value={siteKind}>
 					<option value="static">Static</option>
 					<option value="app">App</option>
 				</select>
 			</label>
-			<button class="wbz-btn" type="submit" disabled={submitting}>
+			<button class="wbr-btn" type="submit" disabled={submitting}>
 				{submitting ? 'Adding…' : 'Add site'}
 			</button>
 		</form>
@@ -241,7 +241,7 @@
 	}
 
 	.site-link:hover {
-		color: var(--wbz-ultramarine);
+		color: var(--wbr-ultramarine);
 	}
 
 	.actions {
@@ -256,7 +256,7 @@
 		font-weight: 800;
 		font-size: 0.9rem;
 		text-decoration: none;
-		color: var(--wbz-ultramarine);
+		color: var(--wbr-ultramarine);
 	}
 
 	.add {
@@ -264,7 +264,7 @@
 		gap: 0.9rem;
 	}
 
-	.add .wbz-btn {
+	.add .wbr-btn {
 		justify-self: start;
 		margin-top: 0.25rem;
 	}

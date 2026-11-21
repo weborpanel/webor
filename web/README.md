@@ -1,4 +1,4 @@
-# Webooza web UI
+# Webor web UI
 
 SvelteKit static frontend for the panel. Development:
 

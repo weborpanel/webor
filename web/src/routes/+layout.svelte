@@ -76,14 +76,14 @@
 		rel="stylesheet"
 	/>
 	<link rel="icon" href="/icon.svg" type="image/svg+xml" />
-	<meta name="description" content="Webooza — lightweight non-Docker VPS hosting panel" />
+	<meta name="description" content="Webor — lightweight non-Docker VPS hosting panel" />
 </svelte:head>
 
 {#if useDashboard}
 	<div class="dash-shell">
 		<aside class="sidebar">
-			<a class="brand" href="/sites" aria-label="Webooza home">
-				<img class="logo" src="/logo-light.svg" width="160" height="52" alt="Webooza" />
+			<a class="brand" href="/sites" aria-label="Webor home">
+				<img class="logo" src="/logo-light.svg" width="160" height="52" alt="Webor" />
 			</a>
 			<nav class="side-nav" aria-label="Panel">
 				<a class={['nav-item', sitesActive && 'active']} href="/sites" aria-current={sitesActive ? 'page' : undefined}>
@@ -98,9 +98,9 @@
 		</aside>
 		<main class="dash-main">
 			{#if !authReady && isProtectedPath(page.url.pathname)}
-				<p class="wbz-muted gate">Checking session…</p>
+				<p class="wbr-muted gate">Checking session…</p>
 			{:else if isProtectedPath(page.url.pathname) && !authenticated}
-				<p class="wbz-muted gate">Redirecting to log in…</p>
+				<p class="wbr-muted gate">Redirecting to log in…</p>
 			{:else}
 				{@render children()}
 			{/if}
@@ -109,8 +109,8 @@
 {:else}
 	<div class="shell">
 		<header class="top">
-			<a class="brand" href="/" aria-label="Webooza home">
-				<img class="logo" src="/logo-light.svg" width="180" height="58" alt="Webooza" />
+			<a class="brand" href="/" aria-label="Webor home">
+				<img class="logo" src="/logo-light.svg" width="180" height="58" alt="Webor" />
 			</a>
 			<nav>
 				{#if authReady && authenticated}
@@ -127,11 +127,11 @@
 		</header>
 		<main class="public-main">
 			{#if !authReady && isProtectedPath(page.url.pathname)}
-				<p class="wbz-muted gate">Checking session…</p>
+				<p class="wbr-muted gate">Checking session…</p>
 			{:else if isProtectedPath(page.url.pathname) && !authenticated}
-				<p class="wbz-muted gate">Redirecting to log in…</p>
+				<p class="wbr-muted gate">Redirecting to log in…</p>
 			{:else if !isPublicPath(page.url.pathname) && needsSetup}
-				<p class="wbz-muted gate">Redirecting to setup…</p>
+				<p class="wbr-muted gate">Redirecting to setup…</p>
 			{:else}
 				{@render children()}
 			{/if}
@@ -187,13 +187,13 @@
 	}
 
 	.nav-item:hover {
-		background: color-mix(in srgb, var(--wbz-ultramarine) 8%, transparent);
+		background: color-mix(in srgb, var(--wbr-ultramarine) 8%, transparent);
 		color: var(--text);
 	}
 
 	.nav-item.active {
-		background: color-mix(in srgb, var(--wbz-ultramarine) 14%, transparent);
-		color: var(--wbz-ultramarine);
+		background: color-mix(in srgb, var(--wbr-ultramarine) 14%, transparent);
+		color: var(--wbr-ultramarine);
 	}
 
 	.side-foot {

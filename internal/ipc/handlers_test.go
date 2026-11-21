@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/webooza/webooza/internal/ipc"
+	"github.com/weborpanel/webor/internal/ipc"
 )
 
 func TestCreateSiteUserValidates(t *testing.T) {

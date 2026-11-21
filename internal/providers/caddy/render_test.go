@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/providers/caddy"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/providers/caddy"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 func TestRenderStaticSkipsApps(t *testing.T) {

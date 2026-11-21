@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/webooza/webooza/internal/deploy"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/deploy"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // DeployStaticZip extracts a zip into the site's public/ document root.
-// zipPath must be under the site tmp dir or /var/lib/webooza/uploads/.
+// zipPath must be under the site tmp dir or /var/lib/webor/uploads/.
 func (o *Ops) DeployStaticZip(domain, zipPath string) (string, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	if err := validateDeployZipPath(domain, zipPath); err != nil {
@@ -33,7 +33,7 @@ func validateDeployZipPath(domain, zipPath string) error {
 	}
 	allowed := []string{
 		sites.Tmp(domain) + string(filepath.Separator),
-		filepath.Join("/var/lib/webooza/uploads", domain) + string(filepath.Separator),
+		filepath.Join("/var/lib/webor/uploads", domain) + string(filepath.Separator),
 	}
 	ok := false
 	for _, prefix := range allowed {

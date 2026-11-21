@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // Job is one site build request.
@@ -59,7 +59,7 @@ func (r *Runner) Run(ctx context.Context, job Job) (*Result, error) {
 		workdir = sites.Root(domain)
 	}
 	username := sites.Username(domain)
-	unit := fmt.Sprintf("webooza-build-%s-%d", strings.ReplaceAll(domain, ".", "-"), time.Now().UnixNano())
+	unit := fmt.Sprintf("webor-build-%s-%d", strings.ReplaceAll(domain, ".", "-"), time.Now().UnixNano())
 	// Cap unit name length for systemd.
 	if len(unit) > 200 {
 		unit = unit[:200]

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/webooza/webooza/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/providers/systemd"
 )
 
 // ResolveSiteLogUnit maps a UI selector to a systemd unit for the site.
@@ -48,10 +48,10 @@ func (o *Ops) SiteJournalTail(domain, selector string, lines int) (unit string, 
 	if !strings.Contains(unit, base) {
 		return "", "", fmt.Errorf("unit %q not allowed for site %s", unit, domain)
 	}
-	if !strings.HasPrefix(unit, "webooza-app-") &&
-		!strings.HasPrefix(unit, "webooza-cron-") &&
-		!strings.HasPrefix(unit, "webooza-job-") {
-		return "", "", fmt.Errorf("unit %q not a webooza site unit", unit)
+	if !strings.HasPrefix(unit, "webor-app-") &&
+		!strings.HasPrefix(unit, "webor-cron-") &&
+		!strings.HasPrefix(unit, "webor-job-") {
+		return "", "", fmt.Errorf("unit %q not a webor site unit", unit)
 	}
 	text, err = o.JournalTail(unit, lines)
 	return unit, text, err

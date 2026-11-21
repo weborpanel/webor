@@ -1,8 +1,8 @@
-# Webooza: Development Plan (v2)
+# Webor: Development Plan (v2)
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-20): Milestone 0–1 lab-complete. Milestone 2 lab-complete: socket apps, deploy+rollback, cooperative + proxyd idle, cron + long-running jobs, Node sample, journal viewer, resource snapshot, deploy UI + dashboard. Next: Milestone 3 installer/hardening. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
+*Progress note (2026-11-20): Milestone 0–3 lab-complete. M3: installer + hardened units + first-run + step-up delete-with-data + audit chain; lab smoke (install → site on :8080 → approve delete) and helper review notes in `docs/spikes/m3-helper-review.md`. Next: Milestone 4 databases/cache. M1 VPS leftovers: green DNS → HTTPS, live build OOM.*
 
 ## 1. Product scope
 
@@ -26,19 +26,19 @@
 
 ## 2. Project setup and naming
 
-The GitHub organization is already secured. Names below follow the Webooza brand and can be changed in one place if the name changes.
+The GitHub organization is already secured. Names below follow the Webor brand and can be changed in one place if the name changes.
 
 | Item | Name |
 | --- | --- |
-| Panel daemon (API, UI) | `webooza` |
-| Root helper | `webooza-helper` |
-| Admin CLI (console approvals, recovery, diagnostics) | `wbz` |
-| Config file | `/etc/webooza/config.yaml` |
-| Runtime state (SQLite, audit log) | `/var/lib/webooza/` |
+| Panel daemon (API, UI) | `webor` |
+| Root helper | `webor-helper` |
+| Admin CLI (console approvals, recovery, diagnostics) | `wbr` |
+| Config file | `/etc/webor/config.yaml` |
+| Runtime state (SQLite, audit log) | `/var/lib/webor/` |
 | Site data | `/srv/sites/<domain>/` |
-| systemd units | `webooza.service`, `webooza-helper.service`, `webooza-caddy.service` |
-| Service users | `webooza` (panel), `caddy` (web server), one user per site; the helper runs as root |
-| Repositories | `webooza` (monorepo) and `.github` (shared templates and security policy) |
+| systemd units | `webor.service`, `webor-helper.service`, `webor-caddy.service` |
+| Service users | `webor` (panel), `caddy` (web server), one user per site; the helper runs as root |
+| Repositories | `weborpanel/webor` (monorepo) and `.github` (shared templates and security policy) |
 
 **Setup tasks before the first commit**
 
@@ -67,10 +67,10 @@ The GitHub organization is already secured. Names below follow the Webooza brand
 
 | Component | Runs as | Responsibility |
 | --- | --- | --- |
-| `webooza` (API and UI) | `webooza`, unprivileged | Authentication, config editing, planning, DNS checker, status views |
-| `webooza-helper` | root, systemd unit | Executes a fixed allowlist of operations, verifies step-up approvals |
+| `webor` (API and UI) | `webor`, unprivileged | Authentication, config editing, planning, DNS checker, status views |
+| `webor-helper` | root, systemd unit | Executes a fixed allowlist of operations, verifies step-up approvals |
 | `caddy` | `caddy`, with `CAP_NET_BIND_SERVICE` | TLS and routing for every site |
-| `wbz` | root, over SSH | Console approvals, recovery, diagnostics |
+| `wbr` | root, over SSH | Console approvals, recovery, diagnostics |
 | Site units | one Linux user per site | Apps, timers, jobs and builds |
 
 **Reconcile loop.** Desired state (`config.yaml`) is compared with actual state, the diff becomes a plan of operations, the helper applies it, and the result is recorded in SQLite and shown in the UI. Every step is idempotent, so the loop can be re-run safely after a crash.
@@ -93,9 +93,9 @@ The GitHub organization is already secured. Names below follow the Webooza brand
 
 ```
 cmd/
-  webooza/         API server and embedded UI
-  webooza-helper/  root helper
-  wbz/             admin CLI
+  webor/         API server and embedded UI
+  webor-helper/  root helper
+  wbr/             admin CLI
 internal/
   config/          schema, validation, migrations
   reconcile/       diff, plan, apply
@@ -135,7 +135,7 @@ docs/
 - [ ] Public DNS checklist end-to-end: A/AAAA at registrar → checker green → Caddy issues cert
 - [ ] Authoritative NS + CAA lookups against live nameservers (not only the fake resolver)
 - [ ] HTTP-01 / TLS-ALPN challenge path from the public internet (ports 80/443)
-- [ ] PTR / forward-confirmed reverse DNS for the installer suggestions (M3)
+- [x] PTR / forward-confirmed reverse DNS for the installer suggestions (M3)
 - [ ] Build OOM kill under real cgroup pressure on a 1 GB machine
 - [ ] Idle memory footprint target (~150 MB panel+Caddy+helper) on a 1 GB VPS
 - [ ] Cross-provider rehearsal (at least two providers) before each release
@@ -155,7 +155,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [x] Helper with IPC and three operations (create site user, write unit file, reload Caddy) — verified on VM
 - [x] Spike A: Caddy admin API validate → reload → last-good rollback — decision `docs/decisions/0001-caddy-admin-api.md`
 - [x] Spike B: socket activation (Go + Node) + `systemd-socket-proxyd` fallback + warmup — decision `docs/decisions/0002-socket-activation.md`
-- [x] Spike C: step-up approval prototype (`wbz approve`, root peercred) — decision `docs/decisions/0003-step-up-approval.md`
+- [x] Spike C: step-up approval prototype (`wbr approve`, root peercred) — decision `docs/decisions/0003-step-up-approval.md`
 - [x] Frontend framework decision (SvelteKit static shell under `web/`)
 - [x] Static site from `config.yaml` served by Caddy on the VM (`cmd/spike-m0-static`, lab HTTP / Host header; see `docs/spikes/m0-static-site.md`)
 
@@ -173,7 +173,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [x] Domain checklist model (A, AAAA, CNAME, CAA warn) — `internal/dnscheck`
 - [x] DNS checker: public + authoritative A, CAA via miekg/dns; `GET /api/sites/{name}/dns` + `can_issue_certificate` gating (live HTTPS enablement still VPS-deferred)
 - [x] Authentication: setup token, admin account, sessions, TOTP, login rate limiting (`internal/auth`, `/api/auth/*`)
-- [x] UI: setup + login + sites (upload + DNS checklist) + per-site dashboard next-steps; embedded in `webooza` via `go:embed` (`make web`)
+- [x] UI: setup + login + sites (upload + DNS checklist) + per-site dashboard next-steps; embedded in `webor` via `go:embed` (`make web`)
 - [x] Build MemoryMax/timeout wired in `RunBuild` (unit-tested; live cgroup OOM on VPS list)
 - [x] File-isolation test scaffold (`test/isolation`, root/linux) — private logs not readable across site users
 
@@ -187,7 +187,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 **Deliverables**
 
 - [x] App unit rendering: per-site user service, systemd hardening subset, env file, Unix socket (`internal/providers/systemd`)
-- [x] Socket activation with wake-on-request; cooperative idle-stop (`WBZ_IDLE_TIMEOUT`, `make lab-idle`); proxyd/`--exit-idle-time=` fallback (`socket_proxy`, `make lab-proxyd`); always-on when `socket_activation: false`
+- [x] Socket activation with wake-on-request; cooperative idle-stop (`WBR_IDLE_TIMEOUT`, `make lab-idle`); proxyd/`--exit-idle-time=` fallback (`socket_proxy`, `make lab-proxyd`); always-on when `socket_activation: false`
 - [x] Deploys: helper + IPC + panel API + Svelte deploy UI (binary/git on app site detail) with atomic symlinks and probe rollback (`make lab-deploy`)
 - [x] Node sample: socket wake + cooperative idle-stop + deploy/rollback (`examples/socket-activation/node-app`, `make lab-node`)
 - [x] Logs: helper `JournalTail` + `GET /api/sites/{name}/logs` + site detail Logs panel; `limits.log_max` rate-limit hints (global `SystemMaxUse` → M3)
@@ -200,14 +200,14 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 **Deliverables**
 
-- `install.sh`: OS and systemd checks, port 80/443 checks, public IP and PTR detection with forward-confirmed reverse DNS validation
-- Prompts: initial domain (PTR as a suggestion), panel subdomain with DNS check, Podman toggle. Non-interactive mode through flags or `install.yaml`. Idempotent re-run and uninstall
-- First-run flow: random high port, one-time setup token, temporary self-signed certificate, then move the panel behind Caddy on a real domain and close the extra port
-- Service users, capabilities and systemd hardening for the panel, helper and Caddy
-- Step-up approvals: TOTP verified by the helper, console approval through `wbz`, single-use and bound to the exact operation, plus the audit log
-- Firewall detection with guidance, and no automatic firewall changes without approval
+- [x] `install.sh`: OS and systemd checks, port 80/443 checks, public IP and PTR detection with forward-confirmed reverse DNS validation (`install/install.sh`; spike `docs/spikes/m3-install.md`)
+- [x] Non-interactive mode through flags or `install.yaml`; idempotent re-run and uninstall. Domain/Podman prompts: flags present (`--panel-domain`, reserved podman key); interactive wizard polish deferred
+- [x] First-run flow: random high port, one-time setup token (`-setup-token`), optional self-signed TLS (`-tls-cert`/`-tls-key`); move behind Caddy documented in spike
+- [x] Service users, capabilities and systemd hardening for the panel, helper and Caddy (`install/*.service`)
+- [x] Step-up approvals: console approval through `wbr` (root peercred), single-use and bound to the exact operation, hash-chained audit log; `DeleteSiteUser`+`delete_data` wired. Helper TOTP verify still optional alongside console (decision 0003)
+- [x] Firewall detection with guidance, and no automatic firewall changes (`install.sh` + `wbr doctor`)
 
-**Exit criteria:** from a clean VM to a first live site in under 10 minutes for someone who has not seen the project, and a completed security review of the helper.
+**Exit criteria:** from a clean VM to a first live site in under 10 minutes for someone who has not seen the project, and a completed security review of the helper. **Lab-met (2026-11-20):** install→setup→static site on `:8080` under 10 minutes with prebuilt bins; helper review `docs/spikes/m3-helper-review.md`.
 
 ### Milestone 4: Databases and cache (weeks 11 to 12)
 
@@ -300,7 +300,7 @@ A `mail:` block is reserved in the schema from the start (per domain), so adding
 | Delete a site together with its data | Approval |
 | Restore a backup | Approval |
 
-**Approval rules:** single-use, expire in minutes, bound to the exact operation and arguments, and verified by the helper, not the web process. The most destructive operations default to console approval through `wbz`, so a fully compromised panel cannot approve its own requests.
+**Approval rules:** single-use, expire in minutes, bound to the exact operation and arguments, and verified by the helper, not the web process. The most destructive operations default to console approval through `wbr`, so a fully compromised panel cannot approve its own requests.
 
 ## 11. Security hardening and disk safeguards
 
@@ -309,7 +309,7 @@ A `mail:` block is reserved in the schema from the start (per domain), so adding
 - Unix sockets for apps instead of loopback TCP ports
 - `hidepid=2` on `/proc`, and `PrivateTmp`, `ProtectSystem` and `NoNewPrivileges` in site units
 - Secrets in 0600 files or systemd credentials, never in world-readable config
-- Login rate limiting and TOTP, with root recovery through `wbz`
+- Login rate limiting and TOTP, with root recovery through `wbr`
 - Append-only audit log for every privileged operation and approval, with each entry hash-chained to the previous one so tampering is detectable. A root attacker can still alter the files, so a remote log sink is a possible later addition
 - **Disk safeguards:** `SystemMaxUse` caps on journald, per-site log and disk limits, periodic cgroup and filesystem checks, and UI warnings before a disk fills
 
@@ -337,7 +337,7 @@ These are targets to validate in Milestone 6, not measured results.
 | Distribution differences | Limited supported OS list, CI matrix on Incus |
 | Some apps cannot use socket activation | `systemd-socket-proxyd` fallback and an always-on mode |
 | Scope creep (mail, DNS, Varnish) | Phase gates, and any new feature needs a short written decision |
-| Admin locked out (lost TOTP) | Root recovery through `wbz` |
+| Admin locked out (lost TOTP) | Root recovery through `wbr` |
 | Panel upgrade interrupts sites | Sites run independently of the panel, and upgrade tests check for dropped requests |
 | Solo-developer schedule slip | 25 to 30 percent buffer, strict exit criteria, mail and containers stay optional |
 
@@ -355,5 +355,5 @@ These are targets to validate in Milestone 6, not measured results.
 2. Run Caddy as a separate process (planned) or embed it later to ship one binary. — separate process for v1 (Spike A)
 3. How far git-based builds go in v1: build command only, or language presets. — open
 4. Final supported OS list. — open (lab is Debian 13; plan still targets Debian 12+ / Ubuntu 22.04+)
-5. Domain, package-name and trademark checks for Webooza. — open
-6. Confirm what "PQPM" refers to. — **resolved:** PQPM is a PM2-style user process manager; Webooza uses **systemd** as the site supervisor (PQPM not integrated for v1)
+5. Domain, package-name and trademark checks for Webor. — open
+6. Confirm what "PQPM" refers to. — **resolved:** PQPM is a PM2-style user process manager; Webor uses **systemd** as the site supervisor (PQPM not integrated for v1)

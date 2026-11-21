@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // StaticZipOptions controls a static zip extract into public/.

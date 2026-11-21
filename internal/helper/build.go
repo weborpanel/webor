@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/build"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/build"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // RunBuild runs a site build command under a transient systemd unit with limits.

@@ -1,0 +1,14 @@
+# Non-interactive Webor install options (install/install.sh --config this-file).
+# All keys are optional; CLI flags override file values.
+
+panel_domain: ""          # e.g. panel.example.com (empty = skip domain prompts)
+panel_port: 0             # 0 = pick a random high port for first-run
+listen_host: "0.0.0.0"    # panel bind host until moved behind Caddy
+disable_https: true       # lab/first-run default; turn off when DNS is green
+expected_a: ""            # comma-separated IPv4s for DNS checklist (auto-detect if empty)
+podman: false             # reserved for Milestone 5
+bin_dir: ""               # directory containing webor, webor-helper, wbr (default: ./bin)
+prefix: /usr/local        # install prefix for binaries
+skip_firewall_hint: false
+skip_ptr: false           # skip PTR / forward-confirmed reverse DNS check
+yes: false                # non-interactive confirm

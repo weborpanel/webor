@@ -1,5 +1,5 @@
 // Socket-activated HTTP sample for Spike B (LISTEN_FDS / Unix socket).
-// Honors WBZ_IDLE_TIMEOUT (Go duration) to exit when idle so systemd can
+// Honors WBR_IDLE_TIMEOUT (Go duration) to exit when idle so systemd can
 // scale the service to zero while the .socket unit keeps listening.
 package main
 
@@ -34,7 +34,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		touch()
-		fmt.Fprintf(w, "webooza-spike-b-go ok pid=%d\n", os.Getpid())
+		fmt.Fprintf(w, "webor-spike-b-go ok pid=%d\n", os.Getpid())
 	})
 
 	ln, err := listen()
@@ -71,16 +71,16 @@ func main() {
 }
 
 func idleTimeout() (time.Duration, error) {
-	raw := strings.TrimSpace(os.Getenv("WBZ_IDLE_TIMEOUT"))
+	raw := strings.TrimSpace(os.Getenv("WBR_IDLE_TIMEOUT"))
 	if raw == "" {
 		return 0, nil
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil {
-		return 0, fmt.Errorf("WBZ_IDLE_TIMEOUT: %w", err)
+		return 0, fmt.Errorf("WBR_IDLE_TIMEOUT: %w", err)
 	}
 	if d < time.Second {
-		return 0, fmt.Errorf("WBZ_IDLE_TIMEOUT must be at least 1s")
+		return 0, fmt.Errorf("WBR_IDLE_TIMEOUT must be at least 1s")
 	}
 	return d, nil
 }
@@ -94,9 +94,9 @@ func listen() (net.Listener, error) {
 		_ = fds[0].Close()
 		return ln, nil
 	}
-	path := os.Getenv("WBZ_SOCK")
+	path := os.Getenv("WBR_SOCK")
 	if path == "" {
-		path = "/tmp/webooza-spike-go.sock"
+		path = "/tmp/webor-spike-go.sock"
 	}
 	_ = os.Remove(path)
 	return net.Listen("unix", path)

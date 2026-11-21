@@ -1,0 +1,37 @@
+[Unit]
+Description=Webor root helper
+Documentation=https://github.com/weborpanel/webor
+After=network-online.target
+Before=webor.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/webor-helper -socket /run/webor/helper.sock -state-dir /var/lib/webor
+RuntimeDirectory=webor
+RuntimeDirectoryMode=0750
+# Keep default umask so public site files stay world-readable for Caddy.
+Restart=on-failure
+RestartSec=2
+
+# Root is required for site users, units, and Caddy reload. Keep the surface
+# small: typed IPC allowlist + step-up approvals for destructive ops.
+NoNewPrivileges=false
+# ProtectSystem=full mounts /etc read-only and breaks useradd/userdel.
+ProtectSystem=true
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/webor /etc/webor /etc/systemd/system /srv/sites /run/webor /var/lib/caddy
+
+[Install]
+WantedBy=multi-user.target

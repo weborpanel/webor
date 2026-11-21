@@ -9,15 +9,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/helper"
-	"github.com/webooza/webooza/internal/providers/caddy"
-	"github.com/webooza/webooza/internal/reconcile"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/providers/caddy"
+	"github.com/weborpanel/webor/internal/reconcile"
 )
 
 func main() {
 	cfgPath := flag.String("config", "", "path to config.yaml")
-	caddyJSON := flag.String("caddy-json", "/etc/webooza/caddy.json", "rendered Caddy JSON path")
+	caddyJSON := flag.String("caddy-json", "/etc/webor/caddy.json", "rendered Caddy JSON path")
 	admin := flag.String("admin", caddy.DefaultAdminURL, "Caddy admin API URL")
 	listen := flag.String("listen", ":8080", "HTTP listen address in rendered config")
 	seed := flag.Bool("seed-index", true, "write demo index.html if missing")
@@ -35,7 +35,7 @@ func main() {
 
 	ops := helper.DefaultOps()
 	ops.CaddyAdminURL = *admin
-	ops.CaddyLastGood = "/var/lib/webooza/caddy-last-good.json"
+	ops.CaddyLastGood = "/var/lib/webor/caddy-last-good.json"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

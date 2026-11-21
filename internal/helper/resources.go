@@ -9,9 +9,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/providers/systemd"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // SiteResources is a read-only snapshot of site disk/memory/cpu usage.

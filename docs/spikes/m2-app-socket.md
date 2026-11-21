@@ -9,7 +9,7 @@ write matched `.socket`/`.service` units, enable the socket, render Caddy
 Prereq: Caddy admin API up (e.g. `make lab-start`).
 
 ```bash
-cd ~/webooza
+cd ~/webor
 export GOTOOLCHAIN=auto
 make lab-app
 ```
@@ -17,7 +17,7 @@ make lab-app
 Expect:
 
 ```text
-webooza-spike-b-go ok pid=…
+webor-spike-b-go ok pid=…
 service before: inactive
 service after:  active
 ```
@@ -25,17 +25,17 @@ service after:  active
 Manual checks:
 
 ```bash
-systemctl is-active webooza-app-app-example-com.socket   # active
-systemctl stop webooza-app-app-example-com.service
+systemctl is-active webor-app-app-example-com.socket   # active
+systemctl stop webor-app-app-example-com.service
 curl -sS -H 'Host: app.example.com' http://127.0.0.1:8080/
-systemctl is-active webooza-app-app-example-com.service  # active
-ls -l /run/webooza/sites/app.example.com/app.sock
+systemctl is-active webor-app-app-example-com.service  # active
+ls -l /run/webor/sites/app.example.com/app.sock
 ```
 
 Cleanup:
 
 ```bash
-sudo systemctl disable --now webooza-app-app-example-com.socket webooza-app-app-example-com.service 2>/dev/null || true
-sudo rm -f /etc/systemd/system/webooza-app-app-example-com.*
+sudo systemctl disable --now webor-app-app-example-com.socket webor-app-app-example-com.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/webor-app-app-example-com.*
 sudo systemctl daemon-reload
 ```

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/webooza/webooza/internal/config"
+	"github.com/weborpanel/webor/internal/config"
 )
 
 func TestParseExample(t *testing.T) {

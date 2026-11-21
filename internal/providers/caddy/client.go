@@ -21,7 +21,7 @@ type Client struct {
 	AdminURL   string
 	HTTPClient *http.Client
 	// LastGoodPath is where the last successfully applied config is stored.
-	// Used for Webooza-owned rollback after a successful load that fails a health probe.
+	// Used for Webor-owned rollback after a successful load that fails a health probe.
 	LastGoodPath string
 }
 

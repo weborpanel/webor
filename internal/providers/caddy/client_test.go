@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webooza/webooza/internal/providers/caddy"
+	"github.com/weborpanel/webor/internal/providers/caddy"
 )
 
 func TestValidateJSON(t *testing.T) {

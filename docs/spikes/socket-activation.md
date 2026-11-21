@@ -17,55 +17,55 @@ which node systemd-socket-proxyd
 ## Build and install binaries
 
 ```bash
-cd /media/sf_webooza
+cd /media/sf_webor
 export GOTOOLCHAIN=auto
-sudo mkdir -p /usr/local/lib/webooza-spike /run/webooza-spike
+sudo mkdir -p /usr/local/lib/webor-spike /run/webor-spike
 go build -o /tmp/spike-socket-go ./cmd/spike-socket-go
 go build -o /tmp/spike-socket-backend ./cmd/spike-socket-backend
-sudo install -m 0755 /tmp/spike-socket-go /usr/local/lib/webooza-spike/spike-socket-go
-sudo install -m 0755 /tmp/spike-socket-backend /usr/local/lib/webooza-spike/spike-socket-backend
-sudo mkdir -p /usr/local/lib/webooza-spike/node-app
-sudo cp examples/socket-activation/node-app/server.js /usr/local/lib/webooza-spike/node-app/
+sudo install -m 0755 /tmp/spike-socket-go /usr/local/lib/webor-spike/spike-socket-go
+sudo install -m 0755 /tmp/spike-socket-backend /usr/local/lib/webor-spike/spike-socket-backend
+sudo mkdir -p /usr/local/lib/webor-spike/node-app
+sudo cp examples/socket-activation/node-app/server.js /usr/local/lib/webor-spike/node-app/
 sudo cp examples/socket-activation/units/*.service examples/socket-activation/units/*.socket /etc/systemd/system/
 # Fix proxyd path if needed:
 PROXYD=$(command -v systemd-socket-proxyd || ls /lib/systemd/systemd-socket-proxyd /usr/lib/systemd/systemd-socket-proxyd 2>/dev/null | head -1)
-sudo sed -i "s|/lib/systemd/systemd-socket-proxyd|$PROXYD|" /etc/systemd/system/webooza-spike-proxy.service
+sudo sed -i "s|/lib/systemd/systemd-socket-proxyd|$PROXYD|" /etc/systemd/system/webor-spike-proxy.service
 sudo systemctl daemon-reload
 ```
 
 ## A) Native Go activation
 
 ```bash
-sudo systemctl stop webooza-spike-go.service 2>/dev/null || true
-sudo systemctl start webooza-spike-go.socket
-systemctl is-active webooza-spike-go.service   # expect: inactive
-curl --unix-socket /run/webooza-spike/go.sock http://localhost/
-# expect: webooza-spike-b-go ok ...
-systemctl is-active webooza-spike-go.service   # expect: active
+sudo systemctl stop webor-spike-go.service 2>/dev/null || true
+sudo systemctl start webor-spike-go.socket
+systemctl is-active webor-spike-go.service   # expect: inactive
+curl --unix-socket /run/webor-spike/go.sock http://localhost/
+# expect: webor-spike-b-go ok ...
+systemctl is-active webor-spike-go.service   # expect: active
 ```
 
 ## B) Native Node activation
 
 ```bash
-sudo systemctl stop webooza-spike-node.service 2>/dev/null || true
-sudo systemctl start webooza-spike-node.socket
-systemctl is-active webooza-spike-node.service
-curl --unix-socket /run/webooza-spike/node.sock http://localhost/
-systemctl is-active webooza-spike-node.service
+sudo systemctl stop webor-spike-node.service 2>/dev/null || true
+sudo systemctl start webor-spike-node.socket
+systemctl is-active webor-spike-node.service
+curl --unix-socket /run/webor-spike/node.sock http://localhost/
+systemctl is-active webor-spike-node.service
 ```
 
 For the Milestone 2 path (site user, Caddy, idle-stop, deploy/rollback) use
 `make lab-node` — see [`m2-app-node.md`](m2-app-node.md). The sample also
-honors `WBZ_IDLE_TIMEOUT` like the Go binary.
+honors `WBR_IDLE_TIMEOUT` like the Go binary.
 
 ## C) systemd-socket-proxyd fallback
 
 ```bash
-sudo systemctl enable --now webooza-spike-backend.service
-sudo systemctl stop webooza-spike-proxy.service 2>/dev/null || true
-sudo systemctl start webooza-spike-proxy.socket
-curl --unix-socket /run/webooza-spike/proxy.sock http://localhost/
-# expect: webooza-spike-b-proxy-backend ok ...
+sudo systemctl enable --now webor-spike-backend.service
+sudo systemctl stop webor-spike-proxy.service 2>/dev/null || true
+sudo systemctl start webor-spike-proxy.socket
+curl --unix-socket /run/webor-spike/proxy.sock http://localhost/
+# expect: webor-spike-b-proxy-backend ok ...
 ```
 
 ## Connection warmup check
@@ -73,9 +73,9 @@ curl --unix-socket /run/webooza-spike/proxy.sock http://localhost/
 With the Go socket active and service stopped:
 
 ```bash
-sudo systemctl stop webooza-spike-go.service
+sudo systemctl stop webor-spike-go.service
 START=$(date +%s%N)
-curl -sf --unix-socket /run/webooza-spike/go.sock http://localhost/
+curl -sf --unix-socket /run/webor-spike/go.sock http://localhost/
 END=$(date +%s%N)
 echo "warmup_ns=$((END-START))"
 # First request must succeed (systemd starts the service).
@@ -85,8 +85,8 @@ echo "warmup_ns=$((END-START))"
 
 ```bash
 sudo systemctl stop \
-  webooza-spike-go.socket webooza-spike-go.service \
-  webooza-spike-node.socket webooza-spike-node.service \
-  webooza-spike-proxy.socket webooza-spike-proxy.service \
-  webooza-spike-backend.service
+  webor-spike-go.socket webor-spike-go.service \
+  webor-spike-node.socket webor-spike-node.service \
+  webor-spike-proxy.socket webor-spike-proxy.service \
+  webor-spike-backend.service
 ```

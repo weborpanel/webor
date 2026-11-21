@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/deploy"
-	"github.com/webooza/webooza/internal/providers/systemd"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/deploy"
+	"github.com/weborpanel/webor/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // DeployAppBinaryResult is returned after a successful app binary deploy.
@@ -227,7 +227,7 @@ func validateAppBinaryPath(domain, binaryPath string) error {
 	}
 	allowed := []string{
 		sites.Tmp(domain) + string(filepath.Separator),
-		filepath.Join("/var/lib/webooza/uploads", domain) + string(filepath.Separator),
+		filepath.Join("/var/lib/webor/uploads", domain) + string(filepath.Separator),
 		sites.Root(domain) + string(filepath.Separator),
 	}
 	for _, prefix := range allowed {

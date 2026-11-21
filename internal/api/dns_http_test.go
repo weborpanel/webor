@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/webooza/webooza/internal/api"
-	"github.com/webooza/webooza/internal/auth"
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/dnscheck"
+	"github.com/weborpanel/webor/internal/api"
+	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/dnscheck"
 )
 
 func TestSiteDNSChecklist(t *testing.T) {

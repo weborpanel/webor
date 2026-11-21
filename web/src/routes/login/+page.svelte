@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>Log in · Webooza</title>
+	<title>Log in · Webor</title>
 </svelte:head>
 
 <section class="login">
@@ -57,11 +57,11 @@
 	<p>Sign in with your admin account.</p>
 
 	<form method="post" onsubmit={onSubmit}>
-		<label class="wbz-field">
+		<label class="wbr-field">
 			<span>Email</span>
 			<input type="email" name="email" autocomplete="username" bind:value={email} required />
 		</label>
-		<label class="wbz-field">
+		<label class="wbr-field">
 			<span>Password</span>
 			<input
 				type="password"
@@ -71,7 +71,7 @@
 				required
 			/>
 		</label>
-		<label class="wbz-field">
+		<label class="wbr-field">
 			<span>TOTP code</span>
 			<input
 				type="text"
@@ -83,9 +83,9 @@
 			/>
 		</label>
 		{#if error}
-			<p class="wbz-error" role="alert">{error}</p>
+			<p class="wbr-error" role="alert">{error}</p>
 		{/if}
-		<button class="wbz-btn" type="submit" disabled={submitting}>
+		<button class="wbr-btn" type="submit" disabled={submitting}>
 			{submitting ? 'Signing in…' : 'Continue'}
 		</button>
 	</form>
@@ -114,7 +114,7 @@
 		gap: 1rem;
 	}
 
-	.wbz-btn {
+	.wbr-btn {
 		justify-self: start;
 		margin-top: 0.2rem;
 	}

@@ -16,19 +16,20 @@ exact operation and arguments.
 2. Flow:
    - Panel/helper `RequestApproval` creates a pending row bound to
      `operation` + canonical JSON args (TTL default 5 minutes).
-   - Console `wbz approve <id>` runs as **root** and calls helper `Approve`,
+   - Console `wbr approve <id>` runs as **root** and calls helper `Approve`,
      which accepts only `SO_PEERCRED` uid 0.
    - The dangerous operation includes `approval_id`; the helper
      `Consume`s the row (must be approved, unexpired, unused, args match),
      then performs the work.
 3. Spike stand-in op: `DangerousDemo` (noop after a successful consume).
-4. The web UI must never be able to call `Approve`; only console/`wbz` as root.
+4. The web UI must never be able to call `Approve`; only console/`wbr` as root.
 
 ## Consequences
 
-- Milestone 3 wires real approval-class ops (install packages, delete site
-  data, firewall) to the same consume path.
-- Audit log should record request / approve / consume (follow-up).
+- Milestone 3 wires `DeleteSiteUser` (with `delete_data`) to the same consume
+  path; package installs / firewall remain future approval-class ops.
+- Audit log records request / approve / consume (hash-chained `audit_events`).
 - TOTP step-up can sit alongside console approve later; console remains the
   break-glass path if the panel is fully compromised.
-- Runbook: [`docs/spikes/step-up-approval.md`](../spikes/step-up-approval.md).
+- Runbook: [`docs/spikes/step-up-approval.md`](../spikes/step-up-approval.md),
+  install notes: [`docs/spikes/m3-install.md`](../spikes/m3-install.md).

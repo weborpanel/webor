@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // AppBinaryOptions controls copying a binary into a new app release.

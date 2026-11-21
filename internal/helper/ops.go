@@ -1,4 +1,4 @@
-// Package helper implements privileged operations for webooza-helper.
+// Package helper implements privileged operations for webor-helper.
 package helper
 
 // Ops holds runtime options for privileged apply functions.

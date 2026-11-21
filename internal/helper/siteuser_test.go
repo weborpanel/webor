@@ -4,19 +4,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webooza/webooza/internal/helper"
+	"github.com/weborpanel/webor/internal/helper"
 )
 
 func TestSiteUsername(t *testing.T) {
 	got := helper.SiteUsername("Example.COM")
-	if got != "wbz_example_com" {
+	if got != "wbr_example_com" {
 		t.Fatalf("got %q", got)
 	}
 	long := helper.SiteUsername("this.is.a.very.long.subdomain.example.com")
 	if len(long) > 32 {
 		t.Fatalf("len=%d name=%q", len(long), long)
 	}
-	if !strings.HasPrefix(long, "wbz_") {
+	if !strings.HasPrefix(long, "wbr_") {
 		t.Fatalf("prefix: %q", long)
 	}
 }

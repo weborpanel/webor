@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -10,13 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/helper"
-	"github.com/webooza/webooza/internal/reconcile"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/ipc"
+	"github.com/weborpanel/webor/internal/reconcile"
 )
 
 // DefaultConfigPath is the production desired-state file.
-const DefaultConfigPath = "/etc/webooza/config.yaml"
+const DefaultConfigPath = "/etc/webor/config.yaml"
 
 // sitesMu serializes config.yaml read-modify-write from the panel.
 var sitesMu sync.Mutex
@@ -33,6 +35,14 @@ func (s *Server) ops() *helper.Ops {
 		return s.Ops
 	}
 	return helper.DefaultOps()
+}
+
+// siteFS returns IPC-backed Ops when HelperSocket is set (production panel user).
+func (s *Server) siteFS() helper.SiteFS {
+	if s.HelperSocket != "" {
+		return &ipc.SiteClient{Socket: s.HelperSocket}
+	}
+	return s.ops()
 }
 
 // MountSites registers /api/sites routes (auth required).
@@ -159,7 +169,7 @@ func (s *Server) handleAddSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	warnings := []string{}
-	if err := s.ops().CreateSiteUser(site.Name); err != nil {
+	if err := s.siteFS().CreateSiteUser(site.Name); err != nil {
 		warnings = append(warnings, "CreateSiteUser: "+err.Error())
 	} else if err := s.applyCaddy(cfg); err != nil {
 		warnings = append(warnings, "caddy reload: "+err.Error())
@@ -181,7 +191,7 @@ func (s *Server) applyCaddy(cfg *config.Config) error {
 		SeedIndex:       true,
 	}
 	if opt.CaddyConfigPath == "" {
-		opt.CaddyConfigPath = "/etc/webooza/caddy.json"
+		opt.CaddyConfigPath = "/etc/webor/caddy.json"
 	}
 	if opt.HTTPListen == "" {
 		opt.HTTPListen = ":8080"
@@ -190,7 +200,7 @@ func (s *Server) applyCaddy(cfg *config.Config) error {
 	if !s.DisableHTTPS && len(s.ExpectedA) == 0 {
 		opt.DisableHTTPS = true
 	}
-	return reconcile.ApplyStaticSites(ctx, cfg, s.ops(), opt)
+	return reconcile.ApplyStaticSites(ctx, cfg, s.siteFS(), opt)
 }
 
 func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
@@ -202,6 +212,9 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 400, "name is required")
 		return
 	}
+	deleteData := r.URL.Query().Get("delete_data") == "1" || r.URL.Query().Get("delete_data") == "true"
+	approvalID := strings.TrimSpace(r.URL.Query().Get("approval_id"))
+
 	sitesMu.Lock()
 	defer sitesMu.Unlock()
 	cfg, err := s.loadOrEmptyConfig()
@@ -222,6 +235,22 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 404, "site not found")
 		return
 	}
+
+	if deleteData {
+		if approvalID == "" {
+			s.writeJSON(w, 403, map[string]any{
+				"ok":    false,
+				"error": "delete_data requires step-up approval",
+				"hint":  "POST /api/approvals with operation DeleteSiteUser, then: wbr approve <id>",
+			})
+			return
+		}
+		if err := s.deleteSiteUser(name, true, approvalID); err != nil {
+			s.writeErr(w, 403, err.Error())
+			return
+		}
+	}
+
 	cfg.Sites = filtered
 	if err := config.Save(s.configPath(), cfg); err != nil {
 		s.writeErr(w, 500, err.Error())
@@ -230,7 +259,31 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 	if len(cfg.Sites) > 0 {
 		_ = s.applyCaddy(cfg)
 	}
-	s.writeJSON(w, 200, map[string]any{"ok": true})
+	s.writeJSON(w, 200, map[string]any{"ok": true, "delete_data": deleteData})
+}
+
+func (s *Server) deleteSiteUser(domain string, deleteData bool, approvalID string) error {
+	if s.HelperSocket != "" {
+		raw, _ := json.Marshal(ipc.DeleteSiteUserArgs{
+			Domain:     domain,
+			DeleteData: deleteData,
+			ApprovalID: approvalID,
+		})
+		resp, err := ipc.Call(s.HelperSocket, ipc.Request{
+			ID: "panel", Operation: ipc.OpDeleteSiteUser, Args: raw,
+		})
+		if err != nil {
+			return err
+		}
+		if !resp.OK {
+			return fmt.Errorf("%s", resp.Error)
+		}
+		return nil
+	}
+	if deleteData {
+		return fmt.Errorf("delete_data requires helper IPC (set -helper-socket)")
+	}
+	return s.ops().DeleteSiteUser(domain, false)
 }
 
 func (s *Server) handlePutSiteFile(w http.ResponseWriter, r *http.Request) {
@@ -252,7 +305,7 @@ func (s *Server) handlePutSiteFile(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 400, "file exceeds 5 MiB")
 		return
 	}
-	if err := s.ops().WritePublicFile(name, rel, data); err != nil {
+	if err := s.siteFS().WritePublicFile(name, rel, data); err != nil {
 		s.writeErr(w, 400, err.Error())
 		return
 	}

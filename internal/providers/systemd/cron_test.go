@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/providers/systemd"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 func TestRenderCronUnits(t *testing.T) {
@@ -22,10 +22,10 @@ func TestRenderCronUnits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if units.ServiceName != "webooza-cron-app-example-com-nightly-cleanup.service" {
+	if units.ServiceName != "webor-cron-app-example-com-nightly-cleanup.service" {
 		t.Fatalf("service=%q", units.ServiceName)
 	}
-	if units.TimerName != "webooza-cron-app-example-com-nightly-cleanup.timer" {
+	if units.TimerName != "webor-cron-app-example-com-nightly-cleanup.timer" {
 		t.Fatalf("timer=%q", units.TimerName)
 	}
 	for _, want := range []string{

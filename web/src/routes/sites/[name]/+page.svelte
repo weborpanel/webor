@@ -345,23 +345,23 @@
 </script>
 
 <svelte:head>
-	<title>{name} · Webooza</title>
+	<title>{name} · Webor</title>
 </svelte:head>
 
 <section class="page">
 	<p class="crumb"><a href="/sites">Sites</a> <span aria-hidden="true">/</span> <span>{name || '…'}</span></p>
 
 	{#if loading}
-		<p class="wbz-muted">Loading…</p>
+		<p class="wbr-muted">Loading…</p>
 	{:else if !exists}
-		<p class="wbz-error" role="alert">Site not found in config.</p>
+		<p class="wbr-error" role="alert">Site not found in config.</p>
 	{:else}
 		<header class="page-head">
 			<div class="title-row">
 				<h1>{name}</h1>
-				<span class="wbz-badge">{siteType}</span>
+				<span class="wbr-badge">{siteType}</span>
 			</div>
-			<p class="wbz-muted">
+			<p class="wbr-muted">
 				{#if isApp}
 					App site · releases under <code>/srv/sites/{name}/</code>
 				{:else}
@@ -371,10 +371,10 @@
 		</header>
 
 		{#if error}
-			<p class="wbz-error" role="alert">{error}</p>
+			<p class="wbr-error" role="alert">{error}</p>
 		{/if}
 
-		<section class="wbz-panel" aria-labelledby="overview-heading">
+		<section class="wbr-panel" aria-labelledby="overview-heading">
 			<h2 id="overview-heading">Overview</h2>
 			<p class="lede">
 				{#if isApp}
@@ -404,14 +404,14 @@
 			</ul>
 		</section>
 
-		<section class="wbz-panel" aria-labelledby="resources-heading">
+		<section class="wbr-panel" aria-labelledby="resources-heading">
 			<h2 id="resources-heading">Resources</h2>
 			<p class="lede">Disk under the site root and memory for the app unit (when running).</p>
 			{#if resourcesError}
-				<p class="wbz-error" role="alert">{resourcesError}</p>
+				<p class="wbr-error" role="alert">{resourcesError}</p>
 			{/if}
 			{#if resourcesLoading && !resources}
-				<p class="wbz-muted">Loading…</p>
+				<p class="wbr-muted">Loading…</p>
 			{:else if resources}
 				<ul class="facts">
 					<li><span>Disk used</span> <strong>{formatBytes(resources.disk_used_bytes)}</strong></li>
@@ -424,7 +424,7 @@
 						<strong>
 							{formatBytes(resources.memory_current_bytes)}
 							{#if resources.memory_max}
-								<span class="wbz-muted"> / {resources.memory_max}</span>
+								<span class="wbr-muted"> / {resources.memory_max}</span>
 							{/if}
 						</strong>
 					</li>
@@ -434,20 +434,20 @@
 					</li>
 				</ul>
 			{/if}
-			<button class="wbz-btn wbz-btn-ghost" type="button" disabled={resourcesLoading} onclick={loadResources}>
+			<button class="wbr-btn wbr-btn-ghost" type="button" disabled={resourcesLoading} onclick={loadResources}>
 				{resourcesLoading ? 'Refreshing…' : 'Refresh'}
 			</button>
 		</section>
 
 		{#if isApp}
-			<section class="wbz-panel" aria-labelledby="deploy-heading">
+			<section class="wbr-panel" aria-labelledby="deploy-heading">
 				<h2 id="deploy-heading">Deploy</h2>
 				<p class="lede">Upload a binary or build from git. Failed health checks roll back automatically.</p>
 
 				<div class="mode" role="group" aria-label="Deploy mode">
 					<button
 						type="button"
-						class={['wbz-btn', 'wbz-btn-ghost', 'mode-btn', deployMode === 'binary' && 'active']}
+						class={['wbr-btn', 'wbr-btn-ghost', 'mode-btn', deployMode === 'binary' && 'active']}
 						disabled={deployBusy}
 						onclick={() => (deployMode = 'binary')}
 					>
@@ -455,7 +455,7 @@
 					</button>
 					<button
 						type="button"
-						class={['wbz-btn', 'wbz-btn-ghost', 'mode-btn', deployMode === 'git' && 'active']}
+						class={['wbr-btn', 'wbr-btn-ghost', 'mode-btn', deployMode === 'git' && 'active']}
 						disabled={deployBusy}
 						onclick={() => (deployMode = 'git')}
 					>
@@ -464,15 +464,15 @@
 				</div>
 
 				{#if deployError}
-					<p class="wbz-error" role="alert">{deployError}</p>
+					<p class="wbr-error" role="alert">{deployError}</p>
 				{/if}
 				{#if deploySuccess}
-					<p class="wbz-ok" role="status">{deploySuccess}</p>
+					<p class="wbr-ok" role="status">{deploySuccess}</p>
 				{/if}
 
 				{#if deployMode === 'binary'}
 					<form class="stack" onsubmit={deployBinary}>
-						<label class="wbz-field">
+						<label class="wbr-field">
 							<span>Binary file</span>
 							<input
 								type="file"
@@ -483,13 +483,13 @@
 								}}
 							/>
 						</label>
-						<button class="wbz-btn" type="submit" disabled={deployBusy}>
+						<button class="wbr-btn" type="submit" disabled={deployBusy}>
 							{deployBusy ? 'Deploying…' : 'Deploy'}
 						</button>
 					</form>
 				{:else}
 					<form class="stack" onsubmit={deployGit}>
-						<label class="wbz-field">
+						<label class="wbr-field">
 							<span>Git URL</span>
 							<input
 								name="git_url"
@@ -499,11 +499,11 @@
 								disabled={deployBusy}
 							/>
 						</label>
-						<label class="wbz-field">
+						<label class="wbr-field">
 							<span>Git ref (optional)</span>
 							<input name="git_ref" bind:value={gitRef} placeholder="main" disabled={deployBusy} />
 						</label>
-						<label class="wbz-field">
+						<label class="wbr-field">
 							<span>Build command (optional)</span>
 							<input
 								name="build_command"
@@ -512,7 +512,7 @@
 								disabled={deployBusy}
 							/>
 						</label>
-						<label class="wbz-field">
+						<label class="wbr-field">
 							<span>Artifact (optional)</span>
 							<input
 								name="artifact"
@@ -521,25 +521,25 @@
 								disabled={deployBusy}
 							/>
 						</label>
-						<button class="wbz-btn" type="submit" disabled={deployBusy}>
+						<button class="wbr-btn" type="submit" disabled={deployBusy}>
 							{deployBusy ? 'Deploying…' : 'Deploy from git'}
 						</button>
 					</form>
 				{/if}
 			</section>
 		{:else}
-			<section class="wbz-panel" aria-labelledby="upload-heading">
+			<section class="wbr-panel" aria-labelledby="upload-heading">
 				<h2 id="upload-heading">Upload</h2>
 				<p class="lede">Files land under <code>{root}/</code> and are served by Caddy.</p>
 				{#if uploadOk}
-					<p class="wbz-ok" role="status">{uploadOk}</p>
+					<p class="wbr-ok" role="status">{uploadOk}</p>
 				{/if}
 				<form class="stack" onsubmit={upload}>
-					<label class="wbz-field">
+					<label class="wbr-field">
 						<span>Path under {root}/</span>
 						<input name="path" bind:value={uploadPath} placeholder="index.html" required />
 					</label>
-					<label class="wbz-field">
+					<label class="wbr-field">
 						<span>File</span>
 						<input
 							type="file"
@@ -548,18 +548,18 @@
 							}}
 						/>
 					</label>
-					<button class="wbz-btn" type="submit" disabled={uploading}>
+					<button class="wbr-btn" type="submit" disabled={uploading}>
 						{uploading ? 'Uploading…' : 'Upload'}
 					</button>
 				</form>
 			</section>
 		{/if}
 
-		<section class="wbz-panel" aria-labelledby="logs-heading">
+		<section class="wbr-panel" aria-labelledby="logs-heading">
 			<h2 id="logs-heading">Logs</h2>
 			<p class="lede">Recent journal lines for this site’s units.</p>
 			<div class="log-controls">
-				<label class="wbz-field">
+				<label class="wbr-field">
 					<span>Unit</span>
 					<select bind:value={logUnit} onchange={loadLogs}>
 						{#if isApp}
@@ -576,20 +576,20 @@
 						{/each}
 					</select>
 				</label>
-				<button class="wbz-btn wbz-btn-ghost" type="button" disabled={logLoading} onclick={loadLogs}>
+				<button class="wbr-btn wbr-btn-ghost" type="button" disabled={logLoading} onclick={loadLogs}>
 					{logLoading ? 'Loading…' : 'Refresh'}
 				</button>
 			</div>
 			{#if logUnitName}
-				<p class="wbz-muted unit-name"><code>{logUnitName}</code></p>
+				<p class="wbr-muted unit-name"><code>{logUnitName}</code></p>
 			{/if}
 			{#if logError}
-				<p class="wbz-error" role="alert">{logError}</p>
+				<p class="wbr-error" role="alert">{logError}</p>
 			{/if}
 			<pre class="log-tail">{logText || (logLoading ? '…' : '(no log lines)')}</pre>
 		</section>
 
-		<section class="wbz-panel" aria-labelledby="dns-heading">
+		<section class="wbr-panel" aria-labelledby="dns-heading">
 			<h2 id="dns-heading">DNS checklist</h2>
 			<p class="lede">Point the domain at this VPS, then run the check. Certificate issuance waits for a green A record.</p>
 			<form
@@ -599,11 +599,11 @@
 					checkDNS();
 				}}
 			>
-				<label class="wbz-field">
+				<label class="wbr-field">
 					<span>Expected A (optional override)</span>
 					<input bind:value={expectedA} placeholder="203.0.113.10" />
 				</label>
-				<button class="wbz-btn" type="submit" disabled={dnsLoading}>
+				<button class="wbr-btn" type="submit" disabled={dnsLoading}>
 					{dnsLoading ? 'Checking…' : 'Check DNS'}
 				</button>
 			</form>
@@ -709,7 +709,7 @@
 	}
 
 	.mode-btn.active {
-		background: var(--wbz-ultramarine);
+		background: var(--wbr-ultramarine);
 		color: #fff;
 		border-color: transparent;
 	}
@@ -720,7 +720,7 @@
 		max-width: 28rem;
 	}
 
-	.stack .wbz-btn {
+	.stack .wbr-btn {
 		justify-self: start;
 	}
 
@@ -736,7 +736,7 @@
 		margin-bottom: 0.75rem;
 	}
 
-	.log-controls .wbz-field {
+	.log-controls .wbr-field {
 		min-width: 12rem;
 	}
 
@@ -754,7 +754,7 @@
 		line-height: 1.45;
 		border-radius: var(--radius-sm);
 		border: 1px solid var(--border);
-		background: color-mix(in srgb, var(--wbz-ink) 4%, var(--surface));
+		background: color-mix(in srgb, var(--wbr-ink) 4%, var(--surface));
 		white-space: pre-wrap;
 		word-break: break-word;
 	}

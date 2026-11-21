@@ -3,7 +3,7 @@
 
 /**
  * Socket-activated Node HTTP sample (Spike B / Milestone 2).
- * Honors LISTEN_FDS (fd 3) and WBZ_IDLE_TIMEOUT (Go-style duration) so the
+ * Honors LISTEN_FDS (fd 3) and WBR_IDLE_TIMEOUT (Go-style duration) so the
  * service can scale to zero while the .socket unit keeps listening.
  */
 
@@ -15,7 +15,7 @@ function parseIdleTimeout(raw) {
   if (!s) return 0;
   const m = s.match(/^(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)$/);
   if (!m) {
-    throw new Error(`WBZ_IDLE_TIMEOUT: invalid duration ${JSON.stringify(raw)}`);
+    throw new Error(`WBR_IDLE_TIMEOUT: invalid duration ${JSON.stringify(raw)}`);
   }
   const n = Number(m[1]);
   const unit = m[2];
@@ -30,14 +30,14 @@ function parseIdleTimeout(raw) {
   };
   const ms = n * msPer[unit];
   if (!(ms >= 1000)) {
-    throw new Error("WBZ_IDLE_TIMEOUT must be at least 1s");
+    throw new Error("WBR_IDLE_TIMEOUT must be at least 1s");
   }
   return ms;
 }
 
 let idleMs;
 try {
-  idleMs = parseIdleTimeout(process.env.WBZ_IDLE_TIMEOUT);
+  idleMs = parseIdleTimeout(process.env.WBR_IDLE_TIMEOUT);
 } catch (err) {
   console.error(String(err.message || err));
   process.exit(1);
@@ -51,7 +51,7 @@ const touch = () => {
 const server = http.createServer((req, res) => {
   touch();
   res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end(`webooza-spike-b-node ok pid=${process.pid}\n`);
+  res.end(`webor-spike-b-node ok pid=${process.pid}\n`);
 });
 
 function startIdleWatcher() {
@@ -82,7 +82,7 @@ if (listenFDs > 0 && listenPID === process.pid) {
     startIdleWatcher();
   });
 } else {
-  const path = process.env.WBZ_SOCK || "/tmp/webooza-spike-node.sock";
+  const path = process.env.WBR_SOCK || "/tmp/webor-spike-node.sock";
   try {
     fs.unlinkSync(path);
   } catch (_) {

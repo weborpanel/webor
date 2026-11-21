@@ -9,7 +9,7 @@ Helper ops: `DeployAppBinary`, `DeployAppGit` (clone/fetch + limited build + bin
 IPC: `DeployAppBinary`, `DeployAppGit`.  
 Panel API (auth session):
 
-- `POST /api/sites/{name}/deploy` — multipart field `file` (binary → `/var/lib/webooza/uploads/{name}/server`)
+- `POST /api/sites/{name}/deploy` — multipart field `file` (binary → `/var/lib/webor/uploads/{name}/server`)
 - `POST /api/sites/{name}/deploy/git` — JSON `{git_url, git_ref?, build_command?, artifact?, memory_max?, timeout_sec?}`
 
 UI: open an **app** site dashboard (`/sites/{name}`) → **Deploy** (Binary upload or Git deploy).
@@ -20,7 +20,7 @@ Add app sites from **Sites → Add site → Type: App**.
 Prereq: Caddy + panel up (`make lab-start`), then socket-activated sample site.
 
 ```bash
-cd ~/webooza
+cd ~/webor
 git pull
 export GOTOOLCHAIN=auto
 make lab-deploy
@@ -30,14 +30,14 @@ make lab-deploy
 
 1. Copies `spike-socket-go` into a new release and activates it
 2. Attempts a broken binary deploy and expects automatic rollback
-3. Confirms `curl` still returns `webooza-spike-b-go ok`
+3. Confirms `curl` still returns `webor-spike-b-go ok`
 
 Expect:
 
 ```text
 deployed release …
 bad deploy failed as expected: …
-curl: webooza-spike-b-go ok pid=…
+curl: webor-spike-b-go ok pid=…
 ok: deploy + rollback verified
 ```
 

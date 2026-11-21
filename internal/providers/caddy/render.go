@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // RenderOptions controls how config.yaml is turned into Caddy JSON.

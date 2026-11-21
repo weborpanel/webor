@@ -6,15 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/helper"
-	"github.com/webooza/webooza/internal/providers/caddy"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/providers/caddy"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // StaticApplyOptions controls the Milestone 0 static-site apply path.
 type StaticApplyOptions struct {
-	CaddyConfigPath string // e.g. /etc/webooza/caddy.json
+	CaddyConfigPath string // e.g. /etc/webor/caddy.json
 	CaddyAdminURL   string
 	CaddyLastGood   string
 	HTTPListen      string
@@ -26,7 +26,7 @@ type StaticApplyOptions struct {
 
 // ApplyStaticSites creates site users/dirs for static sites, optionally seeds
 // index.html, renders Caddy JSON, and reloads Caddy via the helper ops surface.
-func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, opt StaticApplyOptions) error {
+func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops helper.SiteFS, opt StaticApplyOptions) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
@@ -34,19 +34,21 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, 
 		ops = helper.DefaultOps()
 	}
 	if opt.CaddyConfigPath == "" {
-		opt.CaddyConfigPath = "/etc/webooza/caddy.json"
+		opt.CaddyConfigPath = "/etc/webor/caddy.json"
 	}
 	if opt.HTTPListen == "" {
 		opt.HTTPListen = ":8080"
 	}
 	if opt.IndexBody == "" {
-		opt.IndexBody = "<!doctype html><title>Webooza</title><h1>webooza-m0-static-ok</h1>\n"
+		opt.IndexBody = "<!doctype html><title>Webor</title><h1>webor-m0-static-ok</h1>\n"
 	}
-	if ops.CaddyAdminURL == "" && opt.CaddyAdminURL != "" {
-		ops.CaddyAdminURL = opt.CaddyAdminURL
-	}
-	if ops.CaddyLastGood == "" && opt.CaddyLastGood != "" {
-		ops.CaddyLastGood = opt.CaddyLastGood
+	if local, ok := ops.(*helper.Ops); ok {
+		if local.CaddyAdminURL == "" && opt.CaddyAdminURL != "" {
+			local.CaddyAdminURL = opt.CaddyAdminURL
+		}
+		if local.CaddyLastGood == "" && opt.CaddyLastGood != "" {
+			local.CaddyLastGood = opt.CaddyLastGood
+		}
 	}
 
 	for _, site := range cfg.Sites {
@@ -56,17 +58,20 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, 
 		if err := ops.CreateSiteUser(site.Name); err != nil {
 			return fmt.Errorf("site %s: %w", site.Name, err)
 		}
-		rootName := site.Root
-		if rootName == "" {
-			rootName = "public"
-		}
-		pub := filepath.Join(sites.Root(site.Name), rootName)
-		if rootName == "public" {
-			pub = sites.Public(site.Name)
-		}
 		if opt.SeedIndex {
-			if err := seedIndex(pub, opt.IndexBody); err != nil {
-				return fmt.Errorf("seed %s: %w", site.Name, err)
+			// CreateSiteUser already seeds index.html when missing. Keep a local
+			// fallback for in-process Ops when the site root uses a custom path.
+			rootName := site.Root
+			if rootName == "" {
+				rootName = "public"
+			}
+			pub := sites.Public(site.Name)
+			if rootName != "public" {
+				pub = filepath.Join(sites.Root(site.Name), rootName)
+			}
+			if err := seedIndexIfMissing(pub, opt.IndexBody); err != nil {
+				// Non-fatal when panel cannot write /srv/sites (helper already seeded).
+				_ = err
 			}
 		}
 	}
@@ -92,7 +97,7 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, 
 	return ops.ReloadCaddy(ctx, opt.CaddyConfigPath)
 }
 
-func seedIndex(publicDir, body string) error {
+func seedIndexIfMissing(publicDir, body string) error {
 	if err := os.MkdirAll(publicDir, 0o755); err != nil {
 		return err
 	}
@@ -103,6 +108,5 @@ func seedIndex(publicDir, body string) error {
 	if err := os.WriteFile(index, []byte(body), 0o644); err != nil {
 		return err
 	}
-	// Ensure world-readable for Caddy in M0.
 	return os.Chmod(index, 0o644)
 }

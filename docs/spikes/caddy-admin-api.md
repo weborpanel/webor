@@ -15,7 +15,7 @@ Or manually:
 
 ```bash
 cd docker/spike-caddy && docker compose up -d
-curl -sS http://127.0.0.1:8080/   # webooza-spike-a-ok
+curl -sS http://127.0.0.1:8080/   # webor-spike-a-ok
 go run ./cmd/spike-caddy -admin http://127.0.0.1:2019 \
   -config docker/spike-caddy/good.json -probe http://127.0.0.1:8080/
 go run ./cmd/spike-caddy -admin http://127.0.0.1:2019 \
@@ -65,7 +65,7 @@ Leave that terminal open. In another shell:
 
 ```bash
 curl -sS http://127.0.0.1:8080/
-# expect: webooza-spike-a-ok
+# expect: webor-spike-a-ok
 ```
 
 ## 3. Apply good config via the harness
@@ -74,7 +74,7 @@ curl -sS http://127.0.0.1:8080/
 go run ./cmd/spike-caddy \
   -config internal/providers/caddy/testdata/good.json \
   -probe http://127.0.0.1:8080/ \
-  -last-good /tmp/webooza-caddy-last-good.json
+  -last-good /tmp/webor-caddy-last-good.json
 ```
 
 Expect: `ok: applied ...`
@@ -85,14 +85,14 @@ Expect: `ok: applied ...`
 go run ./cmd/spike-caddy \
   -config internal/providers/caddy/testdata/bad.json \
   -probe http://127.0.0.1:8080/ \
-  -last-good /tmp/webooza-caddy-last-good.json
+  -last-good /tmp/webor-caddy-last-good.json
 ```
 
 Expect: non-zero exit (Caddy load error and/or probe + rollback). Then:
 
 ```bash
 curl -sS http://127.0.0.1:8080/
-# still: webooza-spike-a-ok
+# still: webor-spike-a-ok
 ```
 
 ## 5. Record the result

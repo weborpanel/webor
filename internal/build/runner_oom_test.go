@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/webooza/webooza/internal/build"
+	"github.com/weborpanel/webor/internal/build"
 )
 
 func TestRunBuildPassesMemoryMaxAndTimeout(t *testing.T) {
@@ -43,7 +43,7 @@ func TestRunBuildPassesMemoryMaxAndTimeout(t *testing.T) {
 	if !strings.Contains(joined, "MemoryMax=64M") {
 		t.Fatalf("args=%v", saw)
 	}
-	if !strings.Contains(joined, "uid=wbz_oom_example") && !strings.Contains(joined, "wbz_oom_example") {
+	if !strings.Contains(joined, "uid=wbr_oom_example") && !strings.Contains(joined, "wbr_oom_example") {
 		// username derived from domain
 		if !strings.Contains(joined, "--uid=") {
 			t.Fatalf("missing uid in %v", saw)

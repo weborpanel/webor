@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/webooza/webooza/internal/deploy"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/deploy"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 func writeZip(t *testing.T, path string, files map[string]string) {

@@ -2,13 +2,13 @@
 
 :root {
 	color-scheme: light;
-	--page: var(--wbz-chalk);
-	--text: var(--wbz-ink);
-	--muted: var(--wbz-muted);
-	--accent: var(--wbz-ultramarine);
-	--accent-2: var(--wbz-marigold);
+	--page: var(--wbr-chalk);
+	--text: var(--wbr-ink);
+	--muted: var(--wbr-muted);
+	--accent: var(--wbr-ultramarine);
+	--accent-2: var(--wbr-marigold);
 	--surface: #ffffff;
-	--border: color-mix(in srgb, var(--wbz-ink) 14%, transparent);
+	--border: color-mix(in srgb, var(--wbr-ink) 14%, transparent);
 	--danger: #b42318;
 	--ok: #067647;
 	--warn: #b54708;
@@ -37,15 +37,15 @@ body {
 	background:
 		radial-gradient(
 			1100px 520px at 8% -12%,
-			color-mix(in srgb, var(--wbz-ultramarine) 14%, transparent),
+			color-mix(in srgb, var(--wbr-ultramarine) 14%, transparent),
 			transparent 58%
 		),
 		radial-gradient(
 			800px 420px at 100% 0%,
-			color-mix(in srgb, var(--wbz-marigold) 12%, transparent),
+			color-mix(in srgb, var(--wbr-marigold) 12%, transparent),
 			transparent 52%
 		),
-		linear-gradient(180deg, var(--page), color-mix(in srgb, var(--page) 90%, var(--wbz-ink)));
+		linear-gradient(180deg, var(--page), color-mix(in srgb, var(--page) 90%, var(--wbr-ink)));
 	line-height: 1.55;
 }
 
@@ -60,16 +60,16 @@ a:hover {
 }
 
 /* Shared form / button primitives for panel pages */
-.wbz-field {
+.wbr-field {
 	display: grid;
 	gap: 0.35rem;
 	font-weight: 700;
 	font-size: 0.92rem;
 }
 
-.wbz-field input,
-.wbz-field select,
-.wbz-input {
+.wbr-field input,
+.wbr-field select,
+.wbr-input {
 	font: inherit;
 	padding: 0.7rem 0.85rem;
 	border-radius: var(--radius-sm);
@@ -78,27 +78,27 @@ a:hover {
 	color: var(--text);
 }
 
-.wbz-field input:focus,
-.wbz-field select:focus,
-.wbz-input:focus {
+.wbr-field input:focus,
+.wbr-field select:focus,
+.wbr-input:focus {
 	outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
 	outline-offset: 1px;
 }
 
-.wbz-field input[type='file'] {
+.wbr-field input[type='file'] {
 	padding: 0.4rem 0;
 	border: 0;
 	border-radius: 0;
 	background: transparent;
 }
 
-.wbz-btn {
+.wbr-btn {
 	font: inherit;
 	font-weight: 800;
 	padding: 0.7rem 1.05rem;
 	border: 0;
 	border-radius: var(--radius-sm);
-	background: var(--wbz-ultramarine);
+	background: var(--wbr-ultramarine);
 	color: #fff;
 	cursor: pointer;
 	text-decoration: none;
@@ -108,22 +108,22 @@ a:hover {
 	gap: 0.35rem;
 }
 
-.wbz-btn:hover:not(:disabled) {
+.wbr-btn:hover:not(:disabled) {
 	filter: brightness(1.05);
 }
 
-.wbz-btn:disabled {
+.wbr-btn:disabled {
 	opacity: 0.7;
 	cursor: wait;
 }
 
-.wbz-btn-ghost {
+.wbr-btn-ghost {
 	background: transparent;
 	color: var(--text);
 	border: 1px solid var(--border);
 }
 
-.wbz-btn-danger {
+.wbr-btn-danger {
 	background: transparent;
 	color: var(--danger);
 	border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
@@ -135,27 +135,27 @@ a:hover {
 	font: inherit;
 }
 
-.wbz-panel {
+.wbr-panel {
 	background: color-mix(in srgb, var(--surface) 94%, transparent);
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
 	padding: 1.15rem 1.25rem;
 }
 
-.wbz-panel h2 {
+.wbr-panel h2 {
 	margin: 0 0 0.5rem;
 	font-size: 1.05rem;
 	font-weight: 800;
 	letter-spacing: -0.02em;
 }
 
-.wbz-panel .lede {
+.wbr-panel .lede {
 	margin: 0 0 1rem;
 	color: var(--muted);
 	font-size: 0.95rem;
 }
 
-.wbz-badge {
+.wbr-badge {
 	display: inline-flex;
 	align-items: center;
 	padding: 0.15rem 0.55rem;
@@ -164,22 +164,22 @@ a:hover {
 	font-weight: 800;
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
-	background: color-mix(in srgb, var(--wbz-ultramarine) 12%, var(--surface));
-	color: var(--wbz-ultramarine);
+	background: color-mix(in srgb, var(--wbr-ultramarine) 12%, var(--surface));
+	color: var(--wbr-ultramarine);
 }
 
-.wbz-error {
+.wbr-error {
 	margin: 0;
 	color: var(--danger);
 	font-weight: 700;
 }
 
-.wbz-ok {
+.wbr-ok {
 	margin: 0;
 	color: var(--ok);
 	font-weight: 700;
 }
 
-.wbz-muted {
+.wbr-muted {
 	color: var(--muted);
 }

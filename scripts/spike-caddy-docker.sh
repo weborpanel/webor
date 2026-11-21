@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_DIR="$ROOT/docker/spike-caddy"
-LAST_GOOD="${TMPDIR:-/tmp}/webooza-caddy-last-good.json"
+LAST_GOOD="${TMPDIR:-/tmp}/webor-caddy-last-good.json"
 ADMIN="${ADMIN:-http://127.0.0.1:2019}"
 PROBE="${PROBE:-http://127.0.0.1:8080/}"
 
@@ -23,7 +23,7 @@ done
 curl -sf "$ADMIN/config/" >/dev/null
 
 echo "==> probe baseline"
-curl -sf "$PROBE" | grep -q webooza-spike-a-ok
+curl -sf "$PROBE" | grep -q webor-spike-a-ok
 
 echo "==> apply good config"
 (cd "$ROOT" && go run ./cmd/spike-caddy \
@@ -47,6 +47,6 @@ if [[ "$bad_status" -eq 0 ]]; then
 fi
 
 echo "==> site still serving good response"
-curl -sf "$PROBE" | grep -q webooza-spike-a-ok
+curl -sf "$PROBE" | grep -q webor-spike-a-ok
 
 echo "OK: Spike A docker smoke test passed"

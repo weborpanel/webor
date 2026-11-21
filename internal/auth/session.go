@@ -8,7 +8,7 @@ import (
 
 const (
 	// SessionCookie is the HTTP cookie name for the panel session.
-	SessionCookie = "webooza_session"
+	SessionCookie = "webor_session"
 	// DefaultSessionTTL is how long a session remains valid.
 	DefaultSessionTTL = 12 * time.Hour
 )

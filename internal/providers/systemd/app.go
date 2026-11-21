@@ -1,4 +1,4 @@
-// Package systemd renders systemd unit files for Webooza-managed workloads.
+// Package systemd renders systemd unit files for Webor-managed workloads.
 package systemd
 
 import (
@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // AppUnits holds rendered unit basenames and file bodies for one app site.
@@ -24,7 +24,7 @@ type AppUnits struct {
 }
 
 // UnitPrefix is applied to all generated unit basenames.
-const UnitPrefix = "webooza-app-"
+const UnitPrefix = "webor-app-"
 
 // UnitBase returns a systemd-safe basename fragment from a domain
 // (e.g. app.example.com → app-example-com).
@@ -45,17 +45,17 @@ func UnitBase(domain string) string {
 	return out
 }
 
-// ServiceUnitName returns webooza-app-<domain>.service.
+// ServiceUnitName returns webor-app-<domain>.service.
 func ServiceUnitName(domain string) string {
 	return UnitPrefix + UnitBase(domain) + ".service"
 }
 
-// SocketUnitName returns webooza-app-<domain>.socket.
+// SocketUnitName returns webor-app-<domain>.socket.
 func SocketUnitName(domain string) string {
 	return UnitPrefix + UnitBase(domain) + ".socket"
 }
 
-// BackendServiceUnitName returns webooza-app-<domain>-backend.service.
+// BackendServiceUnitName returns webor-app-<domain>-backend.service.
 func BackendServiceUnitName(domain string) string {
 	return UnitPrefix + UnitBase(domain) + "-backend.service"
 }
@@ -119,7 +119,7 @@ func appendHardening(svc *strings.Builder, site config.Site, root string) {
 func renderSocketUnit(domain, sockPath string) string {
 	var sk strings.Builder
 	fmt.Fprintf(&sk, "[Unit]\n")
-	fmt.Fprintf(&sk, "Description=Webooza app socket %s\n", domain)
+	fmt.Fprintf(&sk, "Description=Webor app socket %s\n", domain)
 	fmt.Fprintf(&sk, "\n[Socket]\n")
 	fmt.Fprintf(&sk, "ListenStream=%s\n", sockPath)
 	fmt.Fprintf(&sk, "SocketMode=0666\n")
@@ -166,7 +166,7 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 
 		var proxy strings.Builder
 		fmt.Fprintf(&proxy, "[Unit]\n")
-		fmt.Fprintf(&proxy, "Description=Webooza socket-proxyd %s\n", site.Name)
+		fmt.Fprintf(&proxy, "Description=Webor socket-proxyd %s\n", site.Name)
 		fmt.Fprintf(&proxy, "Requires=%s\n", SocketUnitName(site.Name))
 		fmt.Fprintf(&proxy, "Wants=%s\n", backendName)
 		fmt.Fprintf(&proxy, "After=%s %s\n", SocketUnitName(site.Name), backendName)
@@ -183,14 +183,14 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 
 		var backend strings.Builder
 		fmt.Fprintf(&backend, "[Unit]\n")
-		fmt.Fprintf(&backend, "Description=Webooza app backend %s\n", site.Name)
+		fmt.Fprintf(&backend, "Description=Webor app backend %s\n", site.Name)
 		fmt.Fprintf(&backend, "After=network.target\n")
 		fmt.Fprintf(&backend, "\n[Service]\n")
 		fmt.Fprintf(&backend, "Type=simple\n")
 		fmt.Fprintf(&backend, "User=%s\n", user)
 		fmt.Fprintf(&backend, "Group=%s\n", user)
 		fmt.Fprintf(&backend, "WorkingDirectory=%s\n", root)
-		fmt.Fprintf(&backend, "Environment=WBZ_SOCK=%s\n", backendSock)
+		fmt.Fprintf(&backend, "Environment=WBR_SOCK=%s\n", backendSock)
 		if site.EnvFile != "" {
 			env := site.EnvFile
 			if !filepath.IsAbs(env) {
@@ -216,7 +216,7 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 
 	var svc strings.Builder
 	fmt.Fprintf(&svc, "[Unit]\n")
-	fmt.Fprintf(&svc, "Description=Webooza app %s\n", site.Name)
+	fmt.Fprintf(&svc, "Description=Webor app %s\n", site.Name)
 	if site.SocketActivation {
 		sockName := SocketUnitName(site.Name)
 		fmt.Fprintf(&svc, "Requires=%s\n", sockName)
@@ -240,7 +240,7 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 	if site.SocketActivation {
 		idle := strings.TrimSpace(site.IdleTimeout)
 		if idle != "" {
-			fmt.Fprintf(&svc, "Environment=WBZ_IDLE_TIMEOUT=%s\n", idle)
+			fmt.Fprintf(&svc, "Environment=WBR_IDLE_TIMEOUT=%s\n", idle)
 		}
 	}
 	fmt.Fprintf(&svc, "Restart=no\n")

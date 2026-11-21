@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/webooza/webooza/internal/auth"
-	"github.com/webooza/webooza/internal/config"
+	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/config"
 )
 
 func TestApprovalLifecycle(t *testing.T) {

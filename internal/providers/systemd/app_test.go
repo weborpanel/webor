@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/providers/systemd"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 func TestRenderAppUnitsSocketActivated(t *testing.T) {
@@ -22,19 +22,19 @@ func TestRenderAppUnitsSocketActivated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if units.ServiceName != "webooza-app-app-example-com.service" {
+	if units.ServiceName != "webor-app-app-example-com.service" {
 		t.Fatalf("service name=%q", units.ServiceName)
 	}
-	if units.SocketName != "webooza-app-app-example-com.socket" {
+	if units.SocketName != "webor-app-app-example-com.socket" {
 		t.Fatalf("socket name=%q", units.SocketName)
 	}
 	for _, want := range []string{
 		"User=" + sites.Username("app.example.com"),
 		"ExecStart=" + sites.Root("app.example.com") + "/bin/server",
 		"MemoryMax=256M",
-		"Environment=WBZ_IDLE_TIMEOUT=15m",
+		"Environment=WBR_IDLE_TIMEOUT=15m",
 		"EnvironmentFile=-" + sites.Root("app.example.com") + "/.env",
-		"Requires=webooza-app-app-example-com.socket",
+		"Requires=webor-app-app-example-com.socket",
 		"NoNewPrivileges=true",
 		"Restart=no",
 	} {
@@ -97,7 +97,7 @@ func TestRenderAppUnitsSocketProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if units.BackendServiceName != "webooza-app-app-example-com-backend.service" {
+	if units.BackendServiceName != "webor-app-app-example-com-backend.service" {
 		t.Fatalf("backend=%q", units.BackendServiceName)
 	}
 	if !strings.Contains(units.Service, "systemd-socket-proxyd") {
@@ -107,8 +107,8 @@ func TestRenderAppUnitsSocketProxy(t *testing.T) {
 		t.Fatalf("proxy missing idle flag:\n%s", units.Service)
 	}
 	backendSock := sites.AppBackendSocket("app.example.com")
-	if !strings.Contains(units.BackendService, "Environment=WBZ_SOCK="+backendSock) {
-		t.Fatalf("backend missing WBZ_SOCK:\n%s", units.BackendService)
+	if !strings.Contains(units.BackendService, "Environment=WBR_SOCK="+backendSock) {
+		t.Fatalf("backend missing WBR_SOCK:\n%s", units.BackendService)
 	}
 	if !strings.Contains(units.BackendService, "Restart=on-failure") {
 		t.Fatalf("backend should stay up:\n%s", units.BackendService)

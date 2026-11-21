@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/webooza/webooza/internal/config"
+	"github.com/weborpanel/webor/internal/config"
 )
 
 func (s *Server) handleSiteResources(w http.ResponseWriter, r *http.Request) {

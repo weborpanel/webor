@@ -1,4 +1,4 @@
-// Command spike-helper calls webooza-helper over its Unix socket (Milestone 0 ops).
+// Command spike-helper calls webor-helper over its Unix socket (Milestone 0 ops).
 package main
 
 import (
@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/webooza/webooza/internal/ipc"
+	"github.com/weborpanel/webor/internal/ipc"
 )
 
 func main() {

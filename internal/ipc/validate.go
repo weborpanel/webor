@@ -171,7 +171,7 @@ func ValidateDeployStaticZipArgs(a DeployStaticZipArgs) error {
 	domain := strings.ToLower(a.Domain)
 	allowedPrefixes := []string{
 		filepath.Join(sitesRoot, domain, "tmp") + string(filepath.Separator),
-		filepath.Join("/var/lib/webooza/uploads", domain) + string(filepath.Separator),
+		filepath.Join("/var/lib/webor/uploads", domain) + string(filepath.Separator),
 	}
 	ok := false
 	for _, prefix := range allowedPrefixes {
@@ -201,7 +201,7 @@ func ValidateDeployAppBinaryArgs(a DeployAppBinaryArgs) error {
 	domain := strings.ToLower(strings.TrimSpace(a.Domain))
 	allowedPrefixes := []string{
 		filepath.Join(sitesRoot, domain, "tmp") + string(filepath.Separator),
-		filepath.Join("/var/lib/webooza/uploads", domain) + string(filepath.Separator),
+		filepath.Join("/var/lib/webor/uploads", domain) + string(filepath.Separator),
 		filepath.Join(sitesRoot, domain) + string(filepath.Separator),
 	}
 	ok := false
@@ -331,7 +331,7 @@ func ValidateReloadCaddyArgs(a ReloadCaddyArgs) error {
 		return fmt.Errorf("config_path must be absolute")
 	}
 	// Confine Caddy config to known panel/config locations for M0 surface.
-	allowedPrefixes := []string{"/etc/webooza/", "/var/lib/webooza/"}
+	allowedPrefixes := []string{"/etc/webor/", "/var/lib/webor/"}
 	ok := false
 	for _, prefix := range allowedPrefixes {
 		if p == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(p, prefix) {

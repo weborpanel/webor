@@ -54,6 +54,38 @@ func (a *Account) GetAdmin() (*Admin, error) {
 	return &adm, nil
 }
 
+// SeedSetupToken inserts a known plaintext setup token when none exists yet.
+// Used by the installer so the token can be printed outside the panel journal.
+func (a *Account) SeedSetupToken(plain string) (seeded bool, err error) {
+	plain = strings.TrimSpace(plain)
+	if plain == "" {
+		return false, nil
+	}
+	has, err := a.HasAdmin()
+	if err != nil {
+		return false, err
+	}
+	if has {
+		return false, nil
+	}
+	var existing string
+	err = a.DB.QueryRow(`SELECT token_hash FROM setup_tokens WHERE id = 1`).Scan(&existing)
+	if err == nil {
+		return false, nil
+	}
+	if err != sql.ErrNoRows {
+		return false, err
+	}
+	_, err = a.DB.Exec(
+		`INSERT INTO setup_tokens (id, token_hash, created_at) VALUES (1, ?, ?)`,
+		HashToken(plain), a.now().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // EnsureSetupToken creates a setup token if none exists and no admin is present.
 // Returns the plaintext token when newly created; empty string if already issued/used.
 func (a *Account) EnsureSetupToken() (plain string, created bool, err error) {

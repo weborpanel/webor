@@ -30,12 +30,12 @@
 </script>
 
 <svelte:head>
-	<title>Webooza</title>
+	<title>Webor</title>
 </svelte:head>
 
 <section class="hero">
 	<img class="mark" src="/icon.svg" width="72" height="72" alt="" aria-hidden="true" />
-	<h1>Webooza</h1>
+	<h1>Webor</h1>
 	<p>
 		A lightweight hosting panel for one VPS and several sites — static builds, native apps,
 		automatic SSL, without Docker.
@@ -85,11 +85,11 @@
 		justify-content: center;
 		padding: 0.85rem 1.35rem;
 		border-radius: 999px;
-		background: var(--wbz-ultramarine);
+		background: var(--wbr-ultramarine);
 		color: #fff;
 		font-weight: 800;
 		text-decoration: none;
-		box-shadow: 0 10px 30px color-mix(in srgb, var(--wbz-ultramarine) 28%, transparent);
+		box-shadow: 0 10px 30px color-mix(in srgb, var(--wbr-ultramarine) 28%, transparent);
 		transition:
 			transform 160ms ease,
 			box-shadow 160ms ease;
@@ -98,6 +98,6 @@
 	.button:hover {
 		color: #fff;
 		transform: translateY(-1px);
-		box-shadow: 0 14px 34px color-mix(in srgb, var(--wbz-ultramarine) 36%, transparent);
+		box-shadow: 0 14px 34px color-mix(in srgb, var(--wbr-ultramarine) 36%, transparent);
 	}
 </style>

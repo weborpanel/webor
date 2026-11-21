@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/auth"
-	"github.com/webooza/webooza/internal/dnscheck"
-	"github.com/webooza/webooza/internal/helper"
+	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/dnscheck"
+	"github.com/weborpanel/webor/internal/helper"
 )
 
 // Server holds panel API dependencies.
@@ -19,8 +19,10 @@ type Server struct {
 	Issuer     string // TOTP issuer label
 	ConfigPath string // desired-state YAML; empty = DefaultConfigPath
 	// Ops runs privileged site filesystem ops. Lab/dev may use helper.Ops
-	// directly; production should go through webooza-helper IPC later.
+	// directly; when HelperSocket is set, dangerous ops prefer IPC.
 	Ops *helper.Ops
+	// HelperSocket is the webor-helper Unix socket. Empty disables IPC.
+	HelperSocket string
 
 	// DNS is the resolver used for site checklists (tests inject Fake).
 	DNS dnscheck.Resolver
@@ -33,7 +35,7 @@ type Server struct {
 	HTTPListen      string
 	DisableHTTPS    bool // lab / until DNS passes
 
-	// UploadsDir stages deploy binaries (default /var/lib/webooza/uploads).
+	// UploadsDir stages deploy binaries (default /var/lib/webor/uploads).
 	UploadsDir string
 }
 
@@ -152,7 +154,7 @@ func (s *Server) handleTOTPBegin(w http.ResponseWriter, r *http.Request) {
 	}
 	issuer := s.Issuer
 	if issuer == "" {
-		issuer = "Webooza"
+		issuer = "Webor"
 	}
 	secret, url, err := s.Account.BeginTOTPEnrollment(issuer)
 	if err != nil {

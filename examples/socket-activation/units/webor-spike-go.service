@@ -1,0 +1,16 @@
+[Unit]
+Description=Webor Spike B Go app (socket activated)
+Requires=webor-spike-go.socket
+After=webor-spike-go.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/webor-spike/spike-socket-go
+# Scale toward idle stop in later milestones; for the spike keep Restart off.
+Restart=no
+
+# Uncomment for idle-ish demos once validated:
+# StopWhenUnneeded=true
+
+[Install]
+WantedBy=multi-user.target

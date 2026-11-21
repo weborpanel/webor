@@ -177,6 +177,46 @@ func (s *Store) Consume(id, operation string, args any) error {
 	return nil
 }
 
+// ListPending returns unused, unexpired approvals (newest first).
+func (s *Store) ListPending() ([]Approval, error) {
+	now := s.now().Format(time.RFC3339Nano)
+	rows, err := s.DB.Query(`
+SELECT id, operation, args_json, created_at, expires_at, used_at, COALESCE(approved_by, '')
+FROM approvals
+WHERE used_at IS NULL AND expires_at > ?
+ORDER BY created_at DESC
+LIMIT 100`, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Approval
+	for rows.Next() {
+		var a Approval
+		var created, expires string
+		var used sql.NullString
+		if err := rows.Scan(&a.ID, &a.Operation, &a.ArgsJSON, &created, &expires, &used, &a.ApprovedBy); err != nil {
+			return nil, err
+		}
+		if a.CreatedAt, err = time.Parse(time.RFC3339Nano, created); err != nil {
+			a.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		}
+		if a.ExpiresAt, err = time.Parse(time.RFC3339Nano, expires); err != nil {
+			a.ExpiresAt, _ = time.Parse(time.RFC3339, expires)
+		}
+		if used.Valid && used.String != "" {
+			t, err := time.Parse(time.RFC3339Nano, used.String)
+			if err != nil {
+				t, _ = time.Parse(time.RFC3339, used.String)
+			}
+			a.UsedAt = &t
+		}
+		a.ArgsHash = ArgsHash(a.ArgsJSON)
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // Get loads one approval by id.
 func (s *Store) Get(id string) (*Approval, error) {
 	row := s.DB.QueryRow(

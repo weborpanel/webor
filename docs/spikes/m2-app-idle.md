@@ -12,14 +12,14 @@ socket_activation: true
 idle_timeout: 15m
 ```
 
-The unit renderer sets `Environment=WBZ_IDLE_TIMEOUT=<value>` and `Restart=no`.
+The unit renderer sets `Environment=WBR_IDLE_TIMEOUT=<value>` and `Restart=no`.
 Cooperative apps (`spike-socket-go`, and the Node sample under
-`examples/socket-activation/node-app`) read `WBZ_IDLE_TIMEOUT` and shut down
+`examples/socket-activation/node-app`) read `WBR_IDLE_TIMEOUT` and shut down
 when idle.
 
 Non-cooperative apps use `socket_proxy: true`: public `.socket` activates
 `systemd-socket-proxyd` with `--exit-idle-time=` from `idle_timeout`, forwarding
-to a private always-on backend (`WBZ_SOCK`). Smoke: `make lab-proxyd`.
+to a private always-on backend (`WBR_SOCK`). Smoke: `make lab-proxyd`.
 
 Note: Caddy upstream keep-alives can keep proxyd busy; the lab idle check uses
 a direct Unix-socket curl so the connection fully closes.
@@ -31,7 +31,7 @@ For the full Node smoke (wake + idle + deploy) use `make lab-node`.
 Prereq: Caddy up (`make lab-start`).
 
 ```bash
-cd ~/webooza
+cd ~/webor
 git pull
 export GOTOOLCHAIN=auto
 make lab-idle
@@ -43,7 +43,7 @@ Expect: after ~3s idle the service is `inactive`, socket stays `active`, then
 ```text
 service after idle: inactive
 …
-webooza-spike-b-go ok pid=…
+webor-spike-b-go ok pid=…
 service after wake: active
 ok: idle-stop + wake verified
 ```

@@ -7,23 +7,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/auth"
-	"github.com/webooza/webooza/internal/helper"
+	"github.com/weborpanel/webor/internal/audit"
+	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/helper"
 )
 
 // DefaultHandlers returns handlers without an approval store (tests / limited).
 func DefaultHandlers() map[string]HandlerFunc {
-	return Handlers(helper.DefaultOps(), nil)
+	return Handlers(helper.DefaultOps(), nil, nil)
 }
 
 // Handlers wires validated IPC operations to helper.Ops and optional approvals.
-func Handlers(ops *helper.Ops, store *auth.Store) map[string]HandlerFunc {
+func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]HandlerFunc {
 	if ops == nil {
 		ops = helper.DefaultOps()
 	}
 	h := map[string]HandlerFunc{
 		OpCreateSiteUser:  makeCreateSiteUser(ops),
-		OpDeleteSiteUser:  makeDeleteSiteUser(ops, store),
+		OpDeleteSiteUser:  makeDeleteSiteUser(ops, store, log),
 		OpWritePublicFile: makeWritePublicFile(ops),
 		OpDeployStaticZip: makeDeployStaticZip(ops),
 		OpDeployAppBinary: makeDeployAppBinary(ops),
@@ -34,9 +35,10 @@ func Handlers(ops *helper.Ops, store *auth.Store) map[string]HandlerFunc {
 		OpRunCronNow:      makeRunCronNow(ops),
 		OpCronStatus:      makeCronStatus(ops),
 		OpJournalTail:     makeJournalTail(ops),
-		OpRequestApproval: makeRequestApproval(store),
-		OpApprove:         makeApprove(store),
-		OpDangerousDemo:   makeDangerousDemo(store),
+		OpRequestApproval: makeRequestApproval(store, log),
+		OpApprove:         makeApprove(store, log),
+		OpListApprovals:   makeListApprovals(store),
+		OpDangerousDemo:   makeDangerousDemo(store, log),
 	}
 	return h
 }
@@ -61,8 +63,8 @@ func makeCreateSiteUser(ops *helper.Ops) HandlerFunc {
 	}
 }
 
-func makeDeleteSiteUser(ops *helper.Ops, store *auth.Store) HandlerFunc {
-	return func(req Request, _ PeerCred) Response {
+func makeDeleteSiteUser(ops *helper.Ops, store *auth.Store, log *audit.Logger) HandlerFunc {
+	return func(req Request, cred PeerCred) Response {
 		var args DeleteSiteUserArgs
 		if err := json.Unmarshal(req.Args, &args); err != nil {
 			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
@@ -70,6 +72,7 @@ func makeDeleteSiteUser(ops *helper.Ops, store *auth.Store) HandlerFunc {
 		if err := ValidateDeleteSiteUserArgs(args); err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
+		actor := fmt.Sprintf("uid=%d", cred.UID)
 		if args.DeleteData {
 			if store == nil {
 				return Response{ID: req.ID, OK: false, Error: "approvals not configured"}
@@ -79,16 +82,19 @@ func makeDeleteSiteUser(ops *helper.Ops, store *auth.Store) HandlerFunc {
 				"delete_data": true,
 			}
 			if err := store.Consume(args.ApprovalID, OpDeleteSiteUser, bound); err != nil {
+				_ = log.Append(actor, OpDeleteSiteUser, bound, "approval: "+err.Error())
 				return Response{ID: req.ID, OK: false, Error: "approval: " + err.Error()}
 			}
 		}
 		if err := ops.DeleteSiteUser(args.Domain, args.DeleteData); err != nil {
+			_ = log.Append(actor, OpDeleteSiteUser, args, err.Error())
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
 		msg := fmt.Sprintf("deleted site user %s", helper.SiteUsername(args.Domain))
 		if args.DeleteData {
 			msg += " and data under " + helper.SiteRoot(args.Domain)
 		}
+		_ = log.Append(actor, OpDeleteSiteUser, args, "ok")
 		return Response{ID: req.ID, OK: true, Message: msg}
 	}
 }

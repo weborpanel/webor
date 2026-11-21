@@ -6,7 +6,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 )
 
 // CredChecker verifies the calling peer. On Linux the default uses SO_PEERCRED.
@@ -37,8 +39,15 @@ func NewServer(socketPath string, handlers map[string]HandlerFunc) *Server {
 
 // ListenAndServe binds the Unix socket and serves forever.
 func (s *Server) ListenAndServe() error {
-	if err := os.MkdirAll(filepath.Dir(s.SocketPath), 0o755); err != nil {
+	dir := filepath.Dir(s.SocketPath)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("socket dir: %w", err)
+	}
+	// Panel runs as user webor; allow group access to the socket directory.
+	if g, err := user.LookupGroup("webor"); err == nil {
+		if gid, err := strconv.Atoi(g.Gid); err == nil {
+			_ = os.Chown(dir, 0, gid)
+		}
 	}
 	_ = os.Remove(s.SocketPath)
 	ln, err := net.Listen("unix", s.SocketPath)
@@ -49,8 +58,13 @@ func (s *Server) ListenAndServe() error {
 		_ = ln.Close()
 		return err
 	}
+	if g, err := user.LookupGroup("webor"); err == nil {
+		if gid, err := strconv.Atoi(g.Gid); err == nil {
+			_ = os.Chown(s.SocketPath, 0, gid)
+		}
+	}
 	defer ln.Close()
-	log.Printf("webooza-helper listening on %s", s.SocketPath)
+	log.Printf("webor-helper listening on %s", s.SocketPath)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

@@ -1,0 +1,13 @@
+[Unit]
+Description=Webor Spike B systemd-socket-proxyd fallback
+Requires=webor-spike-proxy.socket webor-spike-backend.service
+After=webor-spike-proxy.socket webor-spike-backend.service
+
+[Service]
+Type=simple
+# Forwards activated connections to the always-on backend Unix socket.
+ExecStart=/lib/systemd/systemd-socket-proxyd /run/webor-spike/backend.sock
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

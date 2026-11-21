@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 const maxDeployBinaryBytes = 64 * 1024 * 1024
@@ -21,7 +21,7 @@ func (s *Server) uploadsRoot() string {
 	if s.UploadsDir != "" {
 		return s.UploadsDir
 	}
-	return "/var/lib/webooza/uploads"
+	return "/var/lib/webor/uploads"
 }
 
 func (s *Server) findSite(name string) (*config.Config, *config.Site, error) {

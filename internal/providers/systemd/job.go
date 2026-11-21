@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/webooza/webooza/internal/config"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 // JobUnits holds a rendered long-running job service.
@@ -15,9 +15,9 @@ type JobUnits struct {
 	Service     string
 }
 
-// JobServiceUnitName returns webooza-job-<domain>-<job>.service.
+// JobServiceUnitName returns webor-job-<domain>-<job>.service.
 func JobServiceUnitName(domain, job string) string {
-	return "webooza-job-" + UnitBase(domain) + "-" + CronJobSlug(job) + ".service"
+	return "webor-job-" + UnitBase(domain) + "-" + CronJobSlug(job) + ".service"
 }
 
 // RenderJobUnits builds a Type=simple Restart=on-failure unit for a site job.
@@ -38,7 +38,7 @@ func RenderJobUnits(site config.Site, job config.Job) (JobUnits, error) {
 
 	var svc strings.Builder
 	fmt.Fprintf(&svc, "[Unit]\n")
-	fmt.Fprintf(&svc, "Description=Webooza job %s (%s)\n", job.Name, site.Name)
+	fmt.Fprintf(&svc, "Description=Webor job %s (%s)\n", job.Name, site.Name)
 	fmt.Fprintf(&svc, "After=network.target\n")
 	fmt.Fprintf(&svc, "\n[Service]\n")
 	fmt.Fprintf(&svc, "Type=simple\n")

@@ -1,0 +1,13 @@
+[Unit]
+Description=Webor Spike B Node app (socket activated)
+Requires=webor-spike-node.socket
+After=webor-spike-node.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /usr/local/lib/webor-spike/node-app/server.js
+Restart=no
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

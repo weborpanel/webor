@@ -12,7 +12,7 @@
               "handle": [
                 {
                   "handler": "static_response",
-                  "body": "webooza-spike-a-ok\n"
+                  "body": "webor-spike-a-ok\n"
                 }
               ]
             }

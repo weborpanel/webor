@@ -26,7 +26,7 @@ func Username(domain string) string {
 	if !unicode.IsLetter(rune(d[0])) {
 		d = "s_" + d
 	}
-	name := "wbz_" + d
+	name := "wbr_" + d
 	if len(name) > 32 {
 		name = name[:32]
 		name = strings.TrimRight(name, "_")
@@ -77,9 +77,9 @@ func BinDir(domain string) string {
 
 // RuntimeDir is the parent for per-site runtime sockets.
 // Tests may override it.
-var RuntimeDir = "/run/webooza/sites"
+var RuntimeDir = "/run/webor/sites"
 
-// SiteRuntime returns /run/webooza/sites/<domain>.
+// SiteRuntime returns /run/webor/sites/<domain>.
 func SiteRuntime(domain string) string {
 	return filepath.Join(RuntimeDir, strings.ToLower(strings.TrimSpace(domain)))
 }

@@ -1,10 +1,10 @@
-// Package ipc defines the typed JSON protocol between webooza and webooza-helper.
+// Package ipc defines the typed JSON protocol between webor and webor-helper.
 package ipc
 
 import "encoding/json"
 
 // DefaultSocketPath is the production Unix socket for helper IPC.
-const DefaultSocketPath = "/run/webooza/helper.sock"
+const DefaultSocketPath = "/run/webor/helper.sock"
 
 // Operation names for the helper allowlist surface.
 const (
@@ -22,6 +22,7 @@ const (
 	OpJournalTail     = "JournalTail"
 	OpRequestApproval = "RequestApproval"
 	OpApprove         = "Approve" // console / root only
+	OpListApprovals   = "ListApprovals"
 	OpDangerousDemo   = "DangerousDemo"
 )
 
@@ -133,6 +134,9 @@ type ApproveArgs struct {
 	ID         string `json:"id"`
 	ApprovedBy string `json:"approved_by,omitempty"`
 }
+
+// ListApprovalsArgs is empty; pending approvals are returned in Message as JSON.
+type ListApprovalsArgs struct{}
 
 // DangerousDemoArgs is a Spike C stand-in for a destructive op.
 type DangerousDemoArgs struct {

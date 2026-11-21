@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/webooza/webooza/internal/build"
+	"github.com/weborpanel/webor/internal/build"
 )
 
 func TestQueueSerializes(t *testing.T) {

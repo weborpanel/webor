@@ -34,9 +34,9 @@ jobs:
 
       - name: Build
         run: |
-          go build -o /tmp/webooza ./cmd/webooza
-          go build -o /tmp/webooza-helper ./cmd/webooza-helper
-          go build -o /tmp/wbz ./cmd/wbz
+          go build -o /tmp/webor ./cmd/webor
+          go build -o /tmp/webor-helper ./cmd/webor-helper
+          go build -o /tmp/wbr ./cmd/wbr
 
       - name: govulncheck
         run: |

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/pquerna/otp/totp"
-	"github.com/webooza/webooza/internal/auth"
-	"github.com/webooza/webooza/internal/config"
+	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/config"
 )
 
 func TestSetupLoginTOTP(t *testing.T) {
@@ -34,7 +34,7 @@ func TestSetupLoginTOTP(t *testing.T) {
 		t.Fatal("expected already configured")
 	}
 
-	secret, url, err := acct.BeginTOTPEnrollment("Webooza")
+	secret, url, err := acct.BeginTOTPEnrollment("Webor")
 	if err != nil || secret == "" || url == "" {
 		t.Fatalf("enroll: %v secret=%q url=%q", err, secret, url)
 	}

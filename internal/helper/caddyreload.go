@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/webooza/webooza/internal/providers/caddy"
+	"github.com/weborpanel/webor/internal/providers/caddy"
 )
 
-const defaultLastGood = "/var/lib/webooza/caddy-last-good.json"
+const defaultLastGood = "/var/lib/webor/caddy-last-good.json"
 
 // ReloadCaddy reads a JSON config from path and applies it via the admin API.
 func (o *Ops) ReloadCaddy(ctx context.Context, configPath string) error {

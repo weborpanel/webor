@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 func TestActivateReleaseAtomic(t *testing.T) {

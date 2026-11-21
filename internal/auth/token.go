@@ -28,12 +28,12 @@ func HashToken(plain string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// NewSetupToken creates a human-pasteable setup token (wbz-setup-…).
+// NewSetupToken creates a human-pasteable setup token (wbr-setup-…).
 func NewSetupToken() (plain, hash string, err error) {
 	raw, _, err := NewToken(24)
 	if err != nil {
 		return "", "", err
 	}
-	plain = fmt.Sprintf("wbz-setup-%s", raw)
+	plain = fmt.Sprintf("wbr-setup-%s", raw)
 	return plain, HashToken(plain), nil
 }

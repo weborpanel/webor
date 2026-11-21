@@ -1,0 +1,12 @@
+[Unit]
+Description=Webor Spike B non-activated backend
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/webor-spike/spike-socket-backend
+Environment=WBR_SOCK=/run/webor-spike/backend.sock
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Webooza icon">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Webor icon">
   <rect width="96" height="96" rx="22" fill="#2b3fd6"/>
-  <circle cx="37" cy="48" r="14" fill="none" stroke="#f5f7fa" stroke-width="8"/>
-  <circle cx="59" cy="48" r="14" fill="none" stroke="#2b3fd6" stroke-width="15"/>
-  <circle cx="59" cy="48" r="14" fill="none" stroke="#ffb400" stroke-width="8"/>
+  <circle cx="48" cy="48" r="20" fill="none" stroke="#f5f7fa" stroke-width="11"/>
+  <circle cx="48" cy="48" r="8" fill="#ffb400"/>
 </svg>

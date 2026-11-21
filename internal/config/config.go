@@ -1,4 +1,4 @@
-// Package config defines the declarative Webooza config schema and validation.
+// Package config defines the declarative Webor config schema and validation.
 package config
 
 import (
@@ -196,7 +196,7 @@ func (c *Config) Validate() error {
 }
 
 // validateIdleTimeout checks idle_timeout when set.
-// Cooperative socket-activated apps exit after this idle period (WBZ_IDLE_TIMEOUT).
+// Cooperative socket-activated apps exit after this idle period (WBR_IDLE_TIMEOUT).
 // With socket_proxy, idle_timeout maps to systemd-socket-proxyd --exit-idle-time=.
 func validateIdleTimeout(s Site) error {
 	if s.SocketProxy {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webooza/webooza/internal/providers/systemd"
+	"github.com/weborpanel/webor/internal/providers/systemd"
 )
 
 func TestCronToOnCalendarDaily(t *testing.T) {

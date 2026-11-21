@@ -14,13 +14,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/webooza/webooza/internal/providers/caddy"
+	"github.com/weborpanel/webor/internal/providers/caddy"
 )
 
 func main() {
 	admin := flag.String("admin", caddy.DefaultAdminURL, "Caddy admin API base URL")
 	configPath := flag.String("config", "", "path to Caddy JSON config to apply")
-	lastGood := flag.String("last-good", "/tmp/webooza-caddy-last-good.json", "path to persist last-good config")
+	lastGood := flag.String("last-good", "/tmp/webor-caddy-last-good.json", "path to persist last-good config")
 	probeURL := flag.String("probe", "", "optional HTTP URL to probe after load (e.g. http://127.0.0.1:8080/)")
 	expect := flag.Int("expect", 200, "expected probe HTTP status")
 	timeout := flag.Duration("timeout", 10*time.Second, "overall timeout")

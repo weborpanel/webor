@@ -1,4 +1,4 @@
-module github.com/webooza/webooza
+module github.com/weborpanel/webor
 
 go 1.27.3
 

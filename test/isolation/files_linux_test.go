@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/webooza/webooza/internal/helper"
-	"github.com/webooza/webooza/internal/sites"
+	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/sites"
 )
 
 func TestSiteUserCannotReadOtherSitePrivateFiles(t *testing.T) {

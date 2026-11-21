@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/webooza/webooza/internal/ui"
+	"github.com/weborpanel/webor/internal/ui"
 )
 
 func TestHandlerServesIndex(t *testing.T) {

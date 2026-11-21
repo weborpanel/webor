@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webooza/webooza/internal/ipc"
+	"github.com/weborpanel/webor/internal/ipc"
 )
 
 func TestValidateDomain(t *testing.T) {
@@ -60,7 +60,7 @@ func TestValidateWriteUnitFileArgs(t *testing.T) {
 }
 
 func TestValidateReloadCaddyArgs(t *testing.T) {
-	if err := ipc.ValidateReloadCaddyArgs(ipc.ReloadCaddyArgs{ConfigPath: "/etc/webooza/caddy.json"}); err != nil {
+	if err := ipc.ValidateReloadCaddyArgs(ipc.ReloadCaddyArgs{ConfigPath: "/etc/webor/caddy.json"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := ipc.ValidateReloadCaddyArgs(ipc.ReloadCaddyArgs{ConfigPath: "/tmp/evil.json"}); err == nil {

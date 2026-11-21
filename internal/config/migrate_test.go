@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/webooza/webooza/internal/config"
+	"github.com/weborpanel/webor/internal/config"
 )
 
 func TestOpenDBAndMigrate(t *testing.T) {
