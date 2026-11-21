@@ -10,7 +10,7 @@ Real VPS is still required for Let's Encrypt and public DNS end-to-end.
 3. [x] **lab** Add static site; upload / Files tab; HTTP works via IP/`Host` (`:8080`)
 4. [ ] DNS A → VPS IP; checklist green; **Enable HTTPS**; cert issues *(needs public VPS + domain)*
 5. [ ] Add app site; deploy sample; socket wake works *(lab: site create OK; full deploy smoke still via `make lab-deploy`)*
-6. [x] **lab** Attach sqlite; postgres engine present (approve Ensure when adding); `/db/` available
+6. [x] **lab** Attach sqlite + postgres (approve Ensure); `/db/` lists both
 7. [x] **lab** Cache: Redis or Valkey running; Attach in panel (install as root if missing — no approval install)
 8. [x] **lab** Add subdomain; inherits DB/cache UI
 9. [ ] Delete parent with confirm + approve; children + DBs + files gone *(destructive — run deliberately)*
