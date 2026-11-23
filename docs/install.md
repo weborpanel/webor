@@ -34,7 +34,8 @@ First boot prints a one-time setup token. Open the panel URL (high port until yo
 6. **Database:** sqlite adds immediately. For Postgres/MariaDB, install the server as root first (panel shows distro-specific commands: `apt` on Debian/Ubuntu, `dnf` on Alma/RHEL), then Add and approve with `sudo wbr approve <id>`. Password is shown once.
 7. **Cache:** install Valkey or Redis as root (panel hint), then parent site → Cache → Attach. Password shown once; keys under `wbr_<slug>:`.
 8. **API backend (static sites, including subdomains):** site → **API** → Attach. Deploy a binary that binds to `PORT` (and `HOST`); Webor injects those into the unit — you never pick a port. Use path `/api` on the site, or `/` for a whole-host API (`api.example.com`). Optional extra paths (e.g. `/ws`) and WebSocket toggle are panel-only.
-9. **Backups:** install restic as root (`apt install restic` or `dnf install epel-release restic`). Panel → **Backups** → configure S3-compatible bucket + password. Run a full snapshot or set a schedule; restore picks sites from a snapshot (requires `sudo wbr approve`). After restore, Webor reloads Caddy and re-ensures app/backend units so HTTPS and routes match the restored config.
+9. **Crons / Processes:** site → **Crons** (one-shot seed/migrate + optional schedule) or **Processes** (background queues). Artifacts land in `crons/<name>/` and `processes/<name>/` (not under `public/`). Needs systemd; `wbr doctor` checks `timers.target` for scheduled cron.
+10. **Backups:** install restic as root (`apt install restic` or `dnf install epel-release restic`). Panel → **Backups** → configure S3-compatible bucket + password. Run a full snapshot or set a schedule; restore picks sites from a snapshot (requires `sudo wbr approve`). After restore, Webor reloads Caddy and re-ensures app/backend units so HTTPS and routes match the restored config.
 
 ## Lab (VirtualBox)
 

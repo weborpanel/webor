@@ -22,6 +22,7 @@ type SiteResources struct {
 	DiskQuota          string `json:"disk_quota,omitempty"`
 	MemoryCurrentBytes int64  `json:"memory_current_bytes"`
 	MemoryMax          string `json:"memory_max,omitempty"`
+	CPUQuota           string `json:"cpu_quota,omitempty"`
 	CPUUsageUSec       int64  `json:"cpu_usage_usec,omitempty"`
 	AppActive          bool   `json:"app_active"`
 	Unit               string `json:"unit"`
@@ -44,6 +45,7 @@ func (o *Ops) SiteResourcesWith(domain string, site *config.Site, includeDisk bo
 	if site != nil {
 		res.DiskQuota = site.Limits.DiskQuota
 		res.MemoryMax = site.Limits.MemoryMax
+		res.CPUQuota = site.Limits.CPUQuota
 		if site.SocketProxy {
 			res.Unit = systemd.BackendServiceUnitName(domain)
 		}

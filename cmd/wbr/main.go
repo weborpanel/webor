@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"strings"
 
@@ -189,6 +190,17 @@ func runDoctor(args []string) int {
 		fmt.Println("  missing — is webor-helper running?")
 	} else {
 		fmt.Printf("  present mode=%s\n", st.Mode())
+	}
+	fmt.Println()
+	fmt.Println("systemd timers (per-site cron):")
+	cmd := exec.Command("systemctl", "is-active", "timers.target")
+	out, err := cmd.CombinedOutput()
+	state := strings.TrimSpace(string(out))
+	if err != nil || state != "active" {
+		fmt.Printf("  timers.target is %q — cron schedules need an active timers.target\n", state)
+		fmt.Println("  Fix: systemctl start timers.target")
+	} else {
+		fmt.Println("  timers.target active — OK for per-site cron")
 	}
 	return 0
 }

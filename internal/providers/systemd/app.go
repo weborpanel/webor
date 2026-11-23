@@ -104,6 +104,9 @@ func appendHardening(svc *strings.Builder, site config.Site, root string) {
 	if site.Limits.MemoryMax != "" {
 		fmt.Fprintf(svc, "MemoryMax=%s\n", site.Limits.MemoryMax)
 	}
+	if site.Limits.CPUQuota != "" {
+		fmt.Fprintf(svc, "CPUQuota=%s\n", site.Limits.CPUQuota)
+	}
 	if site.Limits.LogMax != "" {
 		// Best-effort per-unit journal size hint (journald also has SystemMaxUse).
 		fmt.Fprintf(svc, "LogRateLimitIntervalSec=30s\n")

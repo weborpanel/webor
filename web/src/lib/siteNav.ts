@@ -18,6 +18,8 @@ export function siteSections(name: string, type?: string): SiteSection[] {
 		sections.push({ key: 'api', href: `${base}/api`, label: 'API', icon: 'server' });
 	}
 	sections.push(
+		{ key: 'cron', href: `${base}/cron`, label: 'Crons', icon: 'clock' },
+		{ key: 'processes', href: `${base}/processes`, label: 'Processes', icon: 'activity' },
 		{ key: 'databases', href: `${base}/databases`, label: 'Databases', icon: 'database' },
 		{ key: 'cache', href: `${base}/cache`, label: 'Cache', icon: 'zap' },
 		{ key: 'domains', href: `${base}/domains`, label: 'Domains & SSL', icon: 'globe' },

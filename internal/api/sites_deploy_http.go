@@ -291,7 +291,12 @@ func (s *Server) handleDeployGit(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	res, err := s.ops().DeployAppGit(ctx, name, body.GitURL, body.GitRef, body.BuildCommand, body.Artifact, body.MemoryMax, body.TimeoutSec)
+	mem := body.MemoryMax
+	if strings.TrimSpace(mem) == "" {
+		mem = site.Limits.MemoryMax
+	}
+	cpu := site.Limits.CPUQuota
+	res, err := s.ops().DeployAppGit(ctx, name, body.GitURL, body.GitRef, body.BuildCommand, body.Artifact, mem, cpu, body.TimeoutSec)
 	if err != nil {
 		s.writeErr(w, 400, err.Error())
 		return

@@ -414,6 +414,7 @@ func (s *Server) handleAddSubdomain(w http.ResponseWriter, r *http.Request) {
 		Parent: parentSite.Name,
 		Type:   config.SiteTypeStatic,
 		Root:   "public",
+		Limits: config.Limits{DiskQuota: config.DefaultDiskQuota},
 	}
 	cfg.Sites = append(cfg.Sites, child)
 	if err := cfg.Validate(); err != nil {

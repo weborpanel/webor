@@ -17,7 +17,7 @@ func TestRenderAppUnitsSocketActivated(t *testing.T) {
 		SocketActivation: true,
 		IdleTimeout:      "15m",
 		EnvFile:          ".env",
-		Limits:           config.Limits{MemoryMax: "256M"},
+		Limits:           config.Limits{MemoryMax: "256M", CPUQuota: "100%"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -32,6 +32,7 @@ func TestRenderAppUnitsSocketActivated(t *testing.T) {
 		"User=" + sites.Username("app.example.com"),
 		"ExecStart=" + sites.Root("app.example.com") + "/bin/server",
 		"MemoryMax=256M",
+		"CPUQuota=100%",
 		"Environment=WBR_IDLE_TIMEOUT=15m",
 		"EnvironmentFile=-" + sites.Root("app.example.com") + "/.env",
 		"Requires=webor-app-app-example-com.socket",

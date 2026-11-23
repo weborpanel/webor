@@ -39,9 +39,25 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpRunBuild:        makeRunBuild(ops),
 		OpWriteUnitFile:   makeWriteUnitFile(ops),
 		OpReloadCaddy:     makeReloadCaddy(ops),
-		OpRunCronNow:      makeRunCronNow(ops),
-		OpCronStatus:      makeCronStatus(ops),
-		OpJournalTail:     makeJournalTail(ops),
+		OpRunCronNow:           makeRunCronNow(ops),
+		OpCronStatus:           makeCronStatus(ops),
+		OpInstallCronJob:       makeInstallCronJob(ops),
+		OpRemoveCronJob:        makeRemoveCronJob(ops),
+		OpEnableCronTimer:      makeEnableCronTimer(ops),
+		OpDisableCronTimer:     makeDisableCronTimer(ops),
+		OpDeployCronBinary:     makeDeployCronBinary(ops),
+		OpDeployCronZip:        makeDeployCronZip(ops),
+		OpListCronDir:          makeListCronDir(ops),
+		OpInstallJob:           makeInstallJob(ops),
+		OpRemoveJob:            makeRemoveJob(ops),
+		OpJobStatus:            makeJobStatus(ops),
+		OpStartJob:             makeStartJob(ops),
+		OpStopJob:              makeStopJob(ops),
+		OpRestartJob:           makeRestartJob(ops),
+		OpDeployProcessBinary:  makeDeployProcessBinary(ops),
+		OpDeployProcessZip:     makeDeployProcessZip(ops),
+		OpListProcessDir:       makeListProcessDir(ops),
+		OpJournalTail:          makeJournalTail(ops),
 		OpRequestApproval: makeRequestApproval(store, log),
 		OpApprove:         makeApprove(store, log),
 		OpListApprovals:   makeListApprovals(store),
@@ -74,6 +90,7 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpBackupStatus:           makeBackupStatus(ops),
 		OpEnsureBackupSchedule:   makeEnsureBackupSchedule(ops),
 		OpEnsureNodeRuntime:      makeEnsureNodeRuntime(ops),
+		OpApplySiteLimits:        makeApplySiteLimits(ops),
 	}
 	return h
 }
@@ -176,7 +193,7 @@ func makeRunBuild(ops *helper.Ops) HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 65*time.Minute)
 		defer cancel()
-		res, err := ops.RunBuild(ctx, args.Domain, args.Command, args.MemoryMax, args.TimeoutSec)
+		res, err := ops.RunBuild(ctx, args.Domain, args.Command, args.MemoryMax, args.CPUQuota, args.TimeoutSec)
 		if err != nil {
 			msg := err.Error()
 			if res != nil && res.Stderr != "" {
@@ -298,7 +315,7 @@ func makeDeployAppGit(ops *helper.Ops) HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		res, err := ops.DeployAppGit(ctx, args.Domain, args.GitURL, args.GitRef, args.BuildCommand, args.Artifact, args.MemoryMax, args.TimeoutSec)
+		res, err := ops.DeployAppGit(ctx, args.Domain, args.GitURL, args.GitRef, args.BuildCommand, args.Artifact, args.MemoryMax, args.CPUQuota, args.TimeoutSec)
 		if err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
@@ -385,9 +402,8 @@ func makeCronStatus(ops *helper.Ops) HandlerFunc {
 		if err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
-		msg := fmt.Sprintf("timer=%s active=%v result=%s failed=%v next=%s",
-			st.Timer, st.TimerActive, st.LastResult, st.Failed, st.NextElapse)
-		return Response{ID: req.ID, OK: true, Message: msg}
+		raw, _ := json.Marshal(st)
+		return Response{ID: req.ID, OK: true, Message: string(raw)}
 	}
 }
 

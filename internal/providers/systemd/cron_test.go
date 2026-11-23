@@ -13,7 +13,7 @@ func TestRenderCronUnits(t *testing.T) {
 	units, err := systemd.RenderCronUnits(config.Site{
 		Name:   "app.example.com",
 		Type:   config.SiteTypeApp,
-		Limits: config.Limits{MemoryMax: "64M"},
+		Limits: config.Limits{MemoryMax: "64M", CPUQuota: "50%"},
 	}, config.CronJob{
 		Name:     "nightly-cleanup",
 		Schedule: "0 3 * * *",
@@ -33,6 +33,7 @@ func TestRenderCronUnits(t *testing.T) {
 		"User=" + sites.Username("app.example.com"),
 		"ExecStart=" + sites.Root("app.example.com") + "/bin/cleanup",
 		"MemoryMax=64M",
+		"CPUQuota=50%",
 	} {
 		if !strings.Contains(units.Service, want) {
 			t.Fatalf("service missing %q:\n%s", want, units.Service)
@@ -47,5 +48,24 @@ func TestRenderCronUnits(t *testing.T) {
 		if !strings.Contains(units.Timer, want) {
 			t.Fatalf("timer missing %q:\n%s", want, units.Timer)
 		}
+	}
+}
+
+func TestRenderCronUnitsOneshotOnly(t *testing.T) {
+	units, err := systemd.RenderCronUnits(config.Site{
+		Name: "app.example.com",
+		Type: config.SiteTypeApp,
+	}, config.CronJob{
+		Name: "seed",
+		Exec: "./crons/seed/server",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if units.Timer != "" {
+		t.Fatalf("expected empty timer for oneshot-only, got %q", units.Timer)
+	}
+	if !strings.Contains(units.Service, "Type=oneshot") {
+		t.Fatalf("service:\n%s", units.Service)
 	}
 }

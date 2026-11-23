@@ -41,6 +41,7 @@ func makeEnsureHTTPBackend(ops *helper.Ops) HandlerFunc {
 		site := config.Site{
 			Name:     args.Domain,
 			Type:     config.SiteTypeStatic,
+			Limits:   args.Limits,
 			Backends: []config.SiteBackend{backend},
 		}
 		res, err := ops.EnsureHTTPBackend(site, backend)

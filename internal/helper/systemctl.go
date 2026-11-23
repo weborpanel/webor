@@ -28,6 +28,37 @@ func (o *Ops) SystemctlEnableNow(unit string) error {
 	return nil
 }
 
+// SystemctlEnable enables a unit without starting it.
+func (o *Ops) SystemctlEnable(unit string) error {
+	unit = strings.TrimSpace(unit)
+	if unit == "" {
+		return fmt.Errorf("empty unit name")
+	}
+	cmd := exec.Command("systemctl", "enable", unit)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("enable %s: %w (%s)", unit, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// SystemctlDisable disables a unit; missing units are ignored.
+func (o *Ops) SystemctlDisable(unit string) error {
+	unit = strings.TrimSpace(unit)
+	if unit == "" {
+		return fmt.Errorf("empty unit name")
+	}
+	cmd := exec.Command("systemctl", "disable", unit)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if strings.Contains(msg, "not loaded") || strings.Contains(msg, "not found") || strings.Contains(msg, "No such file") {
+			return nil
+		}
+		return fmt.Errorf("disable %s: %w (%s)", unit, err, msg)
+	}
+	return nil
+}
+
 // SystemctlStop stops a unit if it exists; missing units are ignored.
 func (o *Ops) SystemctlStop(unit string) error {
 	unit = strings.TrimSpace(unit)

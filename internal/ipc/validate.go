@@ -137,16 +137,16 @@ func ValidateRunBuildArgs(a RunBuildArgs) error {
 			return err
 		}
 	}
+	if a.CPUQuota != "" {
+		if err := config.ValidateCPUQuota(a.CPUQuota); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func validateMemoryMax(v string) error {
-	v = strings.TrimSpace(v)
-	ok, _ := regexp.MatchString(`(?i)^[0-9]+[KMG]?$`, v)
-	if !ok {
-		return fmt.Errorf("invalid memory_max %q", v)
-	}
-	return nil
+	return config.ValidateSizeString(v)
 }
 
 // ValidateWritePublicFileArgs validates WritePublicFile arguments.
@@ -400,7 +400,25 @@ func ValidateDeployAppGitArgs(a DeployAppGitArgs) error {
 			return err
 		}
 	}
+	if a.CPUQuota != "" {
+		if err := config.ValidateCPUQuota(a.CPUQuota); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// ValidateApplySiteLimitsArgs validates ApplySiteLimits arguments.
+func ValidateApplySiteLimitsArgs(a ApplySiteLimitsArgs) error {
+	if err := ValidateDomain(a.Site.Name); err != nil {
+		return err
+	}
+	switch a.Site.Type {
+	case config.SiteTypeStatic, config.SiteTypeApp, config.SiteTypeContainer:
+	default:
+		return fmt.Errorf("invalid site type %q", a.Site.Type)
+	}
+	return config.ValidateLimits(a.Site.Limits)
 }
 
 // ValidateWriteUnitFileArgs validates WriteUnitFile arguments.
@@ -435,6 +453,154 @@ func ValidateRunCronNowArgs(a RunCronNowArgs) error {
 // ValidateCronStatusArgs validates CronStatus arguments.
 func ValidateCronStatusArgs(a CronStatusArgs) error {
 	return ValidateRunCronNowArgs(RunCronNowArgs{Domain: a.Domain, Job: a.Job})
+}
+
+func validateTaskJob(domain, job string) error {
+	if err := ValidateDomain(domain); err != nil {
+		return err
+	}
+	if err := config.ValidateTaskName(job); err != nil {
+		return fmt.Errorf("job: %w", err)
+	}
+	return nil
+}
+
+// ValidateInstallCronJobArgs validates InstallCronJob.
+func ValidateInstallCronJobArgs(a InstallCronJobArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.Exec) == "" {
+		return fmt.Errorf("exec is required")
+	}
+	if strings.Contains(a.Exec, "\n") || strings.Contains(a.Exec, "\r") {
+		return fmt.Errorf("invalid exec")
+	}
+	if s := strings.TrimSpace(a.Schedule); s != "" {
+		fields := strings.Fields(s)
+		if len(fields) != 5 {
+			return fmt.Errorf("schedule must have 5 cron fields")
+		}
+	}
+	return nil
+}
+
+// ValidateRemoveCronJobArgs validates RemoveCronJob.
+func ValidateRemoveCronJobArgs(a RemoveCronJobArgs) error {
+	return validateTaskJob(a.Domain, a.Job)
+}
+
+// ValidateEnableCronTimerArgs validates EnableCronTimer.
+func ValidateEnableCronTimerArgs(a EnableCronTimerArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.Schedule) == "" {
+		return fmt.Errorf("schedule is required")
+	}
+	if strings.TrimSpace(a.Exec) == "" {
+		return fmt.Errorf("exec is required")
+	}
+	fields := strings.Fields(strings.TrimSpace(a.Schedule))
+	if len(fields) != 5 {
+		return fmt.Errorf("schedule must have 5 cron fields")
+	}
+	return nil
+}
+
+// ValidateDisableCronTimerArgs validates DisableCronTimer.
+func ValidateDisableCronTimerArgs(a DisableCronTimerArgs) error {
+	return validateTaskJob(a.Domain, a.Job)
+}
+
+// ValidateDeployCronBinaryArgs validates DeployCronBinary.
+func ValidateDeployCronBinaryArgs(a DeployCronBinaryArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.BinaryPath) == "" {
+		return fmt.Errorf("binary_path is required")
+	}
+	return nil
+}
+
+// ValidateDeployCronZipArgs validates DeployCronZip.
+func ValidateDeployCronZipArgs(a DeployCronZipArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.ZipPath) == "" {
+		return fmt.Errorf("zip_path is required")
+	}
+	return nil
+}
+
+// ValidateListCronDirArgs validates ListCronDir.
+func ValidateListCronDirArgs(a ListCronDirArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.Contains(a.Path, "..") {
+		return fmt.Errorf("path must not contain ..")
+	}
+	return nil
+}
+
+// ValidateInstallJobArgs validates InstallJob.
+func ValidateInstallJobArgs(a InstallJobArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.Exec) == "" {
+		return fmt.Errorf("exec is required")
+	}
+	if strings.Contains(a.Exec, "\n") || strings.Contains(a.Exec, "\r") {
+		return fmt.Errorf("invalid exec")
+	}
+	return nil
+}
+
+// ValidateRemoveJobArgs validates RemoveJob.
+func ValidateRemoveJobArgs(a RemoveJobArgs) error {
+	return validateTaskJob(a.Domain, a.Job)
+}
+
+// ValidateJobStatusArgs validates JobStatus / Start / Stop / Restart.
+func ValidateJobStatusArgs(a JobStatusArgs) error {
+	return validateTaskJob(a.Domain, a.Job)
+}
+
+// ValidateDeployProcessBinaryArgs validates DeployProcessBinary.
+func ValidateDeployProcessBinaryArgs(a DeployProcessBinaryArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.BinaryPath) == "" {
+		return fmt.Errorf("binary_path is required")
+	}
+	return nil
+}
+
+// ValidateDeployProcessZipArgs validates DeployProcessZip.
+func ValidateDeployProcessZipArgs(a DeployProcessZipArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.ZipPath) == "" {
+		return fmt.Errorf("zip_path is required")
+	}
+	return nil
+}
+
+// ValidateListProcessDirArgs validates ListProcessDir.
+func ValidateListProcessDirArgs(a ListProcessDirArgs) error {
+	if err := validateTaskJob(a.Domain, a.Job); err != nil {
+		return err
+	}
+	if strings.Contains(a.Path, "..") {
+		return fmt.Errorf("path must not contain ..")
+	}
+	return nil
 }
 
 // ValidateJournalTailArgs validates JournalTail arguments.

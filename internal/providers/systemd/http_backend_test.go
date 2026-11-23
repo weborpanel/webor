@@ -21,6 +21,7 @@ func TestRenderHTTPBackendUnit(t *testing.T) {
 	site := config.Site{
 		Name:     "example.com",
 		Type:     config.SiteTypeStatic,
+		Limits:   config.Limits{MemoryMax: "512M", CPUQuota: "200%"},
 		Backends: []config.SiteBackend{backend},
 	}
 	name, body, err := systemd.RenderHTTPBackendUnit(site, backend)
@@ -40,6 +41,8 @@ func TestRenderHTTPBackendUnit(t *testing.T) {
 		"RuntimeDirectory=webor/sites/example.com",
 		"RuntimeDirectoryPreserve=yes",
 		"ExecStart=" + apiRoot + "/server",
+		"MemoryMax=512M",
+		"CPUQuota=200%",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q in\n%s", want, body)

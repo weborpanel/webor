@@ -52,7 +52,9 @@ func CronTimerUnitName(domain, job string) string {
 	return "webor-cron-" + UnitBase(domain) + "-" + CronJobSlug(job) + ".timer"
 }
 
-// RenderCronUnits builds a Type=oneshot service and matching timer for a cron job.
+// RenderCronUnits builds a Type=oneshot service for a cron job.
+// When schedule is non-empty, also builds a matching OnCalendar timer.
+// Empty schedule = oneshot-only (Run now / seed); no timer unit.
 func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
 	if strings.TrimSpace(job.Name) == "" {
 		return CronUnits{}, fmt.Errorf("cron job name is required")
@@ -63,10 +65,6 @@ func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
 	}
 	if !filepath.IsAbs(execPath) {
 		execPath = filepath.Join(sites.Root(site.Name), execPath)
-	}
-	cals, err := CronToOnCalendar(job.Schedule)
-	if err != nil {
-		return CronUnits{}, fmt.Errorf("cron job %q schedule: %w", job.Name, err)
 	}
 
 	user := sites.Username(site.Name)
@@ -83,15 +81,23 @@ func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
 	fmt.Fprintf(&svc, "Group=%s\n", user)
 	fmt.Fprintf(&svc, "WorkingDirectory=%s\n", root)
 	fmt.Fprintf(&svc, "ExecStart=%s\n", execPath)
-	if site.Limits.MemoryMax != "" {
-		fmt.Fprintf(&svc, "MemoryMax=%s\n", site.Limits.MemoryMax)
-	}
 	fmt.Fprintf(&svc, "Nice=10\n")
-	fmt.Fprintf(&svc, "NoNewPrivileges=true\n")
-	fmt.Fprintf(&svc, "ProtectSystem=strict\n")
-	fmt.Fprintf(&svc, "ProtectHome=true\n")
-	fmt.Fprintf(&svc, "PrivateTmp=true\n")
-	fmt.Fprintf(&svc, "ReadWritePaths=%s\n", root)
+	appendHardening(&svc, site, root)
+
+	out := CronUnits{
+		ServiceName: svcName,
+		TimerName:   timerName,
+		Service:     svc.String(),
+	}
+
+	schedule := strings.TrimSpace(job.Schedule)
+	if schedule == "" {
+		return out, nil
+	}
+	cals, err := CronToOnCalendar(schedule)
+	if err != nil {
+		return CronUnits{}, fmt.Errorf("cron job %q schedule: %w", job.Name, err)
+	}
 
 	var tim strings.Builder
 	fmt.Fprintf(&tim, "[Unit]\n")
@@ -106,11 +112,7 @@ func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
 	fmt.Fprintf(&tim, "\n[Install]\n")
 	fmt.Fprintf(&tim, "WantedBy=timers.target\n")
 
-	return CronUnits{
-		ServiceName: svcName,
-		TimerName:   timerName,
-		Service:     svc.String(),
-		Timer:       tim.String(),
-		OnCalendar:  cals,
-	}, nil
+	out.Timer = tim.String()
+	out.OnCalendar = cals
+	return out, nil
 }

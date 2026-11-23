@@ -30,6 +30,22 @@ const (
 	OpReloadCaddy     = "ReloadCaddy"
 	OpRunCronNow      = "RunCronNow"
 	OpCronStatus      = "CronStatus"
+	OpInstallCronJob  = "InstallCronJob"
+	OpRemoveCronJob   = "RemoveCronJob"
+	OpEnableCronTimer = "EnableCronTimer"
+	OpDisableCronTimer = "DisableCronTimer"
+	OpDeployCronBinary = "DeployCronBinary"
+	OpDeployCronZip    = "DeployCronZip"
+	OpListCronDir      = "ListCronDir"
+	OpInstallJob       = "InstallJob"
+	OpRemoveJob        = "RemoveJob"
+	OpJobStatus        = "JobStatus"
+	OpStartJob         = "StartJob"
+	OpStopJob          = "StopJob"
+	OpRestartJob       = "RestartJob"
+	OpDeployProcessBinary = "DeployProcessBinary"
+	OpDeployProcessZip    = "DeployProcessZip"
+	OpListProcessDir      = "ListProcessDir"
 	OpJournalTail     = "JournalTail"
 	OpRequestApproval = "RequestApproval"
 	OpApprove         = "Approve" // console / root only
@@ -63,6 +79,7 @@ const (
 	OpBackupStatus           = "BackupStatus"
 	OpEnsureBackupSchedule   = "EnsureBackupSchedule"
 	OpEnsureNodeRuntime      = "EnsureNodeRuntime"
+	OpApplySiteLimits        = "ApplySiteLimits"
 )
 
 // Request is a single typed helper operation. Arguments are never shell strings.
@@ -177,6 +194,7 @@ type DeployAppGitArgs struct {
 	BuildCommand string `json:"build_command,omitempty"`
 	Artifact     string `json:"artifact,omitempty"` // relative to src/, default bin/server
 	MemoryMax    string `json:"memory_max,omitempty"`
+	CPUQuota     string `json:"cpu_quota,omitempty"`
 	TimeoutSec   int    `json:"timeout_sec,omitempty"`
 }
 
@@ -185,6 +203,7 @@ type RunBuildArgs struct {
 	Domain     string `json:"domain"`
 	Command    string `json:"command"`
 	MemoryMax  string `json:"memory_max,omitempty"`
+	CPUQuota   string `json:"cpu_quota,omitempty"`
 	TimeoutSec int    `json:"timeout_sec,omitempty"`
 }
 
@@ -210,6 +229,117 @@ type RunCronNowArgs struct {
 type CronStatusArgs struct {
 	Domain string `json:"domain"`
 	Job    string `json:"job"`
+}
+
+// InstallCronJobArgs installs a cron oneshot (+ optional timer).
+type InstallCronJobArgs struct {
+	Domain   string        `json:"domain"`
+	Job      string        `json:"job"`
+	Schedule string        `json:"schedule,omitempty"`
+	Exec     string        `json:"exec"`
+	Limits   config.Limits `json:"limits,omitempty"`
+}
+
+// RemoveCronJobArgs removes cron service + timer units.
+type RemoveCronJobArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// EnableCronTimerArgs enables the timer for a cron job (schedule required).
+type EnableCronTimerArgs struct {
+	Domain   string        `json:"domain"`
+	Job      string        `json:"job"`
+	Schedule string        `json:"schedule"`
+	Exec     string        `json:"exec"`
+	Limits   config.Limits `json:"limits,omitempty"`
+}
+
+// DisableCronTimerArgs disables the cron timer only.
+type DisableCronTimerArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// DeployCronBinaryArgs installs a binary into crons/<job>/server.
+type DeployCronBinaryArgs struct {
+	Domain     string `json:"domain"`
+	Job        string `json:"job"`
+	BinaryPath string `json:"binary_path"`
+}
+
+// DeployCronZipArgs extracts a zip into crons/<job>/.
+type DeployCronZipArgs struct {
+	Domain  string `json:"domain"`
+	Job     string `json:"job"`
+	ZipPath string `json:"zip_path"`
+}
+
+// ListCronDirArgs lists under crons/<job>/.
+type ListCronDirArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+	Path   string `json:"path,omitempty"`
+}
+
+// InstallJobArgs installs a long-running process unit.
+type InstallJobArgs struct {
+	Domain string        `json:"domain"`
+	Job    string        `json:"job"`
+	Exec   string        `json:"exec"`
+	Start  bool          `json:"start,omitempty"`
+	Limits config.Limits `json:"limits,omitempty"`
+}
+
+// RemoveJobArgs removes a long-running process unit.
+type RemoveJobArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// JobStatusArgs / StartJobArgs / StopJobArgs / RestartJobArgs share domain+job.
+type JobStatusArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// StartJobArgs starts a process unit.
+type StartJobArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// StopJobArgs stops a process unit.
+type StopJobArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// RestartJobArgs restarts a process unit.
+type RestartJobArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+}
+
+// DeployProcessBinaryArgs installs a binary into processes/<job>/server.
+type DeployProcessBinaryArgs struct {
+	Domain     string `json:"domain"`
+	Job        string `json:"job"`
+	BinaryPath string `json:"binary_path"`
+}
+
+// DeployProcessZipArgs extracts a zip into processes/<job>/.
+type DeployProcessZipArgs struct {
+	Domain  string `json:"domain"`
+	Job     string `json:"job"`
+	ZipPath string `json:"zip_path"`
+}
+
+// ListProcessDirArgs lists under processes/<job>/.
+type ListProcessDirArgs struct {
+	Domain string `json:"domain"`
+	Job    string `json:"job"`
+	Path   string `json:"path,omitempty"`
 }
 
 // JournalTailArgs tails a site unit journal (app|backend|apis|api:<id>|cron:<n>|job:<n>).
@@ -328,6 +458,7 @@ type EnsureHTTPBackendArgs struct {
 	Exec      string              `json:"exec,omitempty"`
 	Port      int                 `json:"port"`
 	Runtime   *config.SiteRuntime `json:"runtime,omitempty"`
+	Limits    config.Limits       `json:"limits,omitempty"`
 }
 
 // RemoveHTTPBackendArgs stops and removes the HTTP backend unit.
@@ -425,4 +556,9 @@ type EnsureBackupScheduleArgs struct {
 // EnsureNodeRuntimeArgs downloads/caches an official Node build.
 type EnsureNodeRuntimeArgs struct {
 	Version string `json:"version"`
+}
+
+// ApplySiteLimitsArgs rewrites site units after limits change in config.yaml.
+type ApplySiteLimitsArgs struct {
+	Site config.Site `json:"site"`
 }

@@ -63,8 +63,11 @@ func (s *Server) MountSites(mux *http.ServeMux) {
 	s.mountDatabaseRoutes(mux)
 	s.mountCacheRoutes(mux)
 	s.mountBackendRoutes(mux)
+	s.mountCronRoutes(mux)
+	s.mountProcessRoutes(mux)
 	s.mountRuntimeRoutes(mux)
 	s.mountTokenRoutes(mux)
+	s.mountLimitsRoutes(mux)
 	s.mountDBAdminer(mux)
 }
 
@@ -259,6 +262,9 @@ func (s *Server) handleAddSite(w http.ResponseWriter, r *http.Request) {
 		Name: body.Name,
 		Type: body.Type,
 		Root: "public",
+		Limits: config.Limits{
+			DiskQuota: config.DefaultDiskQuota,
+		},
 	}
 	if body.Type == config.SiteTypeApp {
 		site.Root = ""

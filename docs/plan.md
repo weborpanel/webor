@@ -305,6 +305,7 @@ sites:
     cache: valkey
     limits:
       memory_max: 256M
+      cpu_quota: 100%            # 1c; panel presets only
     cron:
       - name: nightly-cleanup
         schedule: 0 3 * * *     # translated to a systemd OnCalendar timer

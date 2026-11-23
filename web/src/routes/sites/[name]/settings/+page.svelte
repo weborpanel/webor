@@ -16,11 +16,34 @@
 
 	const site = getSite();
 
+	type LimitOption = { value: string; label: string };
+	type LimitsPayload = ApiBase & {
+		limits?: { memory_max?: string; cpu_quota?: string; disk_quota?: string; log_max?: string };
+		options?: { memory?: LimitOption[]; cpu?: LimitOption[]; disk?: LimitOption[] };
+		note?: string;
+	};
 	type DeleteAction = { kind: 'delete'; name: string };
 	type DeletePreview = ApiBase & { removed_children?: string[]; drop_databases?: { id: string; engine: string }[] };
 
 	let summary = $derived(overview.sites.find((s) => s.name.toLowerCase() === site.name.toLowerCase()));
 	let deleting = $state(false);
+	let loadingLimits = $state(true);
+	let saving = $state(false);
+	let memoryMax = $state('');
+	let cpuQuota = $state('');
+	let diskQuota = $state('');
+	let memoryOpts = $state<LimitOption[]>([{ value: '', label: 'No limit' }]);
+	let cpuOpts = $state<LimitOption[]>([{ value: '', label: 'No limit' }]);
+	let diskOpts = $state<LimitOption[]>([{ value: '', label: 'No quota' }]);
+	let limitsNote = $state('');
+	let customMemory = $state('');
+	let customCPU = $state('');
+	let customDisk = $state('');
+	let blockedCustom = $derived(
+		(!!customMemory && memoryMax === customMemory) ||
+			(!!customCPU && cpuQuota === customCPU) ||
+			(!!customDisk && diskQuota === customDisk)
+	);
 
 	const flow = new ApprovalFlow<DeleteAction>({
 		operationFor: () => 'DeleteSiteUser',
@@ -29,15 +52,74 @@
 		onError: (m) => toasts.error(m)
 	});
 
-	const configSnippet = $derived(
-		[
-			`sites:`,
-			`  - name: ${site.name}`,
-			`    limits:`,
-			`      memory_max: ${summary?.memory_max || '256M'}`,
-			`      disk_quota: ${summary?.disk_quota || '2G'}`
-		].join('\n')
-	);
+	function ensureOption(opts: LimitOption[], value: string, labelPrefix: string): LimitOption[] {
+		const v = value.trim();
+		if (!v) return opts;
+		if (opts.some((o) => o.value.toLowerCase() === v.toLowerCase())) return opts;
+		return [...opts, { value: v, label: `${labelPrefix} ${v} (config.yaml)` }];
+	}
+
+	async function loadLimits() {
+		loadingLimits = true;
+		try {
+			const r = await request<LimitsPayload>(`/api/sites/${encodeURIComponent(site.name)}/limits`);
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not load limits');
+				return;
+			}
+			memoryOpts = r.data.options?.memory ?? memoryOpts;
+			cpuOpts = r.data.options?.cpu ?? cpuOpts;
+			diskOpts = r.data.options?.disk ?? diskOpts;
+			limitsNote = r.data.note ?? '';
+			memoryMax = r.data.limits?.memory_max ?? '';
+			cpuQuota = r.data.limits?.cpu_quota ?? '';
+			diskQuota = r.data.limits?.disk_quota || '10M';
+			customMemory = memoryMax && !memoryOpts.some((o) => o.value.toLowerCase() === memoryMax.toLowerCase()) ? memoryMax : '';
+			customCPU = cpuQuota && !cpuOpts.some((o) => o.value === cpuQuota) ? cpuQuota : '';
+			customDisk =
+				diskQuota &&
+				diskQuota !== '10M' &&
+				!diskOpts.some((o) => o.value.toLowerCase() === diskQuota.toLowerCase())
+					? diskQuota
+					: '';
+			memoryOpts = ensureOption(memoryOpts, customMemory, 'Custom');
+			cpuOpts = ensureOption(cpuOpts, customCPU, 'Custom');
+			diskOpts = ensureOption(diskOpts, customDisk, 'Custom');
+		} catch (e) {
+			toasts.error(errorMessage(e));
+		} finally {
+			loadingLimits = false;
+		}
+	}
+
+	async function saveLimits() {
+		if (blockedCustom) {
+			toasts.error('Pick a panel preset, or edit config.yaml for custom / over-10G values.');
+			return;
+		}
+		saving = true;
+		try {
+			const r = await request<LimitsPayload>(`/api/sites/${encodeURIComponent(site.name)}/limits`, {
+				method: 'PUT',
+				body: JSON.stringify({
+					memory_max: memoryMax,
+					cpu_quota: cpuQuota,
+					disk_quota: diskQuota
+				})
+			});
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not save limits');
+				return;
+			}
+			toasts.success('Resource limits saved');
+			await overview.refresh();
+			await loadLimits();
+		} catch (e) {
+			toasts.error(errorMessage(e));
+		} finally {
+			saving = false;
+		}
+	}
 
 	async function runDelete(action: DeleteAction, approvalId: string = flow.id.trim()): Promise<void> {
 		deleting = true;
@@ -93,6 +175,7 @@
 
 	onMount(() => {
 		void overview.ensure(30_000);
+		void loadLimits();
 	});
 </script>
 
@@ -101,43 +184,71 @@
 {/if}
 
 <div class="grid">
-	<Card title="Resource limits" description="Enforced by systemd for the site's units">
-		<div class="limits">
-			<div class="limit">
-				<span class="label"><Icon name="memory" size={15} /> Memory</span>
-				{#if summary?.memory_max}
-					<strong>{summary.memory_max}</strong>
-					{#if summary.mem_limit_bytes}
+	<Card title="Resource limits" description="Presets capped by this host. Memory and CPU apply to app units and builds.">
+		{#if loadingLimits}
+			<p class="wbr-muted small">Loading presets…</p>
+		{:else}
+			<form
+				class="limits-form"
+				onsubmit={(e) => {
+					e.preventDefault();
+					void saveLimits();
+				}}
+			>
+				<label class="wbr-field">
+					<span class="label"><Icon name="memory" size={15} /> Memory</span>
+					<select class="wbr-input" bind:value={memoryMax}>
+						{#each memoryOpts as opt (opt.value || 'none')}
+							<option value={opt.value}>{opt.label}</option>
+						{/each}
+					</select>
+					{#if summary?.mem_limit_bytes}
 						<UsageBar used={summary.mem_bytes ?? 0} total={summary.mem_limit_bytes} format={formatBytes} compact />
 						<small>{formatBytes(summary.mem_bytes ?? 0)} in use</small>
 					{/if}
-				{:else}
-					<strong class="none">No limit</strong>
-				{/if}
-			</div>
-			<div class="limit">
-				<span class="label"><Icon name="disk" size={15} /> Disk quota</span>
-				{#if summary?.disk_quota}
-					<strong>{summary.disk_quota}</strong>
-					{#if summary.disk_quota_bytes}
+					{#if customMemory && memoryMax === customMemory}
+						<small class="warn">Custom {customMemory} — pick a preset to change, or edit config.yaml.</small>
+					{/if}
+				</label>
+
+				<label class="wbr-field">
+					<span class="label"><Icon name="cpu" size={15} /> CPU</span>
+					<select class="wbr-input" bind:value={cpuQuota}>
+						{#each cpuOpts as opt (opt.value || 'none')}
+							<option value={opt.value}>{opt.label}</option>
+						{/each}
+					</select>
+					<small class="hint">1c = one full core (systemd CPUQuota 100%).</small>
+					{#if customCPU && cpuQuota === customCPU}
+						<small class="warn">Custom {customCPU} — pick a preset to change, or edit config.yaml.</small>
+					{/if}
+				</label>
+
+				<label class="wbr-field">
+					<span class="label"><Icon name="disk" size={15} /> Disk quota</span>
+					<select class="wbr-input" bind:value={diskQuota}>
+						{#each diskOpts as opt (opt.value || 'none')}
+							<option value={opt.value}>{opt.label}</option>
+						{/each}
+					</select>
+					{#if summary?.disk_quota_bytes}
 						<UsageBar used={summary.disk_bytes ?? 0} total={summary.disk_quota_bytes} format={formatBytes} compact />
 						<small>{formatBytes(summary.disk_bytes ?? 0)} used</small>
 					{/if}
-				{:else}
-					<strong class="none">No quota</strong>
-				{/if}
-			</div>
-		</div>
-		{#snippet footer()}
-			<details class="howto">
-				<summary>How to change limits</summary>
-				<p class="wbr-muted">
-					Edit <code>/etc/webor/config.yaml</code> on the server, then re-apply the config. The memory limit also caps
-					builds.
-				</p>
-				<pre>{configSnippet}</pre>
-			</details>
-		{/snippet}
+					{#if customDisk && diskQuota === customDisk}
+						<small class="warn">Custom {customDisk} — above 10G stays in config.yaml; pick a preset ≤ 10G here.</small>
+					{:else if limitsNote}
+						<small class="hint">{limitsNote}</small>
+					{/if}
+				</label>
+
+				<div class="actions">
+					<button type="submit" class="wbr-btn" disabled={saving || blockedCustom}>
+						{saving ? 'Saving…' : 'Save limits'}
+					</button>
+				</div>
+			</form>
+		{/if}
 	</Card>
 
 	<Card title="Runtime">
@@ -154,11 +265,19 @@
 			{/if}
 			<li>
 				<span>Cron</span>
-				<span>{site.cron.length ? site.cron.join(', ') : '—'}</span>
+				<span
+					>{#if site.cron.length}<a href={site.href('/cron')}>{site.cron.join(', ')}</a>{:else}<a
+							href={site.href('/cron')}>Manage</a
+						>{/if}</span
+				>
 			</li>
 			<li>
-				<span>Jobs</span>
-				<span>{site.jobs.length ? site.jobs.join(', ') : '—'}</span>
+				<span>Processes</span>
+				<span
+					>{#if site.jobs.length}<a href={site.href('/processes')}>{site.jobs.join(', ')}</a>{:else}<a
+							href={site.href('/processes')}>Manage</a
+						>{/if}</span
+				>
 			</li>
 		</ul>
 	</Card>
@@ -191,16 +310,9 @@
 		align-items: start;
 	}
 
-	.limits {
+	.limits-form {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1.25rem;
-	}
-
-	.limit {
-		display: grid;
-		gap: 0.35rem;
-		align-content: start;
+		gap: 1.1rem;
 	}
 
 	.label {
@@ -214,39 +326,24 @@
 		letter-spacing: 0.04em;
 	}
 
-	.limit strong {
-		font-size: 1.25rem;
+	.limits-form :global(.wbr-field) {
+		display: grid;
+		gap: 0.35rem;
 	}
 
-	.limit .none {
-		color: var(--muted);
-		font-size: 1rem;
-	}
-
-	.limit small {
+	.limits-form small,
+	.hint {
 		font-size: 0.78rem;
 		color: var(--muted);
 	}
 
-	.howto summary {
-		cursor: pointer;
-		font-size: 0.85rem;
-		font-weight: 700;
-		color: var(--accent);
+	.warn {
+		color: var(--danger);
 	}
 
-	.howto p {
-		font-size: 0.84rem;
-	}
-
-	.howto pre {
-		margin: 0;
-		padding: 0.7rem 0.85rem;
-		border-radius: var(--radius-sm);
-		background: var(--surface-3);
-		font-family: var(--mono);
-		font-size: 0.78rem;
-		overflow-x: auto;
+	.actions {
+		display: flex;
+		justify-content: flex-start;
 	}
 
 	.small {
@@ -280,11 +377,5 @@
 		margin: 0;
 		font-size: 0.88rem;
 		max-width: 42rem;
-	}
-
-	@media (max-width: 520px) {
-		.limits {
-			grid-template-columns: 1fr;
-		}
 	}
 </style>

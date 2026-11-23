@@ -72,12 +72,13 @@ type Limits struct {
 	DiskQuota string `yaml:"disk_quota,omitempty"`
 	LogMax    string `yaml:"log_max,omitempty"`
 	MemoryMax string `yaml:"memory_max,omitempty"`
+	CPUQuota  string `yaml:"cpu_quota,omitempty"` // systemd CPUQuota, e.g. 100% = 1 core
 }
 
-// CronJob is a scheduled oneshot job for a site.
+// CronJob is a oneshot job for a site. Schedule is optional (empty = Run now only).
 type CronJob struct {
 	Name     string `yaml:"name"`
-	Schedule string `yaml:"schedule"`
+	Schedule string `yaml:"schedule,omitempty"` // 5-field cron; empty = no timer
 	Exec     string `yaml:"exec"`
 }
 
@@ -215,6 +216,9 @@ func (c *Config) Validate() error {
 		if err := validateIdleTimeout(s); err != nil {
 			return fmt.Errorf("%s: %w", prefix, err)
 		}
+		if err := ValidateLimits(s.Limits); err != nil {
+			return fmt.Errorf("%s.limits: %w", prefix, err)
+		}
 		if err := ValidateSiteBackends(s.Type, s.Backends); err != nil {
 			return fmt.Errorf("%s: %w", prefix, err)
 		}
@@ -229,8 +233,14 @@ func (c *Config) Validate() error {
 			if strings.TrimSpace(job.Name) == "" {
 				return fmt.Errorf("%s.cron[%d]: name is required", prefix, j)
 			}
-			if strings.TrimSpace(job.Schedule) == "" {
-				return fmt.Errorf("%s.cron[%d]: schedule is required", prefix, j)
+			if err := ValidateTaskName(job.Name); err != nil {
+				return fmt.Errorf("%s.cron[%d].name: %w", prefix, j, err)
+			}
+			// Schedule is optional (oneshot / seed via Run now). When set, must be 5-field cron.
+			if strings.TrimSpace(job.Schedule) != "" {
+				if err := validateCronSchedule(job.Schedule); err != nil {
+					return fmt.Errorf("%s.cron[%d].schedule: %w", prefix, j, err)
+				}
 			}
 			if strings.TrimSpace(job.Exec) == "" {
 				return fmt.Errorf("%s.cron[%d]: exec is required", prefix, j)
@@ -240,14 +250,14 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("%s.cron[%d]: duplicate job name %q", prefix, j, job.Name)
 			}
 			seenCron[key] = struct{}{}
-			if err := validateCronSchedule(job.Schedule); err != nil {
-				return fmt.Errorf("%s.cron[%d].schedule: %w", prefix, j, err)
-			}
 		}
 		seenJobs := map[string]struct{}{}
 		for j, job := range s.Jobs {
 			if strings.TrimSpace(job.Name) == "" {
 				return fmt.Errorf("%s.jobs[%d]: name is required", prefix, j)
+			}
+			if err := ValidateTaskName(job.Name); err != nil {
+				return fmt.Errorf("%s.jobs[%d].name: %w", prefix, j, err)
 			}
 			if strings.TrimSpace(job.Exec) == "" {
 				return fmt.Errorf("%s.jobs[%d]: exec is required", prefix, j)
@@ -431,6 +441,45 @@ func validateCronSchedule(schedule string) error {
 		return fmt.Errorf("must have 5 cron fields (got %d)", len(fields))
 	}
 	return nil
+}
+
+var taskNameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$`)
+
+// ValidateTaskName checks cron/process job names (unit-safe, no path chars).
+func ValidateTaskName(name string) error {
+	n := strings.TrimSpace(name)
+	if n == "" {
+		return fmt.Errorf("empty name")
+	}
+	if len(n) > 64 {
+		return fmt.Errorf("name too long")
+	}
+	if !taskNameRE.MatchString(n) {
+		return fmt.Errorf("invalid name %q (use letters, digits, _ or -)", name)
+	}
+	return nil
+}
+
+// FindCron returns a cron job by name on the site.
+func (s Site) FindCron(name string) (CronJob, int, bool) {
+	want := strings.ToLower(strings.TrimSpace(name))
+	for i, j := range s.Cron {
+		if strings.ToLower(strings.TrimSpace(j.Name)) == want {
+			return j, i, true
+		}
+	}
+	return CronJob{}, -1, false
+}
+
+// FindJob returns a long-running job by name on the site.
+func (s Site) FindJob(name string) (Job, int, bool) {
+	want := strings.ToLower(strings.TrimSpace(name))
+	for i, j := range s.Jobs {
+		if strings.ToLower(strings.TrimSpace(j.Name)) == want {
+			return j, i, true
+		}
+	}
+	return Job{}, -1, false
 }
 
 func validateDomain(name string) error {

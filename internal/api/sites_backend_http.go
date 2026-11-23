@@ -854,6 +854,7 @@ func (s *Server) ensureHTTPBackend(site config.Site, backend config.SiteBackend)
 			Exec:      backend.Exec,
 			Port:      backend.Port,
 			Runtime:   backend.Runtime,
+			Limits:    site.Limits,
 		})
 		resp, err := ipc.Call(s.HelperSocket, ipc.Request{
 			ID: "panel", Operation: ipc.OpEnsureHTTPBackend, Args: raw,

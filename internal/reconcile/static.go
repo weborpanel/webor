@@ -57,6 +57,14 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops helper.SiteFS
 		if err := ops.CreateSiteUser(site.Name); err != nil {
 			return fmt.Errorf("site %s: %w", site.Name, err)
 		}
+		if local, ok := ops.(*helper.Ops); ok {
+			if err := local.InstallSiteCron(site); err != nil {
+				return fmt.Errorf("site %s cron: %w", site.Name, err)
+			}
+			if err := local.InstallSiteJobs(site); err != nil {
+				return fmt.Errorf("site %s jobs: %w", site.Name, err)
+			}
+		}
 		if opt.SeedIndex {
 			// CreateSiteUser already seeds index.html when missing. Keep a local
 			// fallback for in-process Ops when the site root uses a custom path.

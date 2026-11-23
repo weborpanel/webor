@@ -127,7 +127,7 @@ func (o *Ops) DeployAppZip(ctx context.Context, domain, zipPath string) (*Deploy
 
 // DeployAppGit clones/fetches a repo, runs build_command with limits, then
 // deploys the resulting artifact via DeployAppBinary.
-func (o *Ops) DeployAppGit(ctx context.Context, domain, gitURL, gitRef, buildCommand, artifactRel, memoryMax string, timeoutSec int) (*DeployAppBinaryResult, error) {
+func (o *Ops) DeployAppGit(ctx context.Context, domain, gitURL, gitRef, buildCommand, artifactRel, memoryMax, cpuQuota string, timeoutSec int) (*DeployAppBinaryResult, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	if domain == "" {
 		return nil, fmt.Errorf("domain is required")
@@ -154,7 +154,7 @@ func (o *Ops) DeployAppGit(ctx context.Context, domain, gitURL, gitRef, buildCom
 	if cmd == "" {
 		cmd = "true"
 	}
-	if _, err := o.RunBuild(ctx, domain, "cd src && "+cmd, memoryMax, timeoutSec); err != nil {
+	if _, err := o.RunBuild(ctx, domain, "cd src && "+cmd, memoryMax, cpuQuota, timeoutSec); err != nil {
 		return nil, fmt.Errorf("build: %w", err)
 	}
 

@@ -11,7 +11,7 @@ import (
 )
 
 // RunBuild runs a site build command under a transient systemd unit with limits.
-func (o *Ops) RunBuild(ctx context.Context, domain, command string, memoryMax string, timeoutSec int) (*build.Result, error) {
+func (o *Ops) RunBuild(ctx context.Context, domain, command string, memoryMax, cpuQuota string, timeoutSec int) (*build.Result, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	if domain == "" {
 		return nil, fmt.Errorf("domain is required")
@@ -19,7 +19,7 @@ func (o *Ops) RunBuild(ctx context.Context, domain, command string, memoryMax st
 	if strings.TrimSpace(command) == "" {
 		return nil, fmt.Errorf("command is required")
 	}
-	limits := build.Limits{MemoryMax: memoryMax}
+	limits := build.Limits{MemoryMax: memoryMax, CPUQuota: cpuQuota}
 	if timeoutSec > 0 {
 		limits.Timeout = time.Duration(timeoutSec) * time.Second
 	}
