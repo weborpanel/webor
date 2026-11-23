@@ -8,6 +8,7 @@ import (
 
 	"github.com/weborpanel/webor/internal/audit"
 	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/providers/dbengine"
 )
 
 func makeRequestApproval(store *auth.Store, log *audit.Logger) HandlerFunc {
@@ -30,6 +31,7 @@ func makeRequestApproval(store *auth.Store, log *audit.Logger) HandlerFunc {
 		} else {
 			bound = map[string]any{}
 		}
+		bound = canonicalizeApprovalArgs(args.Operation, bound)
 		a, err := store.Create(args.Operation, bound)
 		actor := fmt.Sprintf("uid=%d", cred.UID)
 		if err != nil {
@@ -157,6 +159,27 @@ func makeListApprovals(store *auth.Store) HandlerFunc {
 		}
 		raw, _ := json.Marshal(out)
 		return Response{ID: req.ID, OK: true, Message: string(raw)}
+	}
+}
+
+// canonicalizeApprovalArgs normalizes args so Create and Consume bind the same JSON
+// (e.g. blank database id → domain default slug).
+func canonicalizeApprovalArgs(operation string, bound any) any {
+	m, ok := bound.(map[string]any)
+	if !ok || m == nil {
+		return bound
+	}
+	switch operation {
+	case OpEnsureSiteDatabase, OpDropSiteDatabase:
+		domain, _ := m["domain"].(string)
+		engine, _ := m["engine"].(string)
+		id, _ := m["id"].(string)
+		domain = strings.ToLower(strings.TrimSpace(domain))
+		engine = strings.ToLower(strings.TrimSpace(engine))
+		id = dbengine.NormalizeID(domain, id)
+		return map[string]any{"domain": domain, "engine": engine, "id": id}
+	default:
+		return bound
 	}
 }
 
