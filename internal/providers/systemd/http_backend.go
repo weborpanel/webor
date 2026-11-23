@@ -58,10 +58,6 @@ func RenderHTTPBackendUnitWithNode(site config.Site, backend config.SiteBackend,
 	fmt.Fprintf(&svc, "User=%s\n", user)
 	fmt.Fprintf(&svc, "Group=%s\n", user)
 	fmt.Fprintf(&svc, "WorkingDirectory=%s\n", apiRoot)
-	// ProtectSystem=strict + ReadWritePaths needs this path before NAMESPACE setup.
-	// /run is tmpfs — RuntimeDirectory recreates it on every start (survives reboot).
-	fmt.Fprintf(&svc, "RuntimeDirectory=%s\n", filepath.Join("webor", "sites", site.Name))
-	fmt.Fprintf(&svc, "RuntimeDirectoryPreserve=yes\n")
 	fmt.Fprintf(&svc, "Environment=HOST=127.0.0.1\n")
 	fmt.Fprintf(&svc, "Environment=PORT=%d\n", backend.Port)
 	fmt.Fprintf(&svc, "Environment=WBR_PORT=%d\n", backend.Port)

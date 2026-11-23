@@ -17,7 +17,13 @@ func TestRenderJobUnitsLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"MemoryMax=128M", "CPUQuota=100%", "Type=simple"} {
+	for _, want := range []string{
+		"MemoryMax=128M",
+		"CPUQuota=100%",
+		"Type=simple",
+		"RuntimeDirectory=webor/sites/app.example.com",
+		"RuntimeDirectoryPreserve=yes",
+	} {
 		if !strings.Contains(units.Service, want) {
 			t.Fatalf("missing %q:\n%s", want, units.Service)
 		}

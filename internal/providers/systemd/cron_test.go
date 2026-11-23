@@ -34,6 +34,8 @@ func TestRenderCronUnits(t *testing.T) {
 		"ExecStart=" + sites.Root("app.example.com") + "/bin/cleanup",
 		"MemoryMax=64M",
 		"CPUQuota=50%",
+		"RuntimeDirectory=webor/sites/app.example.com",
+		"RuntimeDirectoryPreserve=yes",
 	} {
 		if !strings.Contains(units.Service, want) {
 			t.Fatalf("service missing %q:\n%s", want, units.Service)

@@ -270,14 +270,15 @@
 		gap: 0.5rem;
 		padding: 0.85rem;
 		margin-bottom: 1rem;
-		border: 1px solid var(--wbr-border, #d8d4cc);
-		background: var(--wbr-surface-2, #f7f5f1);
+		border: 1px solid var(--border);
+		background: var(--surface-2);
+		border-radius: var(--radius-sm);
 	}
 
 	.warn {
 		margin: 0;
 		font-weight: 600;
-		color: var(--wbr-warn, #9a6700);
+		color: var(--warn);
 	}
 
 	.hint {
@@ -300,7 +301,7 @@
 		justify-content: space-between;
 		gap: 0.75rem;
 		padding: 0.65rem 0;
-		border-top: 1px solid var(--wbr-border, #e5e2db);
+		border-top: 1px solid var(--border);
 	}
 
 	.meta {
@@ -311,11 +312,11 @@
 
 	.scopes {
 		font-size: 0.8rem;
-		font-family: var(--wbr-mono, ui-monospace, monospace);
+		font-family: var(--mono);
 	}
 
 	.danger {
-		color: var(--wbr-danger, #b42318);
+		color: var(--danger);
 	}
 
 	.snippet {
@@ -324,8 +325,11 @@
 		overflow: auto;
 		font-size: 0.78rem;
 		line-height: 1.4;
-		background: var(--wbr-surface-2, #f7f5f1);
-		border: 1px solid var(--wbr-border, #e5e2db);
+		font-family: var(--mono);
+		color: var(--text);
+		background: var(--surface-3);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
 		max-height: 18rem;
 	}
 

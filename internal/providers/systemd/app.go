@@ -112,6 +112,10 @@ func appendHardening(svc *strings.Builder, site config.Site, root string) {
 		fmt.Fprintf(svc, "LogRateLimitIntervalSec=30s\n")
 		fmt.Fprintf(svc, "LogRateLimitBurst=1000\n")
 	}
+	// ProtectSystem=strict + ReadWritePaths needs this path before NAMESPACE setup.
+	// /run is tmpfs — RuntimeDirectory recreates it on every start (survives reboot).
+	fmt.Fprintf(svc, "RuntimeDirectory=%s\n", filepath.Join("webor", "sites", site.Name))
+	fmt.Fprintf(svc, "RuntimeDirectoryPreserve=yes\n")
 	fmt.Fprintf(svc, "NoNewPrivileges=true\n")
 	fmt.Fprintf(svc, "ProtectSystem=strict\n")
 	fmt.Fprintf(svc, "ProtectHome=true\n")
