@@ -9,6 +9,7 @@ export type ApiBase = {
 	approval_required?: boolean;
 	approval_id?: string;
 	approval_operation?: string;
+	approval_args?: Record<string, unknown>;
 };
 
 export class ApiError extends Error {

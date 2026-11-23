@@ -63,7 +63,11 @@
 		operationFor: (a) => (a.kind === 'add' ? 'EnsureSiteDatabase' : 'DropSiteDatabase'),
 		argsFor: (op, a) =>
 			op === 'EnsureSiteDatabase' || op === 'DropSiteDatabase'
-				? { domain: site.name, engine: a?.engine || engine, id: a ? a.id : nextDbId(a?.engine || engine) }
+				? {
+						domain: site.name,
+						engine: a?.engine || engine,
+						id: (a ? a.id : nextDbId(a?.engine || engine)) || defaultId
+					}
 				: {},
 		resume: (a, approvalId) => (a.kind === 'add' ? add(a, approvalId) : remove(a, approvalId)),
 		onError: (m) => toasts.error(m)
@@ -98,9 +102,9 @@
 		return db.id || defaultId || 'default';
 	}
 
-	/** First DB: omit id (backend uses domain default). Extra DBs: unused engine-based slug. */
+	/** First DB: domain default id. Extra DBs: unused engine-based slug. */
 	function nextDbId(eng: string): string {
-		if (databases.length === 0) return '';
+		if (databases.length === 0) return defaultId;
 		const taken = new Set(databases.map((db) => dbKey(db).toLowerCase()));
 		const base = eng.trim().toLowerCase() || 'db';
 		if (!taken.has(base)) return base;

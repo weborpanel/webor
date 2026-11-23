@@ -29,6 +29,8 @@ export class ApprovalFlow<A> {
 
 	#triedFor = '';
 	#opts: FlowOptions<A>;
+	/** Canonical args from a 403 `approval_args` payload, preferred over `argsFor`. */
+	#approvalArgs: Record<string, unknown> | null = null;
 
 	constructor(opts: FlowOptions<A>) {
 		this.#opts = opts;
@@ -52,6 +54,7 @@ export class ApprovalFlow<A> {
 		this.required = true;
 		this.status = '';
 		this.#triedFor = '';
+		this.#approvalArgs = data.approval_args ?? null;
 		this.operation = data.approval_operation || this.#opts.operationFor(action);
 		if (data.approval_id) {
 			this.id = data.approval_id;
@@ -71,9 +74,10 @@ export class ApprovalFlow<A> {
 		}
 		this.busy = true;
 		try {
+			const args = this.#approvalArgs ?? this.#opts.argsFor(operation, this.pending);
 			const r = await request<{ approval_id?: string }>('/api/approvals', {
 				method: 'POST',
-				json: { operation, args: this.#opts.argsFor(operation, this.pending) }
+				json: { operation, args }
 			});
 			if (!r.ok) {
 				this.#opts.onError?.(r.data.error || 'Could not request approval');
@@ -135,5 +139,6 @@ export class ApprovalFlow<A> {
 		this.status = '';
 		this.autoBusy = false;
 		this.#triedFor = '';
+		this.#approvalArgs = null;
 	}
 }
