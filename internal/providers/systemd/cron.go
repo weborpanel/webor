@@ -2,7 +2,6 @@ package systemd
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -56,15 +55,17 @@ func CronTimerUnitName(domain, job string) string {
 // When schedule is non-empty, also builds a matching OnCalendar timer.
 // Empty schedule = oneshot-only (Run now / seed); no timer unit.
 func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
+	return RenderCronUnitsWithNode(site, job, "")
+}
+
+// RenderCronUnitsWithNode is like RenderCronUnits but allows a test override for the node binary.
+func RenderCronUnitsWithNode(site config.Site, job config.CronJob, nodeBinOverride string) (CronUnits, error) {
 	if strings.TrimSpace(job.Name) == "" {
 		return CronUnits{}, fmt.Errorf("cron job name is required")
 	}
-	execPath := strings.TrimSpace(job.Exec)
-	if execPath == "" {
-		return CronUnits{}, fmt.Errorf("cron job %q: exec is required", job.Name)
-	}
-	if !filepath.IsAbs(execPath) {
-		execPath = filepath.Join(sites.Root(site.Name), execPath)
+	appExec, err := ResolveTaskExec(site.Name, job.Exec, job.Runtime, nodeBinOverride)
+	if err != nil {
+		return CronUnits{}, fmt.Errorf("cron job %q: %w", job.Name, err)
 	}
 
 	user := sites.Username(site.Name)
@@ -80,7 +81,10 @@ func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
 	fmt.Fprintf(&svc, "User=%s\n", user)
 	fmt.Fprintf(&svc, "Group=%s\n", user)
 	fmt.Fprintf(&svc, "WorkingDirectory=%s\n", root)
-	fmt.Fprintf(&svc, "ExecStart=%s\n", execPath)
+	if appExec.PathEnv != "" {
+		fmt.Fprintf(&svc, "Environment=PATH=%s:/usr/local/bin:/usr/bin:/bin\n", appExec.PathEnv)
+	}
+	fmt.Fprintf(&svc, "ExecStart=%s\n", appExec.ExecStart)
 	fmt.Fprintf(&svc, "Nice=10\n")
 	appendHardening(&svc, site, root)
 

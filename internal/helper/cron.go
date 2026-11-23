@@ -40,6 +40,11 @@ func (o *Ops) InstallCronJob(site config.Site, job config.CronJob) (*systemd.Cro
 	if err := sites.EnsureCronDir(site.Name, job.Name); err != nil {
 		return nil, fmt.Errorf("crons dir: %w", err)
 	}
+	if job.HasNodeRuntime() && job.Runtime != nil && job.Runtime.Command == "" {
+		if _, err := o.EnsureNodeRuntime(context.Background(), job.Runtime.Version); err != nil {
+			return nil, err
+		}
+	}
 	units, err := systemd.RenderCronUnits(site, job)
 	if err != nil {
 		return nil, err

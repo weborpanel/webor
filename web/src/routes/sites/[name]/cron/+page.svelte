@@ -32,6 +32,7 @@
 	let selected = $state('');
 	let busy = $state(false);
 	let logUnit = $state('');
+	let nodeChoices = $state.raw<{ id: string; label: string }[]>([]);
 
 	let selectedItem = $derived(items.find((c) => c.name === selected) ?? null);
 	let logOptions = $derived(
@@ -137,12 +138,16 @@
 
 	onMount(() => {
 		void load();
+		void request<{ versions?: { id: string; label: string }[] }>('/api/runtimes/node').then((r) => {
+			if (r.ok) nodeChoices = r.data.versions ?? [];
+		});
 	});
 </script>
 
 {#if showAdd}
 	<Card title="Add cron" description="One-shot seed/migrate or a scheduled job.">
 		<CronSetupWizard
+			{nodeChoices}
 			ondone={async (name) => {
 				showAdd = false;
 				selected = name;

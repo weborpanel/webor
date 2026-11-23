@@ -77,15 +77,17 @@ type Limits struct {
 
 // CronJob is a oneshot job for a site. Schedule is optional (empty = Run now only).
 type CronJob struct {
-	Name     string `yaml:"name"`
-	Schedule string `yaml:"schedule,omitempty"` // 5-field cron; empty = no timer
-	Exec     string `yaml:"exec"`
+	Name     string       `yaml:"name"`
+	Schedule string       `yaml:"schedule,omitempty"` // 5-field cron; empty = no timer
+	Exec     string       `yaml:"exec"`
+	Runtime  *SiteRuntime `yaml:"runtime,omitempty"` // optional Node (managed or BYO)
 }
 
 // Job is a long-running (Type=simple) per-site service with no schedule.
 type Job struct {
-	Name string `yaml:"name"`
-	Exec string `yaml:"exec"`
+	Name    string       `yaml:"name"`
+	Exec    string       `yaml:"exec"`
+	Runtime *SiteRuntime `yaml:"runtime,omitempty"` // optional Node (managed or BYO)
 }
 
 // Mail is reserved so adding mail later does not break existing configs.
@@ -245,6 +247,9 @@ func (c *Config) Validate() error {
 			if strings.TrimSpace(job.Exec) == "" {
 				return fmt.Errorf("%s.cron[%d]: exec is required", prefix, j)
 			}
+			if err := ValidateNodeRuntimeFields(job.Runtime); err != nil {
+				return fmt.Errorf("%s.cron[%d].runtime: %w", prefix, j, err)
+			}
 			key := strings.ToLower(strings.TrimSpace(job.Name))
 			if _, ok := seenCron[key]; ok {
 				return fmt.Errorf("%s.cron[%d]: duplicate job name %q", prefix, j, job.Name)
@@ -261,6 +266,9 @@ func (c *Config) Validate() error {
 			}
 			if strings.TrimSpace(job.Exec) == "" {
 				return fmt.Errorf("%s.jobs[%d]: exec is required", prefix, j)
+			}
+			if err := ValidateNodeRuntimeFields(job.Runtime); err != nil {
+				return fmt.Errorf("%s.jobs[%d].runtime: %w", prefix, j, err)
 			}
 			key := strings.ToLower(strings.TrimSpace(job.Name))
 			if _, ok := seenJobs[key]; ok {

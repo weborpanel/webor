@@ -2,7 +2,6 @@ package systemd
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
@@ -22,15 +21,17 @@ func JobServiceUnitName(domain, job string) string {
 
 // RenderJobUnits builds a Type=simple Restart=on-failure unit for a site job.
 func RenderJobUnits(site config.Site, job config.Job) (JobUnits, error) {
+	return RenderJobUnitsWithNode(site, job, "")
+}
+
+// RenderJobUnitsWithNode is like RenderJobUnits but allows a test override for the node binary.
+func RenderJobUnitsWithNode(site config.Site, job config.Job, nodeBinOverride string) (JobUnits, error) {
 	if strings.TrimSpace(job.Name) == "" {
 		return JobUnits{}, fmt.Errorf("job name is required")
 	}
-	execPath := strings.TrimSpace(job.Exec)
-	if execPath == "" {
-		return JobUnits{}, fmt.Errorf("job %s: exec is required", job.Name)
-	}
-	if !filepath.IsAbs(execPath) {
-		execPath = filepath.Join(sites.Root(site.Name), execPath)
+	appExec, err := ResolveTaskExec(site.Name, job.Exec, job.Runtime, nodeBinOverride)
+	if err != nil {
+		return JobUnits{}, fmt.Errorf("job %s: %w", job.Name, err)
 	}
 	user := sites.Username(site.Name)
 	root := sites.Root(site.Name)
@@ -45,7 +46,10 @@ func RenderJobUnits(site config.Site, job config.Job) (JobUnits, error) {
 	fmt.Fprintf(&svc, "User=%s\n", user)
 	fmt.Fprintf(&svc, "Group=%s\n", user)
 	fmt.Fprintf(&svc, "WorkingDirectory=%s\n", root)
-	fmt.Fprintf(&svc, "ExecStart=%s\n", execPath)
+	if appExec.PathEnv != "" {
+		fmt.Fprintf(&svc, "Environment=PATH=%s:/usr/local/bin:/usr/bin:/bin\n", appExec.PathEnv)
+	}
+	fmt.Fprintf(&svc, "ExecStart=%s\n", appExec.ExecStart)
 	fmt.Fprintf(&svc, "Restart=on-failure\n")
 	appendHardening(&svc, site, root)
 	fmt.Fprintf(&svc, "\n[Install]\n")

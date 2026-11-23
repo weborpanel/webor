@@ -7,6 +7,7 @@
 	import { request, errorMessage } from '#lib/api.ts';
 	import { toasts } from '#lib/stores/toasts.svelte.ts';
 
+	type RuntimeMode = 'binary' | 'node' | 'custom';
 	type ArtifactKind = 'zip' | 'binary';
 	type CronInfo = {
 		name?: string;
@@ -16,17 +17,19 @@
 		unit?: string;
 		timer?: string;
 		timer_active?: boolean;
+		runtime?: { kind?: string; version?: string; command?: string };
 	};
 
 	type Props = {
+		nodeChoices?: { id: string; label: string }[];
 		ondone?: (jobName: string) => void;
 		oncancel?: () => void;
 	};
 
-	let { ondone, oncancel }: Props = $props();
+	let { nodeChoices = [], ondone, oncancel }: Props = $props();
 
 	const site = getSite();
-	const steps = ['Name', 'Upload', 'Entry', 'Schedule', 'Run'] as const;
+	const steps = ['Name', 'Upload', 'Run', 'Schedule', 'Start'] as const;
 
 	let step = $state(0);
 	let busy = $state(false);
@@ -37,8 +40,13 @@
 	let upload = $state<File | null>(null);
 	let uploaded = $state(false);
 
-	let entry = $state('./server');
+	let runtimeMode = $state<RuntimeMode>('node');
+	let nodeVersion = $state('22');
+	let nodeCommand = $state('');
+	let entry = $state('server.js');
+	let extraParams = $state('');
 	let showPicker = $state(true);
+
 	let schedule = $state('');
 	let enableTimer = $state(false);
 
@@ -47,21 +55,26 @@
 
 	let jobId = $derived(cron?.name || '');
 	let fsListUrl = $derived(jobId ? site.path(`/cron/${encodeURIComponent(jobId)}/fs`) : '');
-	let execPreview = $derived.by(() => {
-		const e = entry.trim();
-		if (!e) return '';
-		if (e.startsWith('./') || e.startsWith('/')) return e;
-		return jobId ? `./crons/${jobId}/${e}` : e;
-	});
+	let isNode = $derived(runtimeMode === 'node' || runtimeMode === 'custom');
+	let preferExt = $derived(isNode ? ['.js', '.mjs', '.cjs'] : ([] as string[]));
 	let logOptions = $derived(
 		jobId ? [{ value: `cron:${jobId}`, label: `Cron · ${jobId}` }] : ([] as { value: string; label: string }[])
 	);
 
-	function normalizeEntry(path: string): string {
-		const p = path.trim().replace(/^\.\//, '');
-		if (!jobId) return path.trim();
-		if (path.startsWith('./crons/') || path.startsWith('/')) return path.trim();
-		return `./crons/${jobId}/${p}`;
+	function buildExec(): string {
+		const e = entry.trim();
+		const p = extraParams.trim();
+		const local = p ? `${e} ${p}` : e;
+		if (!jobId) return local;
+		if (local.startsWith('./') || local.startsWith('/')) return local;
+		return `./crons/${jobId}/${local}`;
+	}
+
+	function inferRuntimeFromEntry(path: string) {
+		if (/\.(js|mjs|cjs)$/i.test(path) && runtimeMode === 'binary') {
+			runtimeMode = 'node';
+			artifactKind = 'zip';
+		}
 	}
 
 	async function createCron() {
@@ -81,7 +94,7 @@
 				return false;
 			}
 			cron = r.data.cron ?? { name };
-			entry = `./crons/${cron.name}/server`;
+			entry = isNode ? 'server.js' : './server';
 			logUnit = `cron:${cron.name}`;
 			return true;
 		} catch (e) {
@@ -111,6 +124,13 @@
 				return false;
 			}
 			uploaded = true;
+			if (artifactKind === 'binary') {
+				runtimeMode = 'binary';
+				entry = './server';
+			} else if (runtimeMode === 'binary') {
+				runtimeMode = 'node';
+				entry = 'server.js';
+			}
 			toasts.success(artifactKind === 'zip' ? 'Zip extracted' : 'Binary uploaded');
 			return true;
 		} catch (e) {
@@ -121,27 +141,55 @@
 		}
 	}
 
-	async function saveEntryAndSchedule() {
+	async function saveRuntimeAndSchedule() {
 		if (!jobId) return false;
-		const exec = normalizeEntry(entry);
+		if (!entry.trim()) {
+			toasts.error('Choose an entry file');
+			return false;
+		}
 		busy = true;
 		try {
-			const body: { exec: string; schedule?: string } = { exec };
-			if (enableTimer && schedule.trim()) {
-				body.schedule = schedule.trim();
+			const payload: Record<string, unknown> = {
+				exec: buildExec(),
+				schedule: enableTimer && schedule.trim() ? schedule.trim() : ''
+			};
+			if (runtimeMode === 'binary') {
+				payload.runtime = { clear: true, kind: '' };
+			} else if (runtimeMode === 'custom') {
+				payload.runtime = { kind: 'node', command: nodeCommand.trim() };
 			} else {
-				body.schedule = '';
+				payload.runtime = { kind: 'node', version: nodeVersion };
 			}
-			const r = await request<{ cron?: CronInfo }>(
-				site.path(`/cron/${encodeURIComponent(jobId)}`),
-				{ method: 'PATCH', json: body }
-			);
+			const r = await request<{ cron?: CronInfo }>(site.path(`/cron/${encodeURIComponent(jobId)}`), {
+				method: 'PATCH',
+				json: payload
+			});
 			if (!r.ok) {
 				toasts.error(r.data.error || 'Could not save');
 				return false;
 			}
 			cron = r.data.cron ?? cron;
-			entry = exec;
+			return true;
+		} catch (e) {
+			toasts.error(errorMessage(e));
+			return false;
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function enableIfNeeded() {
+		if (!jobId || !enableTimer || !schedule.trim()) return true;
+		busy = true;
+		try {
+			const r = await request(site.path(`/cron/${encodeURIComponent(jobId)}/enable`), {
+				method: 'POST'
+			});
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not enable timer');
+				return false;
+			}
+			toasts.success('Timer enabled');
 			return true;
 		} catch (e) {
 			toasts.error(errorMessage(e));
@@ -172,27 +220,6 @@
 		}
 	}
 
-	async function enableIfNeeded() {
-		if (!jobId || !enableTimer || !schedule.trim()) return true;
-		busy = true;
-		try {
-			const r = await request(site.path(`/cron/${encodeURIComponent(jobId)}/enable`), {
-				method: 'POST'
-			});
-			if (!r.ok) {
-				toasts.error(r.data.error || 'Could not enable timer');
-				return false;
-			}
-			toasts.success('Timer enabled');
-			return true;
-		} catch (e) {
-			toasts.error(errorMessage(e));
-			return false;
-		} finally {
-			busy = false;
-		}
-	}
-
 	async function next() {
 		if (step === 0) {
 			if (!(await createCron())) return;
@@ -211,7 +238,7 @@
 			return;
 		}
 		if (step === 3) {
-			if (!(await saveEntryAndSchedule())) return;
+			if (!(await saveRuntimeAndSchedule())) return;
 			if (!(await enableIfNeeded())) return;
 			step = 4;
 		}
@@ -291,11 +318,43 @@
 		</div>
 	{:else if step === 2}
 		<div class="pane">
-			<h3>Entry</h3>
-			<p class="hint">Path relative to the site root, or pick a file from the job folder.</p>
+			<h3>How it runs</h3>
 			<label class="wbr-field">
-				<span>Exec path</span>
-				<input bind:value={entry} placeholder="./crons/seed/server" disabled={busy} spellcheck="false" />
+				<span>Interpreter</span>
+				<select bind:value={runtimeMode} disabled={busy}>
+					<option value="binary">Binary</option>
+					<option value="node">Node (managed)</option>
+					<option value="custom">Node (custom path)</option>
+				</select>
+			</label>
+			{#if runtimeMode === 'node'}
+				<label class="wbr-field">
+					<span>Node version</span>
+					<select bind:value={nodeVersion} disabled={busy}>
+						{#each nodeChoices as v (v.id)}
+							<option value={v.id}>{v.label}</option>
+						{:else}
+							<option value="20">Node 20</option>
+							<option value="22">Node 22</option>
+							<option value="24">Node 24</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
+			{#if runtimeMode === 'custom'}
+				<label class="wbr-field">
+					<span>Absolute path to node</span>
+					<input bind:value={nodeCommand} placeholder="/usr/local/bin/node" disabled={busy} spellcheck="false" />
+				</label>
+			{/if}
+			<label class="wbr-field">
+				<span>{isNode ? 'Entry script' : 'Binary path'}</span>
+				<input
+					bind:value={entry}
+					placeholder={isNode ? 'server.js' : './server'}
+					disabled={busy}
+					spellcheck="false"
+				/>
 			</label>
 			{#if fsListUrl}
 				<button type="button" class="wbr-btn wbr-btn-ghost sm" disabled={busy} onclick={() => (showPicker = !showPicker)}>
@@ -307,20 +366,28 @@
 						<EntryPicker
 							listUrl={fsListUrl}
 							value={entry}
+							{preferExt}
 							disabled={busy}
 							onselect={(path) => {
-								entry = normalizeEntry(path);
+								entry = path;
+								inferRuntimeFromEntry(path);
 							}}
 						/>
 					{/key}
 				{/if}
 			{/if}
-			<p class="exec-preview">ExecStart: <code>{execPreview || '—'}</code></p>
+			<label class="wbr-field">
+				<span>Extra params (optional)</span>
+				<input bind:value={extraParams} placeholder="--flag value" disabled={busy} spellcheck="false" />
+			</label>
+			<p class="exec-preview">
+				ExecStart preview: <code>{isNode ? `node ${buildExec()}` : buildExec()}</code>
+			</p>
 		</div>
 	{:else if step === 3}
 		<div class="pane">
 			<h3>Schedule</h3>
-			<p class="hint">Optional. Leave off for seed/migrate (Run once only). Enable a timer for recurring work.</p>
+			<p class="hint">Optional. Leave off for seed/migrate (Run once only).</p>
 			<label class="toggle">
 				<input type="checkbox" bind:checked={enableTimer} disabled={busy} />
 				<span>Enable recurring timer</span>
@@ -335,7 +402,7 @@
 	{:else}
 		<div class="pane">
 			<h3>Run</h3>
-			<p class="hint">Run once and watch the journal until it exits. Timer (if set) keeps firing on schedule.</p>
+			<p class="hint">Run once and watch the journal until it exits.</p>
 			<button class="wbr-btn" type="button" disabled={busy || !jobId} onclick={() => void runOnce()}>
 				<Icon name="play" size={15} />
 				{busy ? 'Starting…' : ran ? 'Run again' : 'Run once'}

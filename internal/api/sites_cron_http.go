@@ -42,6 +42,7 @@ func cronView(domain string, job config.CronJob, st *helper.CronStatusResult) ma
 		"dir":      "crons/" + strings.ToLower(strings.TrimSpace(job.Name)),
 		"unit":     systemd.CronServiceUnitName(domain, job.Name),
 		"timer":    systemd.CronTimerUnitName(domain, job.Name),
+		"runtime":  runtimeView(job.Runtime),
 	}
 	if st != nil {
 		v["timer_active"] = st.TimerActive
@@ -170,6 +171,12 @@ func (s *Server) handlePatchCron(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Schedule *string `json:"schedule"`
 		Exec     *string `json:"exec"`
+		Runtime  *struct {
+			Kind    string `json:"kind"`
+			Version string `json:"version"`
+			Command string `json:"command"`
+			Clear   bool   `json:"clear"`
+		} `json:"runtime"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.writeErr(w, 400, "invalid json")
@@ -210,6 +217,27 @@ func (s *Server) handlePatchCron(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		job.Exec = execPath
+	}
+	if body.Runtime != nil {
+		if body.Runtime.Clear || strings.TrimSpace(body.Runtime.Kind) == "" {
+			job.Runtime = nil
+		} else {
+			job.Runtime = &config.SiteRuntime{
+				Kind:    body.Runtime.Kind,
+				Version: body.Runtime.Version,
+				Command: body.Runtime.Command,
+			}
+			if err := config.ValidateNodeRuntimeFields(job.Runtime); err != nil {
+				s.writeErr(w, 400, "runtime: "+err.Error())
+				return
+			}
+		}
+	}
+	if job.HasNodeRuntime() && job.Runtime.Command == "" {
+		if err := s.ensureNodeRuntime(job.Runtime.Version); err != nil {
+			s.writeErr(w, 400, err.Error())
+			return
+		}
 	}
 	cfg.Sites[idx].Cron[jIdx] = job
 	if err := config.Save(s.configPath(), cfg); err != nil {
@@ -469,7 +497,7 @@ func (s *Server) stageUpload(w http.ResponseWriter, r *http.Request, siteName, s
 func (s *Server) installCronJob(site config.Site, job config.CronJob) error {
 	if s.HelperSocket != "" {
 		raw, _ := json.Marshal(ipc.InstallCronJobArgs{
-			Domain: site.Name, Job: job.Name, Schedule: job.Schedule, Exec: job.Exec, Limits: site.Limits,
+			Domain: site.Name, Job: job.Name, Schedule: job.Schedule, Exec: job.Exec, Runtime: job.Runtime, Limits: site.Limits,
 		})
 		resp, err := ipc.Call(s.HelperSocket, ipc.Request{ID: "panel", Operation: ipc.OpInstallCronJob, Args: raw})
 		if err != nil {
@@ -502,7 +530,7 @@ func (s *Server) removeCronJob(domain, job string) error {
 func (s *Server) enableCronTimer(site config.Site, job config.CronJob) error {
 	if s.HelperSocket != "" {
 		raw, _ := json.Marshal(ipc.EnableCronTimerArgs{
-			Domain: site.Name, Job: job.Name, Schedule: job.Schedule, Exec: job.Exec, Limits: site.Limits,
+			Domain: site.Name, Job: job.Name, Schedule: job.Schedule, Exec: job.Exec, Runtime: job.Runtime, Limits: site.Limits,
 		})
 		resp, err := ipc.Call(s.HelperSocket, ipc.Request{ID: "panel", Operation: ipc.OpEnableCronTimer, Args: raw})
 		if err != nil {

@@ -7,6 +7,7 @@
 	import { request, errorMessage } from '#lib/api.ts';
 	import { toasts } from '#lib/stores/toasts.svelte.ts';
 
+	type RuntimeMode = 'binary' | 'node' | 'custom';
 	type ArtifactKind = 'zip' | 'binary';
 	type ProcessInfo = {
 		name?: string;
@@ -14,17 +15,19 @@
 		dir?: string;
 		unit?: string;
 		active?: boolean;
+		runtime?: { kind?: string; version?: string; command?: string };
 	};
 
 	type Props = {
+		nodeChoices?: { id: string; label: string }[];
 		ondone?: (jobName: string) => void;
 		oncancel?: () => void;
 	};
 
-	let { ondone, oncancel }: Props = $props();
+	let { nodeChoices = [], ondone, oncancel }: Props = $props();
 
 	const site = getSite();
-	const steps = ['Name', 'Upload', 'Entry', 'Start'] as const;
+	const steps = ['Name', 'Upload', 'Run', 'Start'] as const;
 
 	let step = $state(0);
 	let busy = $state(false);
@@ -35,28 +38,38 @@
 	let upload = $state<File | null>(null);
 	let uploaded = $state(false);
 
-	let entry = $state('./server');
+	let runtimeMode = $state<RuntimeMode>('node');
+	let nodeVersion = $state('22');
+	let nodeCommand = $state('');
+	let entry = $state('server.js');
+	let extraParams = $state('');
 	let showPicker = $state(true);
+
 	let started = $state(false);
 	let logUnit = $state('');
 
 	let jobId = $derived(proc?.name || '');
 	let fsListUrl = $derived(jobId ? site.path(`/processes/${encodeURIComponent(jobId)}/fs`) : '');
-	let execPreview = $derived.by(() => {
-		const e = entry.trim();
-		if (!e) return '';
-		if (e.startsWith('./') || e.startsWith('/')) return e;
-		return jobId ? `./processes/${jobId}/${e}` : e;
-	});
+	let isNode = $derived(runtimeMode === 'node' || runtimeMode === 'custom');
+	let preferExt = $derived(isNode ? ['.js', '.mjs', '.cjs'] : ([] as string[]));
 	let logOptions = $derived(
 		jobId ? [{ value: `job:${jobId}`, label: `Process · ${jobId}` }] : ([] as { value: string; label: string }[])
 	);
 
-	function normalizeEntry(path: string): string {
-		const p = path.trim().replace(/^\.\//, '');
-		if (!jobId) return path.trim();
-		if (path.startsWith('./processes/') || path.startsWith('/')) return path.trim();
-		return `./processes/${jobId}/${p}`;
+	function buildExec(): string {
+		const e = entry.trim();
+		const p = extraParams.trim();
+		const local = p ? `${e} ${p}` : e;
+		if (!jobId) return local;
+		if (local.startsWith('./') || local.startsWith('/')) return local;
+		return `./processes/${jobId}/${local}`;
+	}
+
+	function inferRuntimeFromEntry(path: string) {
+		if (/\.(js|mjs|cjs)$/i.test(path) && runtimeMode === 'binary') {
+			runtimeMode = 'node';
+			artifactKind = 'zip';
+		}
 	}
 
 	async function createProcess() {
@@ -76,7 +89,7 @@
 				return false;
 			}
 			proc = r.data.process ?? { name };
-			entry = `./processes/${proc.name}/server`;
+			entry = isNode ? 'server.js' : './server';
 			logUnit = `job:${proc.name}`;
 			return true;
 		} catch (e) {
@@ -106,6 +119,13 @@
 				return false;
 			}
 			uploaded = true;
+			if (artifactKind === 'binary') {
+				runtimeMode = 'binary';
+				entry = './server';
+			} else if (runtimeMode === 'binary') {
+				runtimeMode = 'node';
+				entry = 'server.js';
+			}
 			toasts.success(artifactKind === 'zip' ? 'Zip extracted' : 'Binary uploaded');
 			return true;
 		} catch (e) {
@@ -116,21 +136,31 @@
 		}
 	}
 
-	async function saveEntry() {
+	async function saveRuntime() {
 		if (!jobId) return false;
-		const exec = normalizeEntry(entry);
+		if (!entry.trim()) {
+			toasts.error('Choose an entry file');
+			return false;
+		}
 		busy = true;
 		try {
+			const payload: Record<string, unknown> = { exec: buildExec() };
+			if (runtimeMode === 'binary') {
+				payload.runtime = { clear: true, kind: '' };
+			} else if (runtimeMode === 'custom') {
+				payload.runtime = { kind: 'node', command: nodeCommand.trim() };
+			} else {
+				payload.runtime = { kind: 'node', version: nodeVersion };
+			}
 			const r = await request<{ process?: ProcessInfo }>(
 				site.path(`/processes/${encodeURIComponent(jobId)}`),
-				{ method: 'PATCH', json: { exec } }
+				{ method: 'PATCH', json: payload }
 			);
 			if (!r.ok) {
 				toasts.error(r.data.error || 'Could not save');
 				return false;
 			}
 			proc = r.data.process ?? proc;
-			entry = exec;
 			return true;
 		} catch (e) {
 			toasts.error(errorMessage(e));
@@ -144,6 +174,7 @@
 		if (!jobId) return;
 		busy = true;
 		try {
+			if (!(await saveRuntime())) return;
 			const r = await request(site.path(`/processes/${encodeURIComponent(jobId)}/start`), {
 				method: 'POST'
 			});
@@ -175,7 +206,7 @@
 			return;
 		}
 		if (step === 2) {
-			if (!(await saveEntry())) return;
+			if (!(await saveRuntime())) return;
 			step = 3;
 		}
 	}
@@ -254,10 +285,43 @@
 		</div>
 	{:else if step === 2}
 		<div class="pane">
-			<h3>Entry</h3>
+			<h3>How it runs</h3>
 			<label class="wbr-field">
-				<span>Exec path</span>
-				<input bind:value={entry} placeholder="./processes/worker/server" disabled={busy} spellcheck="false" />
+				<span>Interpreter</span>
+				<select bind:value={runtimeMode} disabled={busy}>
+					<option value="binary">Binary</option>
+					<option value="node">Node (managed)</option>
+					<option value="custom">Node (custom path)</option>
+				</select>
+			</label>
+			{#if runtimeMode === 'node'}
+				<label class="wbr-field">
+					<span>Node version</span>
+					<select bind:value={nodeVersion} disabled={busy}>
+						{#each nodeChoices as v (v.id)}
+							<option value={v.id}>{v.label}</option>
+						{:else}
+							<option value="20">Node 20</option>
+							<option value="22">Node 22</option>
+							<option value="24">Node 24</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
+			{#if runtimeMode === 'custom'}
+				<label class="wbr-field">
+					<span>Absolute path to node</span>
+					<input bind:value={nodeCommand} placeholder="/usr/local/bin/node" disabled={busy} spellcheck="false" />
+				</label>
+			{/if}
+			<label class="wbr-field">
+				<span>{isNode ? 'Entry script' : 'Binary path'}</span>
+				<input
+					bind:value={entry}
+					placeholder={isNode ? 'server.js' : './server'}
+					disabled={busy}
+					spellcheck="false"
+				/>
 			</label>
 			{#if fsListUrl}
 				<button type="button" class="wbr-btn wbr-btn-ghost sm" disabled={busy} onclick={() => (showPicker = !showPicker)}>
@@ -269,15 +333,23 @@
 						<EntryPicker
 							listUrl={fsListUrl}
 							value={entry}
+							{preferExt}
 							disabled={busy}
 							onselect={(path) => {
-								entry = normalizeEntry(path);
+								entry = path;
+								inferRuntimeFromEntry(path);
 							}}
 						/>
 					{/key}
 				{/if}
 			{/if}
-			<p class="exec-preview">ExecStart: <code>{execPreview || '—'}</code></p>
+			<label class="wbr-field">
+				<span>Extra params (optional)</span>
+				<input bind:value={extraParams} placeholder="--flag value" disabled={busy} spellcheck="false" />
+			</label>
+			<p class="exec-preview">
+				ExecStart preview: <code>{isNode ? `node ${buildExec()}` : buildExec()}</code>
+			</p>
 		</div>
 	{:else}
 		<div class="pane">

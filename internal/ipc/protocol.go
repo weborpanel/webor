@@ -233,11 +233,12 @@ type CronStatusArgs struct {
 
 // InstallCronJobArgs installs a cron oneshot (+ optional timer).
 type InstallCronJobArgs struct {
-	Domain   string        `json:"domain"`
-	Job      string        `json:"job"`
-	Schedule string        `json:"schedule,omitempty"`
-	Exec     string        `json:"exec"`
-	Limits   config.Limits `json:"limits,omitempty"`
+	Domain   string              `json:"domain"`
+	Job      string              `json:"job"`
+	Schedule string              `json:"schedule,omitempty"`
+	Exec     string              `json:"exec"`
+	Runtime  *config.SiteRuntime `json:"runtime,omitempty"`
+	Limits   config.Limits       `json:"limits,omitempty"`
 }
 
 // RemoveCronJobArgs removes cron service + timer units.
@@ -248,11 +249,12 @@ type RemoveCronJobArgs struct {
 
 // EnableCronTimerArgs enables the timer for a cron job (schedule required).
 type EnableCronTimerArgs struct {
-	Domain   string        `json:"domain"`
-	Job      string        `json:"job"`
-	Schedule string        `json:"schedule"`
-	Exec     string        `json:"exec"`
-	Limits   config.Limits `json:"limits,omitempty"`
+	Domain   string              `json:"domain"`
+	Job      string              `json:"job"`
+	Schedule string              `json:"schedule"`
+	Exec     string              `json:"exec"`
+	Runtime  *config.SiteRuntime `json:"runtime,omitempty"`
+	Limits   config.Limits       `json:"limits,omitempty"`
 }
 
 // DisableCronTimerArgs disables the cron timer only.
@@ -284,11 +286,12 @@ type ListCronDirArgs struct {
 
 // InstallJobArgs installs a long-running process unit.
 type InstallJobArgs struct {
-	Domain string        `json:"domain"`
-	Job    string        `json:"job"`
-	Exec   string        `json:"exec"`
-	Start  bool          `json:"start,omitempty"`
-	Limits config.Limits `json:"limits,omitempty"`
+	Domain  string              `json:"domain"`
+	Job     string              `json:"job"`
+	Exec    string              `json:"exec"`
+	Runtime *config.SiteRuntime `json:"runtime,omitempty"`
+	Start   bool                `json:"start,omitempty"`
+	Limits  config.Limits       `json:"limits,omitempty"`
 }
 
 // RemoveJobArgs removes a long-running process unit.

@@ -104,3 +104,21 @@ func (s Site) HasNodeRuntime() bool {
 	NormalizeRuntime(s.Runtime)
 	return s.Runtime.Kind == RuntimeKindNode
 }
+
+// HasNodeRuntime reports whether the cron job uses a Node interpreter.
+func (j CronJob) HasNodeRuntime() bool {
+	if j.Runtime == nil {
+		return false
+	}
+	NormalizeRuntime(j.Runtime)
+	return j.Runtime.Kind == RuntimeKindNode
+}
+
+// HasNodeRuntime reports whether the long-running job uses a Node interpreter.
+func (j Job) HasNodeRuntime() bool {
+	if j.Runtime == nil {
+		return false
+	}
+	NormalizeRuntime(j.Runtime)
+	return j.Runtime.Kind == RuntimeKindNode
+}

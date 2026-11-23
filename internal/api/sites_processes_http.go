@@ -33,10 +33,11 @@ func (s *Server) mountProcessRoutes(mux *http.ServeMux) {
 
 func processView(domain string, job config.Job, st *helper.JobStatusResult) map[string]any {
 	v := map[string]any{
-		"name": job.Name,
-		"exec": job.Exec,
-		"dir":  "processes/" + strings.ToLower(strings.TrimSpace(job.Name)),
-		"unit": systemd.JobServiceUnitName(domain, job.Name),
+		"name":    job.Name,
+		"exec":    job.Exec,
+		"dir":     "processes/" + strings.ToLower(strings.TrimSpace(job.Name)),
+		"unit":    systemd.JobServiceUnitName(domain, job.Name),
+		"runtime": runtimeView(job.Runtime),
 	}
 	if st != nil {
 		v["active"] = st.Active
@@ -153,7 +154,13 @@ func (s *Server) handlePatchProcess(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
 	jobName := strings.TrimSpace(r.PathValue("job"))
 	var body struct {
-		Exec *string `json:"exec"`
+		Exec    *string `json:"exec"`
+		Runtime *struct {
+			Kind    string `json:"kind"`
+			Version string `json:"version"`
+			Command string `json:"command"`
+			Clear   bool   `json:"clear"`
+		} `json:"runtime"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		s.writeErr(w, 400, "invalid json")
@@ -184,6 +191,27 @@ func (s *Server) handlePatchProcess(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		job.Exec = execPath
+	}
+	if body.Runtime != nil {
+		if body.Runtime.Clear || strings.TrimSpace(body.Runtime.Kind) == "" {
+			job.Runtime = nil
+		} else {
+			job.Runtime = &config.SiteRuntime{
+				Kind:    body.Runtime.Kind,
+				Version: body.Runtime.Version,
+				Command: body.Runtime.Command,
+			}
+			if err := config.ValidateNodeRuntimeFields(job.Runtime); err != nil {
+				s.writeErr(w, 400, "runtime: "+err.Error())
+				return
+			}
+		}
+	}
+	if job.HasNodeRuntime() && job.Runtime.Command == "" {
+		if err := s.ensureNodeRuntime(job.Runtime.Version); err != nil {
+			s.writeErr(w, 400, err.Error())
+			return
+		}
 	}
 	cfg.Sites[idx].Jobs[jIdx] = job
 	if err := config.Save(s.configPath(), cfg); err != nil {
@@ -362,7 +390,7 @@ func (s *Server) deployProcessUpload(w http.ResponseWriter, r *http.Request, zip
 func (s *Server) installJob(site config.Site, job config.Job, start bool) error {
 	if s.HelperSocket != "" {
 		raw, _ := json.Marshal(ipc.InstallJobArgs{
-			Domain: site.Name, Job: job.Name, Exec: job.Exec, Start: start, Limits: site.Limits,
+			Domain: site.Name, Job: job.Name, Exec: job.Exec, Runtime: job.Runtime, Start: start, Limits: site.Limits,
 		})
 		resp, err := ipc.Call(s.HelperSocket, ipc.Request{ID: "panel", Operation: ipc.OpInstallJob, Args: raw})
 		if err != nil {

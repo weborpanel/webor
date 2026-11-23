@@ -30,6 +30,11 @@ func (o *Ops) InstallJob(site config.Site, job config.Job) (*systemd.JobUnits, e
 	if err := sites.EnsureProcessDir(site.Name, job.Name); err != nil {
 		return nil, fmt.Errorf("processes dir: %w", err)
 	}
+	if job.HasNodeRuntime() && job.Runtime != nil && job.Runtime.Command == "" {
+		if _, err := o.EnsureNodeRuntime(context.Background(), job.Runtime.Version); err != nil {
+			return nil, err
+		}
+	}
 	units, err := systemd.RenderJobUnits(site, job)
 	if err != nil {
 		return nil, err
@@ -51,6 +56,11 @@ func (o *Ops) InstallJobUnit(site config.Site, job config.Job, start bool) (*sys
 	}
 	if err := sites.EnsureProcessDir(site.Name, job.Name); err != nil {
 		return nil, fmt.Errorf("processes dir: %w", err)
+	}
+	if job.HasNodeRuntime() && job.Runtime != nil && job.Runtime.Command == "" {
+		if _, err := o.EnsureNodeRuntime(context.Background(), job.Runtime.Version); err != nil {
+			return nil, err
+		}
 	}
 	units, err := systemd.RenderJobUnits(site, job)
 	if err != nil {

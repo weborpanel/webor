@@ -19,7 +19,7 @@ func makeInstallCronJob(ops *helper.Ops) HandlerFunc {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
 		site := config.Site{Name: args.Domain, Limits: args.Limits}
-		job := config.CronJob{Name: args.Job, Schedule: args.Schedule, Exec: args.Exec}
+		job := config.CronJob{Name: args.Job, Schedule: args.Schedule, Exec: args.Exec, Runtime: args.Runtime}
 		units, err := ops.InstallCronJob(site, job)
 		if err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
@@ -58,7 +58,7 @@ func makeEnableCronTimer(ops *helper.Ops) HandlerFunc {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
 		site := config.Site{Name: args.Domain, Limits: args.Limits}
-		job := config.CronJob{Name: args.Job, Schedule: args.Schedule, Exec: args.Exec}
+		job := config.CronJob{Name: args.Job, Schedule: args.Schedule, Exec: args.Exec, Runtime: args.Runtime}
 		if err := ops.EnableCronTimer(site, job); err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
@@ -150,7 +150,7 @@ func makeInstallJob(ops *helper.Ops) HandlerFunc {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
 		site := config.Site{Name: args.Domain, Limits: args.Limits}
-		job := config.Job{Name: args.Job, Exec: args.Exec}
+		job := config.Job{Name: args.Job, Exec: args.Exec, Runtime: args.Runtime}
 		units, err := ops.InstallJobUnit(site, job, args.Start)
 		if err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}

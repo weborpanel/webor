@@ -30,6 +30,26 @@ func ResolveAppExec(site config.Site, nodeBinOverride string) (AppExec, error) {
 	return resolveNodeExec(site.Name, sites.Root(site.Name), execRaw, site.Runtime, nodeBinOverride)
 }
 
+// ResolveTaskExec builds ExecStart for a cron or long-running process under the site root.
+func ResolveTaskExec(domain, execRaw string, runtime *config.SiteRuntime, nodeBinOverride string) (AppExec, error) {
+	execRaw = strings.TrimSpace(execRaw)
+	if execRaw == "" {
+		return AppExec{}, fmt.Errorf("exec is required")
+	}
+	workDir := sites.Root(domain)
+	if runtime == nil {
+		return resolveBinaryExec(workDir, execRaw)
+	}
+	config.NormalizeRuntime(runtime)
+	if runtime.Kind == "" {
+		return resolveBinaryExec(workDir, execRaw)
+	}
+	if runtime.Kind != config.RuntimeKindNode {
+		return AppExec{}, fmt.Errorf("unsupported runtime kind %q", runtime.Kind)
+	}
+	return resolveNodeExec(domain, workDir, execRaw, runtime, nodeBinOverride)
+}
+
 // ResolveBackendExec builds ExecStart for one static-site HTTP backend under apis/<id>/.
 func ResolveBackendExec(site config.Site, backend config.SiteBackend, nodeBinOverride string) (AppExec, error) {
 	if !backend.Enabled {

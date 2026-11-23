@@ -35,13 +35,19 @@ sites:
     cron:
       - name: seed
         # schedule optional — omit for Run once only (seed/migrate)
-        exec: ./crons/seed/server
+        exec: ./crons/seed/server.js
+        runtime:
+          kind: node
+          version: "22"           # managed Node, or command: /usr/bin/node
       - name: nightly
         schedule: 0 3 * * *   # 5-field cron → systemd OnCalendar timer
         exec: ./crons/nightly/cleanup
     jobs:                         # long-running processes (queues/workers)
       - name: worker
-        exec: ./processes/worker/server
+        exec: ./processes/worker/server.js
+        runtime:
+          kind: node
+          version: "22"
 ```
 
 Rules:
