@@ -136,12 +136,9 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 	if site.Type != config.SiteTypeApp {
 		return AppUnits{}, fmt.Errorf("site %s: type %q (want app)", site.Name, site.Type)
 	}
-	execPath := strings.TrimSpace(site.Exec)
-	if execPath == "" {
-		return AppUnits{}, fmt.Errorf("site %s: exec is required", site.Name)
-	}
-	if !filepath.IsAbs(execPath) {
-		execPath = filepath.Join(sites.Root(site.Name), execPath)
+	appExec, err := ResolveAppExec(site, "")
+	if err != nil {
+		return AppUnits{}, err
 	}
 
 	user := sites.Username(site.Name)
@@ -191,6 +188,9 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 		fmt.Fprintf(&backend, "Group=%s\n", user)
 		fmt.Fprintf(&backend, "WorkingDirectory=%s\n", root)
 		fmt.Fprintf(&backend, "Environment=WBR_SOCK=%s\n", backendSock)
+		if appExec.PathEnv != "" {
+			fmt.Fprintf(&backend, "Environment=PATH=%s:/usr/local/bin:/usr/bin:/bin\n", appExec.PathEnv)
+		}
 		if site.EnvFile != "" {
 			env := site.EnvFile
 			if !filepath.IsAbs(env) {
@@ -198,7 +198,7 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 			}
 			fmt.Fprintf(&backend, "EnvironmentFile=-%s\n", env)
 		}
-		fmt.Fprintf(&backend, "ExecStart=%s\n", execPath)
+		fmt.Fprintf(&backend, "ExecStart=%s\n", appExec.ExecStart)
 		fmt.Fprintf(&backend, "Restart=on-failure\n")
 		appendHardening(&backend, site, root)
 		fmt.Fprintf(&backend, "\n[Install]\n")
@@ -229,7 +229,10 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 	fmt.Fprintf(&svc, "User=%s\n", user)
 	fmt.Fprintf(&svc, "Group=%s\n", user)
 	fmt.Fprintf(&svc, "WorkingDirectory=%s\n", root)
-	fmt.Fprintf(&svc, "ExecStart=%s\n", execPath)
+	if appExec.PathEnv != "" {
+		fmt.Fprintf(&svc, "Environment=PATH=%s:/usr/local/bin:/usr/bin:/bin\n", appExec.PathEnv)
+	}
+	fmt.Fprintf(&svc, "ExecStart=%s\n", appExec.ExecStart)
 	if site.EnvFile != "" {
 		env := site.EnvFile
 		if !filepath.IsAbs(env) {

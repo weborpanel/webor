@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Card from '#lib/components/Card.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
@@ -12,6 +13,7 @@
 
 	type DeployMode = 'binary' | 'git';
 	type Result = { ok: boolean; message: string; at: Date };
+	type RuntimeMode = 'none' | 'node' | 'custom';
 
 	let mode = $state<DeployMode>('binary');
 	let busy = $state(false);
@@ -21,6 +23,13 @@
 	let buildCommand = $state('');
 	let artifact = $state('');
 	let history = $state<Result[]>([]);
+
+	let runtimeMode = $state<RuntimeMode>('none');
+	let nodeVersion = $state('22');
+	let nodeCommand = $state('');
+	let entry = $state('server.js');
+	let runtimeBusy = $state(false);
+	let nodeChoices = $state.raw<{ id: string; label: string }[]>([]);
 
 	function record(ok: boolean, message: string) {
 		history = [{ ok, message, at: new Date() }, ...history].slice(0, 5);
@@ -52,6 +61,65 @@
 			busy = false;
 		}
 	}
+
+	async function loadRuntime() {
+		try {
+			const [rt, vers] = await Promise.all([
+				request<{ runtime?: { kind?: string; version?: string; command?: string }; exec?: string }>(
+					site.path('/runtime')
+				),
+				request<{ versions?: { id: string; label: string }[] }>('/api/runtimes/node')
+			]);
+			if (vers.ok) nodeChoices = vers.data.versions ?? [];
+			if (!rt.ok) return;
+			const r = rt.data.runtime;
+			if (rt.data.exec) entry = rt.data.exec;
+			if (r?.command) {
+				runtimeMode = 'custom';
+				nodeCommand = r.command;
+			} else if (r?.kind === 'node') {
+				runtimeMode = 'node';
+				nodeVersion = r.version || '22';
+			} else {
+				runtimeMode = 'none';
+			}
+		} catch {
+			/* non-fatal */
+		}
+	}
+
+	async function saveRuntime(e: SubmitEvent) {
+		e.preventDefault();
+		runtimeBusy = true;
+		try {
+			const payload: Record<string, unknown> = { exec: entry.trim() };
+			if (runtimeMode === 'none') {
+				payload.clear = true;
+				payload.kind = '';
+			} else if (runtimeMode === 'custom') {
+				payload.kind = 'node';
+				payload.command = nodeCommand.trim();
+			} else {
+				payload.kind = 'node';
+				payload.version = nodeVersion;
+			}
+			const r = await request(site.path('/runtime'), { method: 'PUT', json: payload });
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not save runtime');
+				return;
+			}
+			toasts.success('Runtime saved');
+			void overview.refresh();
+		} catch (err) {
+			toasts.error(errorMessage(err));
+		} finally {
+			runtimeBusy = false;
+		}
+	}
+
+	onMount(() => {
+		if (site.isApp) void loadRuntime();
+	});
 
 	async function deployGit(e: SubmitEvent) {
 		e.preventDefault();
@@ -90,6 +158,62 @@
 	</EmptyState>
 {:else}
 	<div class="layout">
+		<Card
+			title="Runtime"
+			description="For Node: pick a version (downloaded once) or a custom node path. Prefer CI-built Linux artifacts."
+		>
+			<form class="wbr-stack" onsubmit={saveRuntime}>
+				<label class="wbr-field">
+					<span>Interpreter</span>
+					<select bind:value={runtimeMode} disabled={runtimeBusy}>
+						<option value="none">None (raw binary ExecStart)</option>
+						<option value="node">Node (managed)</option>
+						<option value="custom">Node (custom path)</option>
+					</select>
+				</label>
+				{#if runtimeMode === 'node'}
+					<label class="wbr-field">
+						<span>Node version</span>
+						<select bind:value={nodeVersion} disabled={runtimeBusy}>
+							{#each nodeChoices as v (v.id)}
+								<option value={v.id}>{v.label}</option>
+							{:else}
+								<option value="20">Node 20</option>
+								<option value="22">Node 22</option>
+								<option value="24">Node 24</option>
+							{/each}
+						</select>
+					</label>
+				{/if}
+				{#if runtimeMode === 'custom'}
+					<label class="wbr-field">
+						<span>Absolute path to node</span>
+						<input bind:value={nodeCommand} placeholder="/usr/local/bin/node" disabled={runtimeBusy} spellcheck="false" />
+					</label>
+				{/if}
+				<label class="wbr-field">
+					<span>{runtimeMode === 'none' ? 'Exec (binary path)' : 'Entry script'}</span>
+					<input
+						bind:value={entry}
+						placeholder={runtimeMode === 'none' ? './bin/server' : 'server.js'}
+						disabled={runtimeBusy}
+						spellcheck="false"
+					/>
+					<span class="hint">
+						{#if runtimeMode === 'none'}
+							Full ExecStart path (Go/Rust binary, etc.).
+						{:else}
+							Runs as <code>node &lt;entry&gt;</code>. Build Linux bundles in CI — see docs/guides/node-ci-deploy.md.
+						{/if}
+					</span>
+				</label>
+				<button class="wbr-btn" type="submit" disabled={runtimeBusy}>
+					<Icon name="check" size={15} />
+					{runtimeBusy ? 'Saving…' : 'Save runtime'}
+				</button>
+			</form>
+		</Card>
+
 		<Card title="New release" description="Upload a binary or build from git. A failed health check rolls back automatically.">
 			<div class="modes" role="tablist" aria-label="Deploy source">
 				<button
@@ -193,6 +317,10 @@
 		grid-template-columns: minmax(0, 1.6fr) minmax(16rem, 1fr);
 		gap: 1rem;
 		align-items: start;
+	}
+
+	.layout > :first-child {
+		grid-column: 1 / -1;
 	}
 
 	.modes {

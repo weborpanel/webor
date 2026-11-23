@@ -2,11 +2,11 @@ package helper
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/weborpanel/webor/internal/distro"
 	"github.com/weborpanel/webor/internal/providers/dbengine"
 	"github.com/weborpanel/webor/internal/providers/mariadb"
 )
@@ -41,21 +41,24 @@ func (o *Ops) MariaDBStatus() (*MariaDBStatusResult, error) {
 	return res, nil
 }
 
-// InstallMariaDB installs and enables MariaDB (Debian/Ubuntu).
+// InstallMariaDB installs and enables MariaDB (Debian/Ubuntu or Alma/RHEL).
 func (o *Ops) InstallMariaDB() error {
-	if _, err := exec.LookPath("apt-get"); err != nil {
-		return fmt.Errorf("apt-get not found (InstallMariaDB supports Debian/Ubuntu)")
+	info := distro.Detect()
+	switch {
+	case info.IsRHEL() || distro.LookManager() == "dnf" || distro.LookManager() == "yum":
+		if err := distro.InstallPackages("mariadb-server"); err != nil {
+			return err
+		}
+	case info.IsDebian() || distro.LookManager() == "apt-get":
+		if err := distro.InstallPackages("mariadb-server", "mariadb-client"); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("InstallMariaDB needs apt-get or dnf (Debian/Ubuntu or AlmaLinux/RHEL)")
 	}
-	cmds := [][]string{
-		{"apt-get", "update", "-qq"},
-		{"apt-get", "install", "-y", "mariadb-server", "mariadb-client"},
-		{"systemctl", "enable", "--now", "mariadb"},
-	}
-	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("%s: %w (%s)", strings.Join(args, " "), err, truncateOut(out))
+	if err := distro.RunCommands([][]string{{"systemctl", "enable", "--now", "mariadb"}}); err != nil {
+		if err2 := distro.RunCommands([][]string{{"systemctl", "enable", "--now", "mysqld"}}); err2 != nil {
+			return err
 		}
 	}
 	st, err := o.MariaDBStatus()

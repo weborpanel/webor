@@ -301,6 +301,32 @@ func ValidateDeployStaticZipArgs(a DeployStaticZipArgs) error {
 	return nil
 }
 
+// ValidateDeployAppZipArgs validates DeployAppZip arguments.
+func ValidateDeployAppZipArgs(a DeployAppZipArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	p := filepath.Clean(strings.TrimSpace(a.ZipPath))
+	if p == "" || p == "." {
+		return fmt.Errorf("zip_path is required")
+	}
+	if !filepath.IsAbs(p) {
+		return fmt.Errorf("zip_path must be absolute")
+	}
+	domain := strings.ToLower(strings.TrimSpace(a.Domain))
+	allowedPrefixes := []string{
+		filepath.Join(sitesRoot, domain, "tmp") + string(filepath.Separator),
+		filepath.Join("/var/lib/webor/uploads", domain) + string(filepath.Separator),
+		filepath.Join(sitesRoot, domain) + string(filepath.Separator),
+	}
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			return nil
+		}
+	}
+	return fmt.Errorf("zip_path %q not under allowed directories", p)
+}
+
 // ValidateDeployAppBinaryArgs validates DeployAppBinary arguments.
 func ValidateDeployAppBinaryArgs(a DeployAppBinaryArgs) error {
 	if err := ValidateDomain(a.Domain); err != nil {
@@ -422,13 +448,27 @@ func ValidateJournalTailArgs(a JournalTailArgs) error {
 	}
 	switch {
 	case sel == "app", sel == "backend":
+	case sel == "apis":
+		if len(a.APIIds) == 0 {
+			return fmt.Errorf("api_ids required when unit is apis")
+		}
+		for _, id := range a.APIIds {
+			if err := config.ValidateBackendID(id); err != nil {
+				return fmt.Errorf("invalid api_ids entry")
+			}
+		}
+	case strings.HasPrefix(sel, "api:"):
+		id := strings.TrimSpace(sel[strings.IndexByte(sel, ':')+1:])
+		if err := config.ValidateBackendID(id); err != nil {
+			return fmt.Errorf("invalid unit selector")
+		}
 	case strings.HasPrefix(sel, "cron:"), strings.HasPrefix(sel, "job:"):
 		name := strings.TrimSpace(sel[strings.IndexByte(sel, ':')+1:])
 		if name == "" || len(name) > 64 || strings.ContainsAny(name, "/\\\n\r") {
 			return fmt.Errorf("invalid unit selector")
 		}
 	default:
-		return fmt.Errorf("unit must be app|backend|cron:<name>|job:<name>")
+		return fmt.Errorf("unit must be app|backend|apis|api:<id>|cron:<name>|job:<name>")
 	}
 	if a.Lines < 0 || a.Lines > 500 {
 		return fmt.Errorf("lines out of range")
@@ -583,6 +623,13 @@ func ValidateEnsureHTTPBackendArgs(a EnsureHTTPBackendArgs) error {
 	if err := ValidateDomain(a.Domain); err != nil {
 		return err
 	}
+	id := strings.ToLower(strings.TrimSpace(a.ID))
+	if id == "" {
+		id = "api"
+	}
+	if err := config.ValidateBackendID(id); err != nil {
+		return fmt.Errorf("id: %w", err)
+	}
 	if a.Port < config.BackendPortMin || a.Port > config.BackendPortMax {
 		return fmt.Errorf("port %d out of range %d-%d", a.Port, config.BackendPortMin, config.BackendPortMax)
 	}
@@ -600,17 +647,27 @@ func ValidateEnsureHTTPBackendArgs(a EnsureHTTPBackendArgs) error {
 	}
 	execPath := strings.TrimSpace(a.Exec)
 	if execPath == "" {
-		execPath = "./bin/server"
+		execPath = "./server"
 	}
 	if strings.Contains(execPath, "..") {
 		return fmt.Errorf("invalid exec path")
+	}
+	if err := config.ValidateBackendRuntime(a.Runtime); err != nil {
+		return err
 	}
 	return nil
 }
 
 // ValidateRemoveHTTPBackendArgs validates RemoveHTTPBackend arguments.
 func ValidateRemoveHTTPBackendArgs(a RemoveHTTPBackendArgs) error {
-	return ValidateDomain(a.Domain)
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	id := strings.ToLower(strings.TrimSpace(a.ID))
+	if id == "" {
+		id = "api"
+	}
+	return config.ValidateBackendID(id)
 }
 
 // ValidateDeployHTTPBackendArgs validates DeployHTTPBackend arguments.
@@ -618,10 +675,163 @@ func ValidateDeployHTTPBackendArgs(a DeployHTTPBackendArgs) error {
 	if err := ValidateDomain(a.Domain); err != nil {
 		return err
 	}
+	id := strings.ToLower(strings.TrimSpace(a.ID))
+	if id == "" {
+		id = "api"
+	}
+	if err := config.ValidateBackendID(id); err != nil {
+		return fmt.Errorf("id: %w", err)
+	}
 	return ValidateDeployAppBinaryArgs(DeployAppBinaryArgs{Domain: a.Domain, BinaryPath: a.BinaryPath})
+}
+
+// ValidateDeployHTTPBackendZipArgs validates DeployHTTPBackendZip arguments.
+func ValidateDeployHTTPBackendZipArgs(a DeployHTTPBackendZipArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	id := strings.ToLower(strings.TrimSpace(a.ID))
+	if id == "" {
+		id = "api"
+	}
+	if err := config.ValidateBackendID(id); err != nil {
+		return fmt.Errorf("id: %w", err)
+	}
+	p := strings.TrimSpace(a.ZipPath)
+	if p == "" {
+		return fmt.Errorf("zip_path is required")
+	}
+	if !filepath.IsAbs(p) {
+		return fmt.Errorf("zip_path must be absolute")
+	}
+	if strings.Contains(p, "..") {
+		return fmt.Errorf("invalid zip_path")
+	}
+	return nil
 }
 
 // ValidateHTTPBackendStatusArgs validates HTTPBackendStatus arguments.
 func ValidateHTTPBackendStatusArgs(a HTTPBackendStatusArgs) error {
-	return ValidateDomain(a.Domain)
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	id := strings.ToLower(strings.TrimSpace(a.ID))
+	if id == "" {
+		id = "api"
+	}
+	return config.ValidateBackendID(id)
+}
+
+// ValidateListAPIDirArgs validates ListAPIDir arguments.
+func ValidateListAPIDirArgs(a ListAPIDirArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	if err := config.ValidateBackendID(a.ID); err != nil {
+		return fmt.Errorf("id: %w", err)
+	}
+	if strings.Contains(a.Path, "..") {
+		return fmt.Errorf("path must not contain ..")
+	}
+	return nil
+}
+
+func defaultBackupConfigPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return "/etc/webor/config.yaml"
+	}
+	if !strings.HasPrefix(p, "/etc/webor/") && p != "/etc/webor/config.yaml" {
+		return ""
+	}
+	return p
+}
+
+// ValidateBackupConfigureArgs validates BackupConfigure.
+func ValidateBackupConfigureArgs(a BackupConfigureArgs) error {
+	if strings.TrimSpace(a.ApprovalID) == "" {
+		return fmt.Errorf("approval_id is required")
+	}
+	if defaultBackupConfigPath(a.ConfigPath) == "" {
+		return fmt.Errorf("invalid config_path")
+	}
+	if strings.TrimSpace(a.Repository) != "" {
+		return nil
+	}
+	if strings.TrimSpace(a.Bucket) == "" {
+		return fmt.Errorf("bucket is required")
+	}
+	if strings.TrimSpace(a.Endpoint) == "" {
+		return fmt.Errorf("endpoint is required")
+	}
+	return nil
+}
+
+// ValidateBackupRunArgs validates BackupRun.
+func ValidateBackupRunArgs(a BackupRunArgs) error {
+	if defaultBackupConfigPath(a.ConfigPath) == "" {
+		return fmt.Errorf("invalid config_path")
+	}
+	return nil
+}
+
+// ValidateBackupListArgs validates BackupList.
+func ValidateBackupListArgs(a BackupListArgs) error {
+	return ValidateBackupRunArgs(BackupRunArgs{ConfigPath: a.ConfigPath})
+}
+
+// ValidateBackupForgetArgs validates BackupForget.
+func ValidateBackupForgetArgs(a BackupForgetArgs) error {
+	if strings.TrimSpace(a.ApprovalID) == "" {
+		return fmt.Errorf("approval_id is required")
+	}
+	return ValidateBackupRunArgs(BackupRunArgs{ConfigPath: a.ConfigPath})
+}
+
+// ValidateBackupRestoreArgs validates BackupRestore.
+func ValidateBackupRestoreArgs(a BackupRestoreArgs) error {
+	if strings.TrimSpace(a.ApprovalID) == "" {
+		return fmt.Errorf("approval_id is required")
+	}
+	if strings.TrimSpace(a.SnapshotID) == "" {
+		return fmt.Errorf("snapshot_id is required")
+	}
+	if len(a.Sites) == 0 && !a.IncludePanel {
+		return fmt.Errorf("select at least one site or include_panel")
+	}
+	for _, s := range a.Sites {
+		if err := ValidateDomain(s); err != nil {
+			return fmt.Errorf("sites: %w", err)
+		}
+	}
+	if defaultBackupConfigPath(a.ConfigPath) == "" {
+		return fmt.Errorf("invalid config_path")
+	}
+	sd := strings.TrimSpace(a.StateDir)
+	if sd != "" && sd != "/var/lib/webor" && !strings.HasPrefix(sd, "/var/lib/webor/") {
+		return fmt.Errorf("invalid state_dir")
+	}
+	return nil
+}
+
+// ValidateBackupStatusArgs validates BackupStatus.
+func ValidateBackupStatusArgs(a BackupStatusArgs) error {
+	return ValidateBackupRunArgs(BackupRunArgs{ConfigPath: a.ConfigPath})
+}
+
+// ValidateEnsureBackupScheduleArgs validates EnsureBackupSchedule.
+func ValidateEnsureBackupScheduleArgs(a EnsureBackupScheduleArgs) error {
+	return ValidateBackupRunArgs(BackupRunArgs{ConfigPath: a.ConfigPath})
+}
+
+// ValidateEnsureNodeRuntimeArgs validates EnsureNodeRuntime.
+func ValidateEnsureNodeRuntimeArgs(a EnsureNodeRuntimeArgs) error {
+	v := strings.TrimSpace(strings.TrimPrefix(a.Version, "v"))
+	if v == "" {
+		return fmt.Errorf("version is required")
+	}
+	if err := config.ValidateSiteRuntime(config.SiteTypeApp, &config.SiteRuntime{Kind: config.RuntimeKindNode, Version: v}); err != nil {
+		return err
+	}
+	return nil
 }

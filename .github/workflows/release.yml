@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Release channel (stable or beta)"
+        required: true
+        default: "beta"
+        type: choice
+        options:
+          - stable
+          - beta
+
+permissions:
+  contents: read
+
+env:
+  WEBOR_RELEASE_BUCKET: webor-releases-360386317256
+  WEBOR_RELEASE_REGION: ap-south-1
+  WEBOR_BASE_URL: https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Resolve channel
+        id: meta
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Embed panel UI
+        run: make web
+
+      - name: Cross-build linux amd64 + arm64
+        run: |
+          set -euo pipefail
+          test -f internal/ui/dist/200.html
+          mkdir -p bin dist
+          for arch in amd64 arm64; do
+            echo "::group::build $arch"
+            GOOS=linux GOARCH="$arch" CGO_ENABLED=0 \
+              go build -trimpath -ldflags="-s -w" -o "bin/webor" ./cmd/webor
+            GOOS=linux GOARCH="$arch" CGO_ENABLED=0 \
+              go build -trimpath -ldflags="-s -w" -o "bin/webor-helper" ./cmd/webor-helper
+            GOOS=linux GOARCH="$arch" CGO_ENABLED=0 \
+              go build -trimpath -ldflags="-s -w" -o "bin/wbr" ./cmd/wbr
+            WEBOR_CHANNEL="${{ steps.meta.outputs.channel }}" WEBOR_ARCH="$arch" \
+              ./scripts/pack-public.sh
+            echo "::endgroup::"
+          done
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.WEBOR_RELEASE_REGION }}
+          # OIDC: replace with role-to-assume later (see docs/guides/release-s3.md)
+
+      - name: Upload to S3
+        env:
+          WEBOR_RELEASE_BUCKET: ${{ env.WEBOR_RELEASE_BUCKET }}
+          WEBOR_RELEASE_REGION: ${{ env.WEBOR_RELEASE_REGION }}
+          WEBOR_BASE_URL: ${{ env.WEBOR_BASE_URL }}
+        run: ./scripts/upload-public.sh
+
+      - name: Summary
+        run: |
+          ch="${{ steps.meta.outputs.channel }}"
+          echo "### Webor ${{ steps.meta.outputs.version }} → ${ch}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "curl -fsSL ${WEBOR_BASE_URL}/install | sudo bash" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- amd64: \`${WEBOR_BASE_URL}/downloads/${ch}/webor-linux-amd64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- arm64: \`${WEBOR_BASE_URL}/downloads/${ch}/webor-linux-arm64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"

@@ -141,7 +141,7 @@
 		<EmptyState
 			icon="globe"
 			title="No sites yet"
-			description="Add a domain to create its site user, directories and Caddy route."
+			description="Add a domain to create its site user, directories and Caddy route. After that, you can publish the panel on a subdomain from Domains."
 		>
 			<button type="button" class="wbr-btn" onclick={() => (ui.addSiteOpen = true)}>
 				<Icon name="plus" size={15} /> Add your first site

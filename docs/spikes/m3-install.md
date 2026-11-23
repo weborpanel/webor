@@ -45,7 +45,7 @@ sudo ./install/install.sh --uninstall --purge --yes
 
 ## Notes
 
-- First-run listens on a random high port with HTTP (or self-signed TLS if `--enable-https`). Move the panel behind Caddy on a real domain and close the extra port once DNS is green.
+- First-run listens on a random high port with HTTP (or self-signed TLS if `--enable-https`). After adding an apex site, use Domains → **Panel access** to publish the panel on a subdomain via Caddy reverse-proxy; close the high port in the firewall once DNS is green.
 - Installer never opens firewall ports automatically.
 - Helper socket is `0660` `root:webor` so the panel user can call IPC without being root.
 - Helper must not use `ProtectSystem=full` (blocks `useradd`). See `docs/spikes/m3-helper-review.md`.

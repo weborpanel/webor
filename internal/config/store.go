@@ -29,7 +29,14 @@ func OpenDB(stateDir string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;`); err != nil {
+	// busy_timeout: panel + helper both open state.db; without it concurrent writers
+	// can surface SQLITE_BUSY and, under hard kills, contribute to WAL/corruption pain.
+	if _, err := db.Exec(`
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+PRAGMA busy_timeout = 5000;
+PRAGMA synchronous = NORMAL;
+`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("pragma: %w", err)
 	}

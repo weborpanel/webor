@@ -1,2 +1,2 @@
-// Package auth handles admin sessions, TOTP, and step-up approvals.
+// Package auth handles admin sessions, TOTP, step-up approvals, and site deploy tokens.
 package auth

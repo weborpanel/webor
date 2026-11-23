@@ -109,10 +109,15 @@ func (o *Ops) JournalTail(unit string, lines int) (string, error) {
 	if lines > 500 {
 		lines = 500
 	}
-	cmd := exec.Command("journalctl", "-u", unit, "-n", strconv.Itoa(lines), "--no-pager", "-o", "short-iso")
+	cmd := exec.Command("journalctl", "--system", "-u", unit, "-n", strconv.Itoa(lines), "--no-pager", "-o", "short-iso", "-q")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("journalctl %s: %w (%s)", unit, err, strings.TrimSpace(string(out)))
+		msg := strings.TrimSpace(string(out))
+		// Fresh units often have no journal yet; treat as empty rather than hard-fail.
+		if msg == "" || strings.Contains(msg, "No entries") || strings.Contains(msg, "-- No entries --") {
+			return "", nil
+		}
+		return "", fmt.Errorf("journalctl %s: %w (%s)", unit, err, msg)
 	}
 	return string(out), nil
 }

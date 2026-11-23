@@ -1,7 +1,11 @@
 // Package ipc defines the typed JSON protocol between webor and webor-helper.
 package ipc
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/weborpanel/webor/internal/config"
+)
 
 // DefaultSocketPath is the production Unix socket for helper IPC.
 const DefaultSocketPath = "/run/webor/helper.sock"
@@ -19,6 +23,7 @@ const (
 	OpExtractPublicArchive  = "ExtractPublicArchive"
 	OpDeployStaticZip       = "DeployStaticZip"
 	OpDeployAppBinary = "DeployAppBinary"
+	OpDeployAppZip    = "DeployAppZip"
 	OpDeployAppGit    = "DeployAppGit"
 	OpRunBuild        = "RunBuild"
 	OpWriteUnitFile   = "WriteUnitFile"
@@ -46,7 +51,18 @@ const (
 	OpEnsureHTTPBackend      = "EnsureHTTPBackend"
 	OpRemoveHTTPBackend      = "RemoveHTTPBackend"
 	OpDeployHTTPBackend      = "DeployHTTPBackend"
+	OpDeployHTTPBackendZip   = "DeployHTTPBackendZip"
 	OpHTTPBackendStatus      = "HTTPBackendStatus"
+	OpRestartHTTPBackend     = "RestartHTTPBackend"
+	OpListAPIDir             = "ListAPIDir"
+	OpBackupConfigure        = "BackupConfigure"
+	OpBackupRun              = "BackupRun"
+	OpBackupList             = "BackupList"
+	OpBackupForget           = "BackupForget"
+	OpBackupRestore          = "BackupRestore"
+	OpBackupStatus           = "BackupStatus"
+	OpEnsureBackupSchedule   = "EnsureBackupSchedule"
+	OpEnsureNodeRuntime      = "EnsureNodeRuntime"
 )
 
 // Request is a single typed helper operation. Arguments are never shell strings.
@@ -147,6 +163,12 @@ type DeployAppBinaryArgs struct {
 	BinaryPath string `json:"binary_path"`
 }
 
+// DeployAppZipArgs extracts a zip into the app site root and restarts the unit.
+type DeployAppZipArgs struct {
+	Domain  string `json:"domain"`
+	ZipPath string `json:"zip_path"`
+}
+
 // DeployAppGitArgs clones/fetches, builds, and deploys an app artifact.
 type DeployAppGitArgs struct {
 	Domain       string `json:"domain"`
@@ -190,11 +212,12 @@ type CronStatusArgs struct {
 	Job    string `json:"job"`
 }
 
-// JournalTailArgs tails a site unit journal (app|backend|cron:<n>|job:<n>).
+// JournalTailArgs tails a site unit journal (app|backend|apis|api:<id>|cron:<n>|job:<n>).
 type JournalTailArgs struct {
-	Domain   string `json:"domain"`
-	Unit     string `json:"unit"` // selector
-	Lines    int    `json:"lines,omitempty"`
+	Domain string   `json:"domain"`
+	Unit   string   `json:"unit"` // selector
+	Lines  int      `json:"lines,omitempty"`
+	APIIds []string `json:"api_ids,omitempty"` // required when Unit is "apis"
 }
 
 // RequestApprovalArgs creates a pending step-up approval bound to an operation.
@@ -297,26 +320,109 @@ type RotateCachePasswordArgs struct {
 
 // EnsureHTTPBackendArgs installs/enables the loopback HTTP backend unit for a static site.
 type EnsureHTTPBackendArgs struct {
-	Domain    string   `json:"domain"`
-	Prefix    string   `json:"prefix,omitempty"`
-	Paths     []string `json:"paths,omitempty"`
-	WebSocket bool     `json:"websocket,omitempty"`
-	Exec      string   `json:"exec,omitempty"`
-	Port      int      `json:"port"`
+	Domain    string              `json:"domain"`
+	ID        string              `json:"id,omitempty"`
+	Prefix    string              `json:"prefix,omitempty"`
+	Paths     []string            `json:"paths,omitempty"`
+	WebSocket bool                `json:"websocket,omitempty"`
+	Exec      string              `json:"exec,omitempty"`
+	Port      int                 `json:"port"`
+	Runtime   *config.SiteRuntime `json:"runtime,omitempty"`
 }
 
 // RemoveHTTPBackendArgs stops and removes the HTTP backend unit.
 type RemoveHTTPBackendArgs struct {
 	Domain string `json:"domain"`
+	ID     string `json:"id,omitempty"`
 }
 
-// DeployHTTPBackendArgs deploys a binary to the site HTTP backend and restarts it.
+// DeployHTTPBackendArgs deploys a binary to apis/<id>/server and restarts it.
 type DeployHTTPBackendArgs struct {
 	Domain     string `json:"domain"`
+	ID         string `json:"id,omitempty"`
 	BinaryPath string `json:"binary_path"`
+}
+
+// DeployHTTPBackendZipArgs extracts a zip into apis/<id>/ and restarts the backend.
+type DeployHTTPBackendZipArgs struct {
+	Domain  string `json:"domain"`
+	ID      string `json:"id,omitempty"`
+	ZipPath string `json:"zip_path"`
 }
 
 // HTTPBackendStatusArgs reports whether the backend unit is active.
 type HTTPBackendStatusArgs struct {
 	Domain string `json:"domain"`
+	ID     string `json:"id,omitempty"`
+}
+
+// RestartHTTPBackendArgs restarts one HTTP backend unit.
+type RestartHTTPBackendArgs struct {
+	Domain string `json:"domain"`
+	ID     string `json:"id,omitempty"`
+}
+
+// ListAPIDirArgs lists one directory under apis/<id>/.
+type ListAPIDirArgs struct {
+	Domain string `json:"domain"`
+	ID     string `json:"id"`
+	Path   string `json:"path,omitempty"`
+}
+
+// BackupConfigureArgs writes backup settings + credentials (approval-gated).
+type BackupConfigureArgs struct {
+	ConfigPath     string `json:"config_path,omitempty"`
+	Endpoint       string `json:"endpoint"`
+	Region         string `json:"region,omitempty"`
+	Bucket         string `json:"bucket"`
+	Prefix         string `json:"prefix,omitempty"`
+	Schedule       string `json:"schedule,omitempty"`
+	KeepDaily      int    `json:"keep_daily,omitempty"`
+	KeepWeekly     int    `json:"keep_weekly,omitempty"`
+	Repository     string `json:"repository,omitempty"` // lab override
+	AccessKey      string `json:"access_key,omitempty"`
+	SecretKey      string `json:"secret_key,omitempty"`
+	ResticPassword string `json:"restic_password,omitempty"`
+	ApprovalID     string `json:"approval_id"`
+}
+
+// BackupRunArgs kicks a full backup.
+type BackupRunArgs struct {
+	ConfigPath string `json:"config_path,omitempty"`
+}
+
+// BackupListArgs lists snapshots.
+type BackupListArgs struct {
+	ConfigPath string `json:"config_path,omitempty"`
+}
+
+// BackupForgetArgs runs retention prune (approval-gated).
+type BackupForgetArgs struct {
+	ConfigPath string `json:"config_path,omitempty"`
+	ApprovalID string `json:"approval_id"`
+}
+
+// BackupRestoreArgs selectively restores sites from a snapshot (approval-gated).
+type BackupRestoreArgs struct {
+	ConfigPath   string   `json:"config_path,omitempty"`
+	StateDir     string   `json:"state_dir,omitempty"`
+	SnapshotID   string   `json:"snapshot_id"`
+	Sites        []string `json:"sites"`
+	IncludePanel bool     `json:"include_panel,omitempty"`
+	ApprovalID   string   `json:"approval_id"`
+}
+
+// BackupStatusArgs reports restic/credentials readiness.
+type BackupStatusArgs struct {
+	ConfigPath string `json:"config_path,omitempty"`
+}
+
+// EnsureBackupScheduleArgs syncs webor-backup.timer from config.
+type EnsureBackupScheduleArgs struct {
+	ConfigPath string `json:"config_path,omitempty"`
+}
+
+// EnsureNodeRuntimeArgs downloads/caches an official Node build.
+type EnsureNodeRuntimeArgs struct {
+	Version string `json:"version"`
 }

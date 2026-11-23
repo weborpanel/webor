@@ -12,59 +12,73 @@ import (
 // HTTPBackendUnitPrefix is applied to static-site HTTP backend units.
 const HTTPBackendUnitPrefix = "webor-backend-"
 
-// HTTPBackendUnitName returns webor-backend-<domain>.service.
-func HTTPBackendUnitName(domain string) string {
-	return HTTPBackendUnitPrefix + UnitBase(domain) + ".service"
+// HTTPBackendUnitName returns webor-backend-<domain>-<id>.service.
+func HTTPBackendUnitName(domain, id string) string {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if id == "" {
+		id = "api"
+	}
+	return HTTPBackendUnitPrefix + UnitBase(domain) + "-" + UnitBase(id) + ".service"
 }
 
-// RenderHTTPBackendUnit builds an always-on systemd unit for a static site's HTTP backend.
-// The process receives PORT, WBR_PORT, and HOST=127.0.0.1.
-func RenderHTTPBackendUnit(site config.Site) (unitName string, content string, err error) {
+// RenderHTTPBackendUnit builds an always-on systemd unit for one HTTP backend on a static site.
+func RenderHTTPBackendUnit(site config.Site, backend config.SiteBackend) (unitName string, content string, err error) {
+	return RenderHTTPBackendUnitWithNode(site, backend, "")
+}
+
+// RenderHTTPBackendUnitWithNode is like RenderHTTPBackendUnit but allows a test override for the node binary.
+func RenderHTTPBackendUnitWithNode(site config.Site, backend config.SiteBackend, nodeBinOverride string) (unitName string, content string, err error) {
 	if site.Type != config.SiteTypeStatic {
 		return "", "", fmt.Errorf("site %s: type %q (want static)", site.Name, site.Type)
 	}
-	if site.Backend == nil || !site.Backend.Enabled {
+	if !backend.Enabled {
 		return "", "", fmt.Errorf("site %s: backend not enabled", site.Name)
 	}
-	config.NormalizeBackend(site.Backend)
-	if site.Backend.Port < config.BackendPortMin || site.Backend.Port > config.BackendPortMax {
-		return "", "", fmt.Errorf("site %s: invalid backend port %d", site.Name, site.Backend.Port)
+	config.NormalizeBackend(&backend)
+	if backend.Port < config.BackendPortMin || backend.Port > config.BackendPortMax {
+		return "", "", fmt.Errorf("site %s backend %s: invalid port %d", site.Name, backend.ID, backend.Port)
 	}
-	execPath := strings.TrimSpace(site.Backend.Exec)
-	if execPath == "" {
-		return "", "", fmt.Errorf("site %s: backend.exec is required", site.Name)
-	}
-	if !filepath.IsAbs(execPath) {
-		execPath = filepath.Join(sites.Root(site.Name), execPath)
+
+	appExec, err := ResolveBackendExec(site, backend, nodeBinOverride)
+	if err != nil {
+		return "", "", err
 	}
 
 	user := sites.Username(site.Name)
-	root := sites.Root(site.Name)
-	name := HTTPBackendUnitName(site.Name)
+	siteRoot := sites.Root(site.Name)
+	apiRoot := sites.APIs(site.Name, backend.ID)
+	name := HTTPBackendUnitName(site.Name, backend.ID)
 
 	var svc strings.Builder
 	fmt.Fprintf(&svc, "[Unit]\n")
-	fmt.Fprintf(&svc, "Description=Webor HTTP backend %s\n", site.Name)
+	fmt.Fprintf(&svc, "Description=Webor HTTP backend %s (%s)\n", site.Name, backend.ID)
 	fmt.Fprintf(&svc, "After=network.target\n")
 	fmt.Fprintf(&svc, "\n[Service]\n")
 	fmt.Fprintf(&svc, "Type=simple\n")
 	fmt.Fprintf(&svc, "User=%s\n", user)
 	fmt.Fprintf(&svc, "Group=%s\n", user)
-	fmt.Fprintf(&svc, "WorkingDirectory=%s\n", root)
+	fmt.Fprintf(&svc, "WorkingDirectory=%s\n", apiRoot)
+	// ProtectSystem=strict + ReadWritePaths needs this path before NAMESPACE setup.
+	// /run is tmpfs — RuntimeDirectory recreates it on every start (survives reboot).
+	fmt.Fprintf(&svc, "RuntimeDirectory=%s\n", filepath.Join("webor", "sites", site.Name))
+	fmt.Fprintf(&svc, "RuntimeDirectoryPreserve=yes\n")
 	fmt.Fprintf(&svc, "Environment=HOST=127.0.0.1\n")
-	fmt.Fprintf(&svc, "Environment=PORT=%d\n", site.Backend.Port)
-	fmt.Fprintf(&svc, "Environment=WBR_PORT=%d\n", site.Backend.Port)
+	fmt.Fprintf(&svc, "Environment=PORT=%d\n", backend.Port)
+	fmt.Fprintf(&svc, "Environment=WBR_PORT=%d\n", backend.Port)
+	if appExec.PathEnv != "" {
+		fmt.Fprintf(&svc, "Environment=PATH=%s:/usr/local/bin:/usr/bin:/bin\n", appExec.PathEnv)
+	}
 	if site.EnvFile != "" {
 		env := site.EnvFile
 		if !filepath.IsAbs(env) {
-			env = filepath.Join(root, env)
+			env = filepath.Join(siteRoot, env)
 		}
 		fmt.Fprintf(&svc, "EnvironmentFile=-%s\n", env)
 	}
-	fmt.Fprintf(&svc, "ExecStart=%s\n", execPath)
+	fmt.Fprintf(&svc, "ExecStart=%s\n", appExec.ExecStart)
 	fmt.Fprintf(&svc, "Restart=on-failure\n")
 	fmt.Fprintf(&svc, "RestartSec=2s\n")
-	appendHardening(&svc, site, root)
+	appendHardening(&svc, site, siteRoot)
 	fmt.Fprintf(&svc, "\n[Install]\n")
 	fmt.Fprintf(&svc, "WantedBy=multi-user.target\n")
 

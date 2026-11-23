@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/distro"
 	"github.com/weborpanel/webor/internal/helper"
 	"github.com/weborpanel/webor/internal/ipc"
 	"github.com/weborpanel/webor/internal/providers/valkey"
@@ -50,15 +51,19 @@ func (s *Server) handleGetCache(w http.ResponseWriter, r *http.Request) {
 		site = parent
 	}
 	st, _ := s.valkeyStatus()
+	info := distro.Detect()
 	engine := strings.ToLower(strings.TrimSpace(site.Cache))
 	out := map[string]any{
-		"ok":         true,
-		"parent":     parentName,
-		"inherited":  inherited,
-		"attached":   engine != "",
-		"engine":     engine,
-		"valkey":     st,
-		"engines":    []string{valkey.Engine},
+		"ok":            true,
+		"parent":        parentName,
+		"inherited":     inherited,
+		"attached":      engine != "",
+		"engine":        engine,
+		"valkey":        st,
+		"engines":       []string{valkey.Engine},
+		"install_hint":  info.InstallHintValkey(),
+		"start_hint":    info.StartHintValkey(),
+		"os_family":     string(info.Family),
 	}
 	if engine != "" {
 		view := s.cacheView(parentName, false)
@@ -113,21 +118,23 @@ func (s *Server) handleAttachCache(w http.ResponseWriter, r *http.Request) {
 	}
 	if st == nil || !st.Installed {
 		// Package install stays out of the panel approval flow: an operator
-		// installs Valkey as root, then returns here to Attach.
+		// installs Valkey/Redis as root, then returns here to Attach.
+		info := distro.Detect()
 		s.writeJSON(w, 409, map[string]any{
 			"ok":               false,
 			"error":            "valkey not installed",
 			"install_required": true,
-			"hint":             "Log in as root and install Valkey (or Redis), then try Attach again:\n  sudo apt-get update && sudo apt-get install -y valkey\n  sudo systemctl enable --now valkey-server\n(Use the valkey-server unit, not the valkey alias. If valkey is unavailable, or port 6379 is already taken by redis-server, install/start redis-server instead — the panel accepts either.)",
+			"hint":             "Log in as root and install Valkey (or Redis), then try Attach again:\n" + info.InstallHintValkey(),
 		})
 		return
 	}
 	if !st.Active {
+		info := distro.Detect()
 		s.writeJSON(w, 409, map[string]any{
 			"ok":               false,
 			"error":            "valkey installed but not running",
 			"install_required": true,
-			"hint":             "Start the cache as root, then try Attach again:\n  sudo systemctl enable --now valkey-server\nIf that fails because port 6379 is busy, Redis is probably already running — use:\n  sudo systemctl enable --now redis-server\n(Do not run both Valkey and Redis on the same port.)",
+			"hint":             "Start the cache as root, then try Attach again:\n" + info.StartHintValkey(),
 		})
 		return
 	}

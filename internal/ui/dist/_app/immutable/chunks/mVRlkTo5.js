@@ -1,1 +1,0 @@
-import{X as e,dt as t,ft as n}from"./avAlLcZL.js";var r=new class{#e=n(null);get current(){return e(this.#e)}set current(e){t(this.#e,e,!0)}ask(e){return this.current?.resolve(!1),new Promise(t=>{this.current={...e,resolve:t}})}settle(e){let t=this.current;this.current=null,t?.resolve(e)}},i=e=>r.ask(e);export{r as n,i as t};

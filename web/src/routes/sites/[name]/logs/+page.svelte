@@ -10,6 +10,9 @@
 	const site = getSite();
 
 	type Unit = { value: string; label: string };
+	type BackendInfo = { id?: string; prefix?: string; enabled?: boolean };
+
+	let apiBackends = $state.raw<BackendInfo[]>([]);
 
 	let units = $derived.by((): Unit[] => {
 		const list: Unit[] = [];
@@ -17,22 +20,29 @@
 			list.push({ value: 'app', label: site.socketProxy ? 'Proxyd' : 'App' });
 			if (site.socketProxy) list.push({ value: 'backend', label: 'Backend' });
 		}
+		const apis = apiBackends.filter((b) => b.enabled !== false && b.id);
+		if (apis.length > 1) list.push({ value: 'apis', label: 'All APIs' });
+		for (const b of apis) {
+			list.push({ value: `api:${b.id}`, label: `API · ${b.prefix || b.id}` });
+		}
 		for (const c of site.cron) list.push({ value: `cron:${c}`, label: `Cron · ${c}` });
 		for (const j of site.jobs) list.push({ value: `job:${j}`, label: `Job · ${j}` });
 		return list;
 	});
 
-	function defaultUnit() {
+	function defaultUnit(list: Unit[]) {
 		if (site.socketProxy) return 'backend';
 		if (site.isApp) return 'app';
+		const apis = list.filter((u) => u.value.startsWith('api:') || u.value === 'apis');
+		if (apis.length) return apis[0].value;
 		if (site.cron.length) return `cron:${site.cron[0]}`;
 		if (site.jobs.length) return `job:${site.jobs[0]}`;
-		return '';
+		return list[0]?.value || '';
 	}
 
-	const LINE_OPTIONS = [100, 200, 500, 1000];
+	const LINE_OPTIONS = [100, 200, 500];
 
-	let unit = $state(defaultUnit());
+	let unit = $state('');
 	let lines = $state(200);
 	let text = $state('');
 	let unitName = $state('');
@@ -54,6 +64,16 @@
 		if (/\b(error|fatal|panic|fail(ed)?|exception)\b/i.test(l)) return 'err';
 		if (/\b(warn(ing)?|deprecated)\b/i.test(l)) return 'warn';
 		return '';
+	}
+
+	async function loadBackends() {
+		if (site.isApp) return;
+		try {
+			const r = await request<{ backends?: BackendInfo[] }>(site.path('/backends'));
+			if (r.ok) apiBackends = r.data.backends ?? [];
+		} catch {
+			apiBackends = [];
+		}
 	}
 
 	async function load() {
@@ -94,7 +114,11 @@
 	}
 
 	onMount(() => {
-		void load();
+		void (async () => {
+			await loadBackends();
+			unit = defaultUnit(units);
+			void load();
+		})();
 		return poll(() => {
 			if (follow && !loading) void load();
 		}, 5_000);
@@ -105,8 +129,12 @@
 	<EmptyState
 		icon="terminal"
 		title="No units to show"
-		description="Static sites are served by Caddy. Logs appear here once the site has cron entries or jobs."
-	/>
+		description="Static sites are served by Caddy. Logs appear here once you add an API, cron entry, or job."
+	>
+		{#if !site.isApp}
+			<a class="wbr-btn" href={site.href('/api')}>Add an API</a>
+		{/if}
+	</EmptyState>
 {:else}
 	<Card flush>
 		<div class="toolbar">

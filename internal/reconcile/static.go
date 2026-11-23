@@ -19,6 +19,8 @@ type StaticApplyOptions struct {
 	CaddyLastGood   string
 	HTTPListen      string
 	DisableHTTPS    bool
+	// PanelUpstream dials the panel process for panel.domain (e.g. 127.0.0.1:21215).
+	PanelUpstream string
 	// SeedIndex writes a demo index.html when public/ is empty.
 	SeedIndex bool
 	IndexBody string
@@ -38,9 +40,6 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops helper.SiteFS
 	}
 	if opt.HTTPListen == "" {
 		opt.HTTPListen = ":8080"
-	}
-	if opt.IndexBody == "" {
-		opt.IndexBody = "<!doctype html><title>Webor</title><h1>webor-m0-static-ok</h1>\n"
 	}
 	if local, ok := ops.(*helper.Ops); ok {
 		if local.CaddyAdminURL == "" && opt.CaddyAdminURL != "" {
@@ -69,7 +68,11 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops helper.SiteFS
 			if rootName != "public" {
 				pub = filepath.Join(sites.Root(site.Name), rootName)
 			}
-			if err := seedIndexIfMissing(pub, opt.IndexBody); err != nil {
+			body := opt.IndexBody
+			if body == "" {
+				body = sites.DefaultIndexHTML(site.Name)
+			}
+			if err := seedIndexIfMissing(pub, body); err != nil {
 				// Non-fatal when panel cannot write /srv/sites (helper already seeded).
 				_ = err
 			}
@@ -78,8 +81,9 @@ func ApplyStaticSites(ctx context.Context, cfg *config.Config, ops helper.SiteFS
 
 	// Full Render so app sites stay in Caddy when the panel reloads after HTTPS/DNS changes.
 	raw, err := caddy.Render(cfg, caddy.RenderOptions{
-		HTTPListen:   opt.HTTPListen,
-		DisableHTTPS: opt.DisableHTTPS,
+		HTTPListen:    opt.HTTPListen,
+		DisableHTTPS:  opt.DisableHTTPS,
+		PanelUpstream: opt.PanelUpstream,
 	})
 	if err != nil {
 		return err

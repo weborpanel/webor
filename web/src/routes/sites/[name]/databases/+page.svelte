@@ -36,10 +36,10 @@
 	];
 
 	const PG_INSTALL =
-		'sudo apt-get update && sudo apt-get install -y postgresql postgresql-client\nsudo systemctl enable --now postgresql';
+		'# Debian/Ubuntu\nsudo apt-get update && sudo apt-get install -y postgresql postgresql-client\nsudo systemctl enable --now postgresql\n# AlmaLinux / RHEL\nsudo dnf install -y postgresql-server postgresql\nsudo postgresql-setup --initdb\nsudo systemctl enable --now postgresql';
 	const PG_START = 'sudo systemctl enable --now postgresql';
 	const MARIA_INSTALL =
-		'sudo apt-get update && sudo apt-get install -y mariadb-server\nsudo systemctl enable --now mariadb';
+		'# Debian/Ubuntu\nsudo apt-get update && sudo apt-get install -y mariadb-server\nsudo systemctl enable --now mariadb\n# AlmaLinux / RHEL\nsudo dnf install -y mariadb-server\nsudo systemctl enable --now mariadb';
 	const MARIA_START = 'sudo systemctl enable --now mariadb';
 
 	let databases = $state.raw<DbEntry[]>([]);
@@ -47,11 +47,14 @@
 	let browsePath = $state('/db/');
 	let postgres = $state.raw<EngineStatus>(null);
 	let mariadb = $state.raw<EngineStatus>(null);
+	let pgInstallHint = $state(PG_INSTALL);
+	let pgStartHint = $state(PG_START);
+	let mariaInstallHint = $state(MARIA_INSTALL);
+	let mariaStartHint = $state(MARIA_START);
 	let loading = $state(true);
 	let loadError = $state('');
 	let busy = $state(false);
 	let rotatingId = $state('');
-	let newDbId = $state('');
 	let engine = $state<DbEngine>('sqlite');
 	let revealed = $state<{ id: string; password: string; rotated: boolean } | null>(null);
 	let installHint = $state('');
@@ -60,7 +63,7 @@
 		operationFor: (a) => (a.kind === 'add' ? 'EnsureSiteDatabase' : 'DropSiteDatabase'),
 		argsFor: (op, a) =>
 			op === 'EnsureSiteDatabase' || op === 'DropSiteDatabase'
-				? { domain: site.name, engine: a?.engine || engine, id: a ? a.id : normalizeId(newDbId) }
+				? { domain: site.name, engine: a?.engine || engine, id: a ? a.id : nextDbId(a?.engine || engine) }
 				: {},
 		resume: (a, approvalId) => (a.kind === 'add' ? add(a, approvalId) : remove(a, approvalId)),
 		onError: (m) => toasts.error(m)
@@ -84,19 +87,26 @@
 	let defaultCmdHint = $derived(
 		needsInstall
 			? engine === 'postgres'
-				? PG_INSTALL
-				: MARIA_INSTALL
+				? pgInstallHint
+				: mariaInstallHint
 			: engine === 'postgres'
-				? PG_START
-				: MARIA_START
+				? pgStartHint
+				: mariaStartHint
 	);
-
-	function normalizeId(raw: string) {
-		return raw.trim().toLowerCase() || defaultId;
-	}
 
 	function dbKey(db: DbEntry) {
 		return db.id || defaultId || 'default';
+	}
+
+	/** First DB: omit id (backend uses domain default). Extra DBs: unused engine-based slug. */
+	function nextDbId(eng: string): string {
+		if (databases.length === 0) return '';
+		const taken = new Set(databases.map((db) => dbKey(db).toLowerCase()));
+		const base = eng.trim().toLowerCase() || 'db';
+		if (!taken.has(base)) return base;
+		let n = 2;
+		while (taken.has(`${base}-${n}`)) n += 1;
+		return `${base}-${n}`;
 	}
 
 	function engineState(e: string): { tone: 'ok' | 'warn' | 'neutral'; text: string } | null {
@@ -115,6 +125,10 @@
 				browse_path?: string;
 				postgres?: EngineStatus;
 				mariadb?: EngineStatus;
+				postgres_install_hint?: string;
+				postgres_start_hint?: string;
+				mariadb_install_hint?: string;
+				mariadb_start_hint?: string;
 			}>(site.path('/databases'));
 			if (!r.ok) {
 				loadError = r.data.error || 'Could not load databases';
@@ -127,6 +141,10 @@
 			browsePath = r.data.browse_path || '/db/';
 			postgres = r.data.postgres ?? null;
 			mariadb = r.data.mariadb ?? null;
+			if (r.data.postgres_install_hint) pgInstallHint = r.data.postgres_install_hint;
+			if (r.data.postgres_start_hint) pgStartHint = r.data.postgres_start_hint;
+			if (r.data.mariadb_install_hint) mariaInstallHint = r.data.mariadb_install_hint;
+			if (r.data.mariadb_start_hint) mariaStartHint = r.data.mariadb_start_hint;
 		} catch (e) {
 			loadError = errorMessage(e);
 		} finally {
@@ -136,7 +154,7 @@
 
 	async function add(resume?: DbAction, approvalId: string = flow.id.trim()): Promise<void> {
 		if (site.isChild || (!resume && blocked)) return;
-		const action: DbAction = resume ?? { kind: 'add', id: normalizeId(newDbId), engine };
+		const action: DbAction = resume ?? { kind: 'add', id: nextDbId(engine), engine };
 		if (!resume) flow.resetIfDifferent(action);
 		busy = true;
 		installHint = '';
@@ -156,11 +174,11 @@
 					r.data.hint ||
 					(action.engine === 'mariadb'
 						? needsStart
-							? MARIA_START
-							: MARIA_INSTALL
+							? mariaStartHint
+							: mariaInstallHint
 						: needsStart
-							? PG_START
-							: PG_INSTALL);
+							? pgStartHint
+							: pgInstallHint);
 				toasts.error(r.data.error || 'Database engine is not ready');
 				await load();
 				return;
@@ -178,7 +196,6 @@
 			if (r.data.password) revealed = { id, password: r.data.password, rotated: false };
 			toasts.success(`Database ${id} (${action.engine}) is ready`);
 			flow.clear();
-			newDbId = '';
 			await load();
 			void overview.refresh();
 		} catch (e) {
@@ -316,7 +333,7 @@
 				title="No databases yet"
 				description={site.isChild
 					? `${site.parent} has no databases.`
-					: 'Create one with the form. Leave the id empty for the domain default.'}
+					: 'Create one with the form — the id is assigned automatically.'}
 			/>
 		{:else}
 			<ul class="dbs">
@@ -393,18 +410,6 @@
 						</label>
 					{/each}
 				</fieldset>
-				<label class="wbr-field">
-					<span>Database id</span>
-					<input
-						name="db_id"
-						bind:value={newDbId}
-						placeholder={defaultId || 'default'}
-						autocomplete="off"
-						spellcheck="false"
-						disabled={busy || blocked}
-					/>
-					<span class="hint">Optional. Leave empty for the domain default.</span>
-				</label>
 				{#if blocked}
 					<div class="install" role="status">
 						<span class="ic" aria-hidden="true"><Icon name="terminal" size={18} /></span>

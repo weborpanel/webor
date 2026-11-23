@@ -5,8 +5,8 @@ File: `/etc/webor/config.yaml` (lab: `/tmp/webor-lab/etc/config.yaml`).
 ```yaml
 version: 1
 panel:
-  domain: ""          # optional panel hostname
-  port: 0             # 0 = high port until domain set
+  domain: ""          # e.g. panel.example.com — Caddy reverse-proxies to the panel listen port
+  port: 0             # usually set from the panel -listen port when domain is enabled
 sites:
   - name: example.com
     aliases: [www.example.com]   # same docroot
@@ -35,6 +35,7 @@ sites:
 
 Rules:
 
+- `panel.domain` must not collide with a site name or alias. Set it from the apex site’s Domains → **Panel access** UI (not as a child site).
 - Children (`parent:`) cannot declare `databases` or `cache`.
 - Blank database `id` on create becomes `slug(parent)`.
 - Passwords are not stored in this file; they live under `state/secrets/`.

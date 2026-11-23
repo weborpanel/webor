@@ -124,6 +124,92 @@ sites:
 	}
 }
 
+func TestRenderPanelDomainOnly(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+version: 1
+panel:
+  domain: panel.example.com
+  port: 21215
+sites: []
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := caddy.Render(cfg, caddy.RenderOptions{DisableHTTPS: true, HTTPListen: ":8080"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	if !strings.Contains(s, "panel.example.com") {
+		t.Fatalf("missing panel host: %s", s)
+	}
+	if !strings.Contains(s, "127.0.0.1:21215") {
+		t.Fatalf("missing panel dial: %s", s)
+	}
+}
+
+func TestRenderPanelDomainWithSite(t *testing.T) {
+	cfg, err := config.Parse([]byte(`
+version: 1
+panel:
+  domain: cp.example.com
+  port: 0
+sites:
+  - name: example.com
+    type: static
+    root: public
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := caddy.Render(cfg, caddy.RenderOptions{
+		DisableHTTPS:  true,
+		HTTPListen:    ":8080",
+		PanelUpstream: "127.0.0.1:30964",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	if !strings.Contains(s, "cp.example.com") || !strings.Contains(s, "127.0.0.1:30964") {
+		t.Fatalf("missing panel route: %s", s)
+	}
+	if !strings.Contains(s, "/srv/sites/example.com/public") {
+		t.Fatalf("missing site: %s", s)
+	}
+}
+
+func TestRenderRejectsPanelDomainCollision(t *testing.T) {
+	_, err := config.Parse([]byte(`
+version: 1
+panel:
+  domain: example.com
+  port: 21215
+sites:
+  - name: example.com
+    type: static
+    root: public
+`))
+	if err == nil {
+		t.Fatal("expected panel.domain collision with site")
+	}
+}
+
+func TestPanelDial(t *testing.T) {
+	d, err := caddy.PanelDial("0.0.0.0:21215", 0)
+	if err != nil || d != "127.0.0.1:21215" {
+		t.Fatalf("got %q %v", d, err)
+	}
+	d, err = caddy.PanelDial(":8787", 0)
+	if err != nil || d != "127.0.0.1:8787" {
+		t.Fatalf("got %q %v", d, err)
+	}
+	d, err = caddy.PanelDial("", 30964)
+	if err != nil || d != "127.0.0.1:30964" {
+		t.Fatalf("got %q %v", d, err)
+	}
+}
+
 func TestRenderIncludesAppUnixProxy(t *testing.T) {
 	cfg, err := config.Parse([]byte(`
 version: 1

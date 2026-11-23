@@ -39,6 +39,21 @@
 	let extractFile = $state<File | null>(null);
 	let extracting = $state(false);
 
+	let editorOpen = $state(false);
+	let editorPath = $state('');
+	let editorName = $state('');
+	let editorContent = $state('');
+	let editorOriginal = $state('');
+	let editorLoading = $state(false);
+	let editorSaving = $state(false);
+	let editorIsNew = $state(false);
+	let newFileOpen = $state(false);
+	let newFileName = $state('');
+
+	const editorDirty = $derived(editorContent !== editorOriginal);
+	const editorBytes = $derived(new TextEncoder().encode(editorContent).length);
+	const maxEditBytes = 1024 * 1024;
+
 	let crumbs = $derived.by(() => {
 		const parts = cwd.split('/').filter(Boolean);
 		const out: { label: string; path: string }[] = [{ label: site.root || 'public', path: '' }];
@@ -253,10 +268,135 @@
 		renameOpen = true;
 	}
 
+	function isProbablyText(name: string) {
+		const n = name.toLowerCase();
+		if (n.endsWith('.min.js') || n.endsWith('.min.css') || n.endsWith('.map')) return false;
+		return /\.(html?|css|js|mjs|cjs|json|md|txt|svg|xml|ya?ml|toml|env|conf|cfg|ini|sh|bash|py|go|rs|ts|tsx|jsx|svelte|vue|php|rb|sql|log|csv|tsv|htaccess|gitignore|dockerignore|editorconfig|nvmrc|npmrc)$/i.test(
+			n
+		);
+	}
+
+	async function openEditor(entry: Entry) {
+		if (entry.type !== 'file') return;
+		if (entry.size > maxEditBytes) {
+			toasts.error('File is too large to edit in the panel — download it instead');
+			return;
+		}
+		const path = joinPath(cwd, entry.name);
+		editorOpen = true;
+		editorIsNew = false;
+		editorPath = path;
+		editorName = entry.name;
+		editorContent = '';
+		editorOriginal = '';
+		editorLoading = true;
+		try {
+			const q = new URLSearchParams({ path });
+			const r = await request<{ content?: string; name?: string }>(
+				`${sitePath(site.name, '/fs/content')}?${q}`
+			);
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not open file');
+				editorOpen = false;
+				return;
+			}
+			editorContent = r.data.content ?? '';
+			editorOriginal = editorContent;
+			if (r.data.name) editorName = r.data.name;
+		} catch (e) {
+			toasts.error(errorMessage(e));
+			editorOpen = false;
+		} finally {
+			editorLoading = false;
+		}
+	}
+
+	function startNewFile() {
+		newFileName = '';
+		newFileOpen = true;
+	}
+
+	function createNewFile() {
+		const name = newFileName.trim().replace(/^\/+|\/+$/g, '');
+		if (!name || name.includes('..') || name.includes('/')) {
+			toasts.error('Enter a single file name');
+			return;
+		}
+		newFileOpen = false;
+		editorIsNew = true;
+		editorPath = joinPath(cwd, name);
+		editorName = name;
+		editorContent = '';
+		editorOriginal = '';
+		editorLoading = false;
+		editorOpen = true;
+	}
+
+	async function saveEditor() {
+		if (!editorPath) return;
+		if (editorBytes > maxEditBytes) {
+			toasts.error(`Content exceeds ${formatBytes(maxEditBytes)} editor limit`);
+			return;
+		}
+		editorSaving = true;
+		try {
+			const r = await request(sitePath(site.name, '/fs/content'), {
+				method: 'PUT',
+				json: { path: editorPath, content: editorContent }
+			});
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Save failed');
+				return;
+			}
+			editorOriginal = editorContent;
+			editorIsNew = false;
+			toasts.success(`Saved ${editorName}`);
+			await load();
+		} catch (e) {
+			toasts.error(errorMessage(e));
+		} finally {
+			editorSaving = false;
+		}
+	}
+
+	function requestCloseEditor() {
+		if (editorSaving) return;
+		editorOpen = false;
+	}
+
+	async function onEditorModalClose() {
+		if (editorSaving) {
+			editorOpen = true;
+			return;
+		}
+		if (!editorDirty) return;
+		const ok = await confirmDialog({
+			title: 'Discard changes?',
+			message: `${editorName} has unsaved changes.`,
+			confirmLabel: 'Discard',
+			danger: true
+		});
+		if (!ok) {
+			editorOpen = true;
+			return;
+		}
+		editorContent = editorOriginal;
+	}
+
+	function onEditorKeydown(e: KeyboardEvent) {
+		if (!editorOpen || editorLoading) return;
+		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+			e.preventDefault();
+			void saveEditor();
+		}
+	}
+
 	onMount(() => {
 		void load('');
 	});
 </script>
+
+<svelte:window onkeydown={onEditorKeydown} />
 
 {#if site.isApp}
 	<div class="note" role="note">
@@ -274,6 +414,9 @@
 		<div class="toolbar">
 			<button type="button" class="wbr-btn wbr-btn-ghost sm" disabled={loading} onclick={() => load()} aria-label="Refresh">
 				<Icon name="refresh" size={14} />
+			</button>
+			<button type="button" class="wbr-btn wbr-btn-ghost sm" onclick={startNewFile}>
+				<Icon name="file" size={14} /> New file
 			</button>
 			<button type="button" class="wbr-btn wbr-btn-ghost sm" onclick={() => (mkdirOpen = true)}>
 				<Icon name="plus" size={14} /> Folder
@@ -330,9 +473,15 @@
 								type="button"
 								class="name"
 								onclick={() => (e.type === 'dir' ? openDir(e.name) : (selected = e.name))}
-								ondblclick={() => (e.type === 'dir' ? openDir(e.name) : download(e))}
+								ondblclick={() =>
+									e.type === 'dir'
+										? openDir(e.name)
+										: isProbablyText(e.name)
+											? openEditor(e)
+											: download(e)
+								}
 							>
-								<Icon name={e.type === 'dir' ? 'box' : 'file'} size={15} />
+								<Icon name={e.type === 'dir' ? 'folder' : 'file'} size={15} />
 								<span>{e.name}</span>
 							</button>
 						</td>
@@ -340,6 +489,9 @@
 						<td class="date">{e.mtime ? new Date(e.mtime * 1000).toLocaleString() : '—'}</td>
 						<td class="acts">
 							{#if e.type === 'file'}
+								<button type="button" class="icon-btn" title="Edit" onclick={() => openEditor(e)}>
+									<Icon name="pencil" size={14} />
+								</button>
 								<button type="button" class="icon-btn" title="Download" onclick={() => download(e)}>
 									<Icon name="download" size={14} />
 								</button>
@@ -417,6 +569,74 @@
 		</button>
 		<button type="button" class="wbr-btn" disabled={extracting || !extractFile} onclick={doExtract}>
 			{extracting ? 'Extracting…' : 'Extract'}
+		</button>
+	{/snippet}
+</Modal>
+
+<Modal bind:open={newFileOpen} title="New file">
+	<label class="wbr-field">
+		<span>File name</span>
+		<input
+			bind:value={newFileName}
+			placeholder="index.html"
+			required
+			autocomplete="off"
+			onkeydown={(e) => {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					createNewFile();
+				}
+			}}
+		/>
+	</label>
+	{#snippet footer()}
+		<button type="button" class="wbr-btn wbr-btn-ghost" onclick={() => (newFileOpen = false)}>Cancel</button>
+		<button type="button" class="wbr-btn" disabled={!newFileName.trim()} onclick={createNewFile}>Create</button>
+	{/snippet}
+</Modal>
+
+<Modal
+	bind:open={editorOpen}
+	title={editorIsNew ? `New file · ${editorName}` : editorName}
+	description={`${site.root}/${editorPath}${editorDirty ? ' · unsaved' : ''}`}
+	width="48rem"
+	locked={editorSaving}
+	onclose={() => {
+		void onEditorModalClose();
+	}}
+>
+	{#if editorLoading}
+		<Skeleton lines={8} />
+	{:else}
+		<label class="wbr-field editor-field">
+			<span class="visually-hidden">File contents</span>
+			<textarea
+				class="editor"
+				bind:value={editorContent}
+				spellcheck="false"
+				wrap="off"
+				rows={18}
+				disabled={editorSaving}
+				aria-label={`Edit ${editorName}`}
+			></textarea>
+		</label>
+		<p class="editor-meta wbr-muted">
+			{formatBytes(editorBytes)}
+			{#if editorDirty}<span class="dirty">· modified</span>{/if}
+			<span class="hint">Ctrl/⌘+S to save</span>
+		</p>
+	{/if}
+	{#snippet footer()}
+		<button type="button" class="wbr-btn wbr-btn-ghost" disabled={editorSaving} onclick={requestCloseEditor}>
+			Close
+		</button>
+		<button
+			type="button"
+			class="wbr-btn"
+			disabled={editorSaving || editorLoading || (!editorDirty && !editorIsNew)}
+			onclick={saveEditor}
+		>
+			{editorSaving ? 'Saving…' : 'Save'}
 		</button>
 	{/snippet}
 </Modal>
@@ -551,4 +771,39 @@
 		margin: 0 0 0.75rem;
 		font-size: 0.88rem;
 	}
+
+	.editor-field {
+		margin: 0;
+	}
+
+	.editor {
+		width: 100%;
+		min-height: min(60vh, 28rem);
+		resize: vertical;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		font-size: 0.85rem;
+		line-height: 1.45;
+		tab-size: 2;
+		white-space: pre;
+		overflow: auto;
+	}
+
+	.editor-meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem 0.75rem;
+		margin: 0.55rem 0 0;
+		font-size: 0.8rem;
+	}
+
+	.dirty {
+		color: var(--warn, #b45309);
+		font-weight: 700;
+	}
+
+	.hint {
+		margin-left: auto;
+		opacity: 0.75;
+	}
+
 </style>

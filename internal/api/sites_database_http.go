@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/distro"
 	"github.com/weborpanel/webor/internal/helper"
 	"github.com/weborpanel/webor/internal/ipc"
 	"github.com/weborpanel/webor/internal/providers/dbengine"
@@ -77,6 +78,7 @@ func (s *Server) handleListDatabases(w http.ResponseWriter, r *http.Request) {
 	for _, c := range children {
 		childNames = append(childNames, c.Name)
 	}
+	info := distro.Detect()
 	s.writeJSON(w, 200, map[string]any{
 		"ok":                 true,
 		"parent":             parentName,
@@ -88,6 +90,11 @@ func (s *Server) handleListDatabases(w http.ResponseWriter, r *http.Request) {
 		"postgres":           pgSt,
 		"mariadb":            mariaSt,
 		"engines":            []string{dbengine.SQLite, dbengine.Postgres, dbengine.MariaDB},
+		"postgres_install_hint": info.InstallHintPostgres(),
+		"postgres_start_hint":   info.StartHintPostgres(),
+		"mariadb_install_hint":  info.InstallHintMariaDB(),
+		"mariadb_start_hint":    info.StartHintMariaDB(),
+		"os_family":             string(info.Family),
 	})
 }
 
@@ -398,6 +405,10 @@ func (s *Server) handleAddSubdomain(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 409, "site already exists")
 		return
 	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Panel.Domain), childName) {
+		s.writeErr(w, 409, "hostname is reserved for the panel")
+		return
+	}
 	child := config.Site{
 		Name:   childName,
 		Parent: parentSite.Name,
@@ -554,25 +565,26 @@ func (s *Server) engineStatus(engine string) (engineRuntimeStatus, error) {
 }
 
 func (s *Server) engineInstallRequiredPayload(engine string, installedButInactive bool) map[string]any {
-	pkg := "postgresql postgresql-client"
-	unit := "postgresql"
+	info := distro.Detect()
+	hint := info.InstallHintPostgres()
+	start := info.StartHintPostgres()
 	if engine == dbengine.MariaDB {
-		pkg = "mariadb-server"
-		unit = "mariadb"
+		hint = info.InstallHintMariaDB()
+		start = info.StartHintMariaDB()
 	}
 	if installedButInactive {
 		return map[string]any{
 			"ok":               false,
 			"error":            engine + " installed but not running",
 			"install_required": true,
-			"hint":             "Start " + engine + " as root, then try Add again:\n  sudo systemctl enable --now " + unit,
+			"hint":             "Start " + engine + " as root, then try Add again:\n" + start,
 		}
 	}
 	return map[string]any{
 		"ok":               false,
 		"error":            engine + " not installed",
 		"install_required": true,
-		"hint":             "Log in as root and install " + engine + ", then try Add again:\n  sudo apt-get update && sudo apt-get install -y " + pkg + "\n  sudo systemctl enable --now " + unit,
+		"hint":             "Log in as root and install " + engine + ", then try Add again:\n" + hint,
 	}
 }
 

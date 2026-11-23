@@ -45,6 +45,17 @@ func Public(domain string) string {
 	return filepath.Join(Root(domain), "public")
 }
 
+// APIsRoot returns /srv/sites/<domain>/apis (parent of per-backend API dirs).
+func APIsRoot(domain string) string {
+	return filepath.Join(Root(domain), "apis")
+}
+
+// APIs returns /srv/sites/<domain>/apis/<id> — WorkingDirectory for one HTTP backend.
+func APIs(domain, id string) string {
+	id = strings.ToLower(strings.TrimSpace(id))
+	return filepath.Join(APIsRoot(domain), id)
+}
+
 // ReleasesDir returns /srv/sites/<domain>/releases.
 func ReleasesDir(domain string) string {
 	return filepath.Join(Root(domain), "releases")

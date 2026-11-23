@@ -58,16 +58,59 @@ func (s *Server) MountSites(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sites/{name}/resources", s.handleSiteResources)
 	mux.HandleFunc("POST /api/sites/{name}/deploy", s.handleDeployBinary)
 	mux.HandleFunc("POST /api/sites/{name}/deploy/git", s.handleDeployGit)
+	mux.HandleFunc("POST /api/sites/{name}/deploy-zip", s.handleDeployAppZip)
 	s.mountFSRoutes(mux)
 	s.mountDatabaseRoutes(mux)
 	s.mountCacheRoutes(mux)
 	s.mountBackendRoutes(mux)
+	s.mountRuntimeRoutes(mux)
+	s.mountTokenRoutes(mux)
 	s.mountDBAdminer(mux)
 }
 
+// requireAuth requires an admin session cookie. Deploy tokens are rejected
+// (they must use requireSiteScope / requireSiteToken on site routes).
 func (s *Server) requireAuth(w http.ResponseWriter, r *http.Request) bool {
 	if s.sessionOK(r) == nil {
 		s.writeErr(w, 401, "unauthorized")
+		return false
+	}
+	return true
+}
+
+// requireSiteToken allows a session or any valid deploy token bound to site.
+func (s *Server) requireSiteToken(w http.ResponseWriter, r *http.Request, site string) bool {
+	if s.sessionOK(r) != nil {
+		return true
+	}
+	tok := s.deployTokenOK(r)
+	if tok == nil {
+		s.writeErr(w, 401, "unauthorized")
+		return false
+	}
+	if !strings.EqualFold(tok.Site, site) {
+		s.writeErr(w, 403, "token not valid for this site")
+		return false
+	}
+	return true
+}
+
+// requireSiteScope allows a session or a deploy token for site with the given scope.
+func (s *Server) requireSiteScope(w http.ResponseWriter, r *http.Request, site, scope string) bool {
+	if s.sessionOK(r) != nil {
+		return true
+	}
+	tok := s.deployTokenOK(r)
+	if tok == nil {
+		s.writeErr(w, 401, "unauthorized")
+		return false
+	}
+	if !strings.EqualFold(tok.Site, site) {
+		s.writeErr(w, 403, "token not valid for this site")
+		return false
+	}
+	if !tok.HasScope(scope) {
+		s.writeErr(w, 403, "token missing scope: "+scope)
 		return false
 	}
 	return true
@@ -102,22 +145,31 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 	}
 	type backendViewJSON struct {
 		Enabled   bool     `json:"enabled"`
+		ID        string   `json:"id,omitempty"`
 		Prefix    string   `json:"prefix,omitempty"`
 		Paths     []string `json:"paths,omitempty"`
 		WebSocket bool     `json:"websocket,omitempty"`
 		Port      int      `json:"port,omitempty"`
 		Exec      string   `json:"exec,omitempty"`
 	}
+	type runtimeViewJSON struct {
+		Kind    string `json:"kind,omitempty"`
+		Version string `json:"version,omitempty"`
+		Command string `json:"command,omitempty"`
+	}
 	type siteView struct {
 		Name           string           `json:"name"`
 		Type           string           `json:"type"`
 		Root           string           `json:"root"`
 		Parent         string           `json:"parent,omitempty"`
+		Exec           string           `json:"exec,omitempty"`
 		Database       string           `json:"database,omitempty"` // legacy: first engine
 		Databases      []dbView         `json:"databases,omitempty"`
 		Cache          string           `json:"cache,omitempty"`
 		HTTPS          bool             `json:"https,omitempty"`
-		Backend        *backendViewJSON `json:"backend,omitempty"`
+		Backend        *backendViewJSON  `json:"backend,omitempty"` // first backend (compat)
+		Backends       []backendViewJSON `json:"backends,omitempty"`
+		Runtime        *runtimeViewJSON  `json:"runtime,omitempty"`
 		SubdomainCount int              `json:"subdomain_count,omitempty"`
 		SocketProxy    bool             `json:"socket_proxy,omitempty"`
 		Cron           []string         `json:"cron,omitempty"`
@@ -134,9 +186,18 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 			Type:        site.Type,
 			Root:        root,
 			Parent:      site.Parent,
+			Exec:        site.Exec,
 			Cache:       site.Cache,
 			HTTPS:       site.HTTPS,
 			SocketProxy: site.SocketProxy,
+		}
+		if site.Runtime != nil {
+			config.NormalizeRuntime(site.Runtime)
+			v.Runtime = &runtimeViewJSON{
+				Kind:    site.Runtime.Kind,
+				Version: site.Runtime.Version,
+				Command: site.Runtime.Command,
+			}
 		}
 		for _, d := range site.Databases {
 			v.Databases = append(v.Databases, dbView{ID: d.ID, Engine: d.Engine})
@@ -147,15 +208,25 @@ func (s *Server) handleListSites(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(site.Parent) == "" {
 			v.SubdomainCount = len(cfg.ChildrenOf(site.Name))
 		}
-		if site.Backend != nil && site.Backend.Enabled {
-			config.NormalizeBackend(site.Backend)
-			v.Backend = &backendViewJSON{
+		for i := range site.Backends {
+			b := site.Backends[i]
+			if !b.Enabled {
+				continue
+			}
+			config.NormalizeBackend(&b)
+			row := backendViewJSON{
 				Enabled:   true,
-				Prefix:    site.Backend.Prefix,
-				Paths:     site.Backend.BackendPathPrefixes(),
-				WebSocket: site.Backend.WebSocket,
-				Port:      site.Backend.Port,
-				Exec:      site.Backend.Exec,
+				ID:        b.ID,
+				Prefix:    b.Prefix,
+				Paths:     b.BackendPathPrefixes(),
+				WebSocket: b.WebSocket,
+				Port:      b.Port,
+				Exec:      b.Exec,
+			}
+			v.Backends = append(v.Backends, row)
+			if v.Backend == nil {
+				cp := row
+				v.Backend = &cp
 			}
 		}
 		for _, c := range site.Cron {
@@ -208,6 +279,10 @@ func (s *Server) handleAddSite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Panel.Domain), strings.ToLower(strings.TrimSpace(site.Name))) {
+		s.writeErr(w, 409, "hostname is reserved for the panel")
+		return
+	}
 	cfg.Sites = append(cfg.Sites, site)
 	if err := cfg.Validate(); err != nil {
 		s.writeErr(w, 400, err.Error())
@@ -230,13 +305,13 @@ func (s *Server) handleAddSite(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, 200, out)
 }
 
-func (s *Server) applyCaddy(cfg *config.Config) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+// caddyApplyOptions builds Caddy listen/TLS options from panel flags + site https: markers.
+func (s *Server) caddyApplyOptions(cfg *config.Config) reconcile.StaticApplyOptions {
 	opt := reconcile.StaticApplyOptions{
 		CaddyConfigPath: s.CaddyConfigPath,
 		HTTPListen:      s.HTTPListen,
 		DisableHTTPS:    s.DisableHTTPS,
+		PanelUpstream:   s.panelUpstreamDial(),
 		SeedIndex:       true,
 	}
 	if opt.CaddyConfigPath == "" {
@@ -263,7 +338,13 @@ func (s *Server) applyCaddy(cfg *config.Config) error {
 			opt.HTTPListen = ":443"
 		}
 	}
-	return reconcile.ApplyStaticSites(ctx, cfg, s.siteFS(), opt)
+	return opt
+}
+
+func (s *Server) applyCaddy(cfg *config.Config) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return reconcile.ApplyStaticSites(ctx, cfg, s.siteFS(), s.caddyApplyOptions(cfg))
 }
 
 func (s *Server) handleSiteHTTPS(w http.ResponseWriter, r *http.Request) {
@@ -411,11 +492,9 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hadCache := strings.TrimSpace(site.Parent) == "" && strings.TrimSpace(site.Cache) != ""
-	if site.Backend != nil && site.Backend.Enabled {
-		_ = s.removeHTTPBackend(name)
-	}
-	for _, child := range removedChildren {
-		_ = s.removeHTTPBackend(child)
+	s.removeAllHTTPBackends(site)
+	for _, child := range cfg.ChildrenOf(name) {
+		s.removeAllHTTPBackends(child)
 	}
 	if err := s.purgeSite(name, removedChildren, dropDBs, approvalID); err != nil {
 		s.writeErr(w, 403, err.Error())
@@ -436,6 +515,7 @@ func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		filtered = append(filtered, st)
 	}
 	cfg.Sites = filtered
+	cfg.ClearPanelDomainIfOwned(name)
 	if err := config.Save(s.configPath(), cfg); err != nil {
 		s.writeErr(w, 500, err.Error())
 		return

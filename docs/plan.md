@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-21): Milestone 0–4 lab-complete (multi-DB, Valkey/Redis ACL cache, Adminer, subdomains). Panel UI revamp (sidebar dashboard, metrics history, per-site tabs) + Files manager (browse/extract zip|tar|tar.gz under `public/` only). Valkey package install is operator/root (no approval). Native wrap next: real-VPS DNS→HTTPS + remaining `docs/vps-checklist.md` items. **M5 Podman postponed** until that checklist is solid.*
+*Progress note (2026-11-22): Milestone 0–4 lab-complete (multi-DB, Valkey, Adminer, subdomains, hybrid static+API backends). **S3 backups (restic) promoted ahead of Podman** (decision 0006). Podman remains deferred. Native wrap + backups are the active track.*
 
 ## 1. Product scope
 
@@ -19,8 +19,9 @@
 - Databases (Postgres or MariaDB) and cache (Valkey) installed on demand
 - One admin login with TOTP, plus step-up approval for dangerous operations
 - UI and a declarative config file as equal ways to configure
+- Whole-system S3-compatible backups (restic): full snapshot, selective site restore after install (decision 0006)
 
-**Out of scope for v1 (planned later):** mail, S3 backups, DNS provider APIs and wildcard certs, multi-user roles, Varnish, PHP, multi-server management.
+**Out of scope for v1 (planned later):** mail, DNS provider APIs and wildcard certs, multi-user roles, Varnish, PHP, multi-server management, Podman containers.
 
 **Design principle:** the panel being down must never mean the sites are down. Caddy and the site units run independently, so panel restarts and upgrades do not interrupt traffic.
 
@@ -59,7 +60,7 @@ The GitHub organization is already secured. Names below follow the Webor brand a
 | Containers | Rootless Podman with Quadlet (optional) | Daemonless, runs per site user, containers become ordinary systemd units |
 | State | `config.yaml` (desired state) plus SQLite (runtime state) | Readable, git-friendly config; no database server needed for the panel itself |
 | Frontend | SvelteKit static export, embedded in the binary | One-file deployment, small footprint, JSON API shared with the CLI |
-| Supported OS | Debian 12 and newer, Ubuntu 22.04 LTS and newer | Limits systemd and cgroup variation |
+| Supported OS | Debian 12+, Ubuntu 22.04 LTS+, AlmaLinux 9 | Limits systemd and cgroup variation; Alma uses dnf + SELinux Enforcing |
 | Mail engine (later) | Stalwart, driven through its management API | Avoids writing a mail server |
 | DNS | None hosted. Record checklist plus live checker | Users keep their provider's DNS manager |
 
@@ -223,9 +224,22 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 **Spike (2026-11-21):** Postgres/MariaDB + multi-DB + Adminer. Valkey is the remaining M4 piece in the native wrap. See `docs/spikes/m4-postgres.md`, `docs/spikes/m4-databases.md`.
 
-### Milestone 5: Containers, optional module — **DEFERRED**
+### Milestone 5: S3 backups (restic) — **ACTIVE**
 
-**Status:** postponed until native wrap is complete (Valkey, DNS→HTTPS, OOM UX, light docs/VPS gate).
+**Status:** in progress (decision 0006). Replaces containers as the next milestone.
+
+**Deliverables**
+
+- BYO S3-compatible restic repo; credentials in `/etc/webor/backup.env`
+- Full rebuild-ready snapshots (config, panel state, `/srv/sites`, DB/Valkey dumps) + `manifest.json`
+- Panel UI: configure, run now, schedule, list snapshots, selective site restore (approval-gated)
+- systemd timer + retention forget/prune
+
+**Exit criteria:** full backup to an S3-compatible bucket; selective restore of one site on a fresh (or wiped) install.
+
+### Milestone 5b: Containers, optional module — **DEFERRED**
+
+**Status:** postponed until after backups (and native wrap). Not required for v1 exit.
 
 **Deliverables** (unchanged when resumed)
 
@@ -250,7 +264,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 | Phase | Scope | Rough size |
 | --- | --- | --- |
-| 2. Backups | restic to S3, scoped per site, scheduled, restores gated by approval | 3 weeks |
+| 2. Containers | Rootless Podman / Quadlet (former M5) | 3 to 4 weeks |
 | 3. Mail, receive-only | Stalwart provider, MX/SPF/DKIM/DMARC rows in the checklist, mailbox UI, IMAP | 4 to 6 weeks |
 | 4. Mail sending | Outbound relay support, optional direct send with port 25, PTR and blocklist preflight | 3 weeks |
 | 5. Provider DNS APIs | Cloudflare and Route 53 tokens, wildcard certs, optional collaborator roles | 4 weeks |
@@ -371,6 +385,6 @@ These are targets to validate in Milestone 6, not measured results.
 1. License: permissive (Apache-2.0 or MIT) or AGPL-3.0. — **resolved: Apache-2.0**
 2. Run Caddy as a separate process (planned) or embed it later to ship one binary. — separate process for v1 (Spike A)
 3. How far git-based builds go in v1: build command only, or language presets. — open
-4. Final supported OS list. — open (lab is Debian 13; plan still targets Debian 12+ / Ubuntu 22.04+)
+4. Final supported OS list. — Debian 12+, Ubuntu 22.04+, AlmaLinux 9 (lab: Debian 13 + Alma 9 EC2)
 5. Domain, package-name and trademark checks for Webor. — open
 6. Confirm what "PQPM" refers to. — **resolved:** PQPM is a PM2-style user process manager; Webor uses **systemd** as the site supervisor (PQPM not integrated for v1)

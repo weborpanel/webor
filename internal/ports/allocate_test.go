@@ -14,16 +14,19 @@ func TestAllocateSkipsUsed(t *testing.T) {
 			{
 				Name: "a.example.com",
 				Type: config.SiteTypeStatic,
-				Backend: &config.SiteBackend{
-					Enabled: true,
-					Prefix:  "/api",
-					Exec:    "./bin/server",
-					Port:    config.BackendPortMin,
+				Backends: []config.SiteBackend{
+					{
+						ID:      "api",
+						Enabled: true,
+						Prefix:  "/api",
+						Exec:    "./server",
+						Port:    config.BackendPortMin,
+					},
 				},
 			},
 		},
 	}
-	p, err := ports.Allocate(cfg, "")
+	p, err := ports.Allocate(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,40 +35,43 @@ func TestAllocateSkipsUsed(t *testing.T) {
 	}
 }
 
-func TestAllocateReusesExcludeDomain(t *testing.T) {
+func TestAllocateMultipleBackendsSameSite(t *testing.T) {
 	cfg := &config.Config{
 		Version: 1,
 		Sites: []config.Site{
 			{
 				Name: "a.example.com",
 				Type: config.SiteTypeStatic,
-				Backend: &config.SiteBackend{
-					Enabled: true,
-					Prefix:  "/api",
-					Exec:    "./bin/server",
-					Port:    config.BackendPortMin,
+				Backends: []config.SiteBackend{
+					{ID: "api", Enabled: true, Prefix: "/api", Exec: "./server", Port: config.BackendPortMin},
+					{ID: "ssr", Enabled: true, Prefix: "/ssr", Exec: "./server", Port: config.BackendPortMin + 1},
 				},
 			},
 		},
 	}
-	p, err := ports.Allocate(cfg, "a.example.com")
+	p, err := ports.Allocate(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p != config.BackendPortMin {
-		t.Fatalf("got port %d want %d (own port reusable)", p, config.BackendPortMin)
+	if p != config.BackendPortMin+2 {
+		t.Fatalf("got port %d want %d", p, config.BackendPortMin+2)
 	}
 }
 
 func TestUsedPorts(t *testing.T) {
 	cfg := &config.Config{
 		Sites: []config.Site{
-			{Name: "x.com", Backend: &config.SiteBackend{Enabled: true, Port: 20005}},
-			{Name: "y.com", Backend: &config.SiteBackend{Enabled: false, Port: 20006}},
+			{
+				Name: "x.com",
+				Backends: []config.SiteBackend{
+					{ID: "api", Enabled: true, Port: 20005},
+					{ID: "ssr", Enabled: false, Port: 20006},
+				},
+			},
 		},
 	}
 	u := ports.UsedPorts(cfg)
-	if u[20005] != "x.com" {
+	if u[20005] != "x.com/api" {
 		t.Fatalf("%v", u)
 	}
 	if _, ok := u[20006]; ok {

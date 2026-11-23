@@ -77,6 +77,54 @@ func (o *Ops) DeployAppBinary(ctx context.Context, domain, binaryPath string) (*
 	return &DeployAppBinaryResult{ReleaseID: id, Binary: dest}, nil
 }
 
+// DeployAppZipResult is returned after extracting a zip into the app site root.
+type DeployAppZipResult struct {
+	Root string `json:"root"`
+}
+
+// DeployAppZip extracts a zip into the site root (Node WorkingDirectory) and
+// restarts the app unit so the new entry is picked up.
+func (o *Ops) DeployAppZip(ctx context.Context, domain, zipPath string) (*DeployAppZipResult, error) {
+	_ = ctx
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	if domain == "" {
+		return nil, fmt.Errorf("domain is required")
+	}
+	zipPath = strings.TrimSpace(zipPath)
+	if zipPath == "" {
+		return nil, fmt.Errorf("zip path is required")
+	}
+	if err := o.CreateSiteUser(domain); err != nil {
+		return nil, err
+	}
+	if err := o.ensureSiteRuntimeDir(domain); err != nil {
+		return nil, err
+	}
+	root := sites.Root(domain)
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return nil, err
+	}
+	if err := deploy.ExtractZip(zipPath, root); err != nil {
+		return nil, err
+	}
+	u := sites.Username(domain)
+	cmd := exec.Command("chown", "-R", u+":"+u, root)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("chown: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+
+	svc := systemd.ServiceUnitName(domain)
+	backend := systemd.BackendServiceUnitName(domain)
+	_ = o.SystemctlStop(svc)
+	_ = o.SystemctlResetFailed(backend)
+	_ = o.SystemctlStop(backend)
+	_ = o.SystemctlStart(backend)
+	if err := o.ensureAppSocket(domain); err != nil {
+		return nil, fmt.Errorf("socket not ready: %w", err)
+	}
+	return &DeployAppZipResult{Root: root}, nil
+}
+
 // DeployAppGit clones/fetches a repo, runs build_command with limits, then
 // deploys the resulting artifact via DeployAppBinary.
 func (o *Ops) DeployAppGit(ctx context.Context, domain, gitURL, gitRef, buildCommand, artifactRel, memoryMax string, timeoutSec int) (*DeployAppBinaryResult, error) {

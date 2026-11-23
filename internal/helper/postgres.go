@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/distro"
 	"github.com/weborpanel/webor/internal/providers/dbengine"
 	"github.com/weborpanel/webor/internal/providers/postgres"
 )
@@ -40,46 +41,91 @@ type EnsureSiteDatabaseResult struct {
 func (o *Ops) PostgresStatus() (*PostgresStatusResult, error) {
 	res := &PostgresStatusResult{}
 	if _, err := exec.LookPath("psql"); err != nil {
-		res.Message = "psql not found"
-		return res, nil
+		// RHEL may have server without client on PATH yet; treat postgres unit as installed.
+		if !postgresUnitActive() && !postgresUnitLoaded() {
+			res.Message = "psql not found"
+			return res, nil
+		}
 	}
 	res.Installed = true
-	if out, err := exec.Command("systemctl", "is-active", "postgresql").CombinedOutput(); err == nil {
-		if strings.TrimSpace(string(out)) == "active" {
-			res.Active = true
-		}
+	if unit, ok := postgresActiveUnit(); ok {
+		res.Active = true
+		res.Message = unit + " active"
+		return res, nil
 	}
-	// Also accept postgresql@version services.
-	if !res.Active {
-		if out, err := exec.Command("systemctl", "is-active", "postgresql.service").CombinedOutput(); err == nil {
-			if strings.TrimSpace(string(out)) == "active" {
-				res.Active = true
-			}
-		}
-	}
-	if res.Active {
-		res.Message = "postgresql active"
-	} else {
-		res.Message = "postgresql installed but not active"
-	}
+	res.Message = "postgresql installed but not active"
 	return res, nil
 }
 
-// InstallPostgres installs and enables PostgreSQL (Debian/Ubuntu). Requires root.
+func postgresUnitCandidates() []string {
+	return []string{
+		"postgresql",
+		"postgresql.service",
+		"postgresql-16",
+		"postgresql-15",
+		"postgresql-14",
+		"postgresql-13",
+	}
+}
+
+func postgresUnitActive() bool {
+	_, ok := postgresActiveUnit()
+	return ok
+}
+
+func postgresActiveUnit() (string, bool) {
+	for _, unit := range postgresUnitCandidates() {
+		if out, err := exec.Command("systemctl", "is-active", unit).CombinedOutput(); err == nil {
+			if strings.TrimSpace(string(out)) == "active" {
+				return unit, true
+			}
+		}
+	}
+	return "", false
+}
+
+func postgresUnitLoaded() bool {
+	for _, unit := range postgresUnitCandidates() {
+		if out, err := exec.Command("systemctl", "show", "-p", "LoadState", "--value", unit).CombinedOutput(); err == nil {
+			if strings.TrimSpace(string(out)) == "loaded" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// InstallPostgres installs and enables PostgreSQL (Debian/Ubuntu or Alma/RHEL). Requires root.
 func (o *Ops) InstallPostgres() error {
-	if _, err := exec.LookPath("apt-get"); err != nil {
-		return fmt.Errorf("apt-get not found (InstallPostgres supports Debian/Ubuntu)")
+	info := distro.Detect()
+	switch {
+	case info.IsRHEL() || distro.LookManager() == "dnf" || distro.LookManager() == "yum":
+		if err := distro.InstallPackages("postgresql-server", "postgresql"); err != nil {
+			return err
+		}
+		// Idempotent init; ignore "already initialized" style errors.
+		_ = exec.Command("postgresql-setup", "--initdb").Run()
+		_ = exec.Command("postgresql-setup", "initdb").Run()
+	case info.IsDebian() || distro.LookManager() == "apt-get":
+		if err := distro.InstallPackages("postgresql", "postgresql-client"); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("InstallPostgres needs apt-get or dnf (Debian/Ubuntu or AlmaLinux/RHEL)")
 	}
-	cmds := [][]string{
-		{"apt-get", "update", "-qq"},
-		{"apt-get", "install", "-y", "postgresql", "postgresql-client"},
-		{"systemctl", "enable", "--now", "postgresql"},
-	}
-	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("%s: %w (%s)", strings.Join(args, " "), err, truncateOut(out))
+	if err := distro.RunCommands([][]string{{"systemctl", "enable", "--now", "postgresql"}}); err != nil {
+		// Try versioned units on EL.
+		var last error = err
+		for _, unit := range []string{"postgresql-16", "postgresql-15", "postgresql-14"} {
+			if e := distro.RunCommands([][]string{{"systemctl", "enable", "--now", unit}}); e == nil {
+				last = nil
+				break
+			} else {
+				last = e
+			}
+		}
+		if last != nil {
+			return last
 		}
 	}
 	st, err := o.PostgresStatus()

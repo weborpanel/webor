@@ -34,7 +34,18 @@ func main() {
 	setupToken := flag.String("setup-token", "", "seed first-run setup token (installer); ignored if admin exists")
 	tlsCert := flag.String("tls-cert", "", "optional TLS certificate for first-run HTTPS")
 	tlsKey := flag.String("tls-key", "", "optional TLS private key for first-run HTTPS")
+	repairState := flag.Bool("repair-state", false, "repair corrupted state.db (stop webor + webor-helper first), then exit")
 	flag.Parse()
+
+	if *repairState {
+		msg, err := config.RepairStateDB(*stateDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "repair-state:", err)
+			os.Exit(1)
+		}
+		fmt.Println(msg)
+		return
+	}
 
 	db, err := config.OpenDB(*stateDir)
 	if err != nil {
@@ -99,6 +110,7 @@ func main() {
 		CaddyConfigPath: *caddyJSON,
 		HTTPListen:      *httpListen,
 		DisableHTTPS:    *disableHTTPS,
+		PanelListen:     *listen,
 		StateDir:        *stateDir,
 	}
 	mux := http.NewServeMux()
@@ -112,8 +124,10 @@ func main() {
 	})
 	srv.MountAuth(mux)
 	srv.MountSites(mux)
+	srv.MountPanel(mux)
 	srv.MountApprovals(mux)
 	srv.MountMetrics(mux)
+	srv.MountBackup(mux)
 	mux.Handle("/", ui.Handler())
 
 	log.Printf("webor %s listening on %s (state=%s config=%s helper=%s)", version.Version, *listen, *stateDir, *configPath, srv.HelperSocket)

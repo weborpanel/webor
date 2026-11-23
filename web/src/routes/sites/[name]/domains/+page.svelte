@@ -31,11 +31,32 @@
 	let subBusy = $state(false);
 	let subRemoving = $state('');
 
+	type PanelInfo = { domain?: string; parent_site?: string; port?: number };
+	let panel = $state.raw<PanelInfo | null>(null);
+	let panelLoading = $state(true);
+	let panelLabel = $state('panel');
+	let panelBusy = $state(false);
+	let panelDnsBusy = $state(false);
+	let panelDnsChecked = $state(false);
+	let panelDnsCanCert = $state(false);
+	let panelDnsError = $state('');
+
 	let subPreview = $derived.by(() => {
 		const s = subName.trim().toLowerCase();
 		if (!s) return '';
 		return s.includes('.') ? s : `${s}.${site.name}`;
 	});
+
+	let panelPreview = $derived.by(() => {
+		const label = panelLabel.trim().toLowerCase();
+		if (!label) return '';
+		return label.includes('.') ? label : `${label}.${site.name}`;
+	});
+
+	let panelOwnedHere = $derived(
+		!!panel?.domain && (panel.parent_site || '').toLowerCase() === site.name.toLowerCase()
+	);
+	let panelScheme = $derived(site.https ? 'https' : 'http');
 
 	function statusTone(s: string): 'ok' | 'warn' | 'danger' | 'neutral' {
 		if (s === 'ok' || s === 'pass') return 'ok';
@@ -115,6 +136,115 @@
 		}
 	}
 
+	async function loadPanel() {
+		if (site.isChild) {
+			panelLoading = false;
+			return;
+		}
+		panelLoading = true;
+		try {
+			const r = await request<PanelInfo>('/api/panel');
+			if (r.ok) {
+				panel = {
+					domain: r.data.domain || '',
+					parent_site: r.data.parent_site || '',
+					port: r.data.port
+				};
+			}
+		} catch {
+			// panel card stays as-is
+		} finally {
+			panelLoading = false;
+		}
+	}
+
+	async function enablePanel(e: SubmitEvent) {
+		e.preventDefault();
+		const raw = panelLabel.trim().toLowerCase();
+		const label = raw.includes('.') ? raw.split('.')[0]! : raw;
+		if (!label) return;
+		const elsewhere =
+			!!panel?.domain &&
+			(panel.parent_site || '').toLowerCase() !== site.name.toLowerCase();
+		if (elsewhere) {
+			const ok = await confirmDialog({
+				title: 'Move panel access?',
+				message: `Panel is currently at ${panel?.domain} under ${panel?.parent_site}. Move it to ${panelPreview} on this site?`,
+				confirmLabel: 'Move'
+			});
+			if (!ok) return;
+		}
+		panelBusy = true;
+		try {
+			const r = await request<PanelInfo & { label?: string }>('/api/panel/domain', {
+				method: 'PUT',
+				json: { parent: site.name, label }
+			});
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not enable panel access');
+				return;
+			}
+			toasts.success(
+				elsewhere
+					? `Panel moved to ${r.data.domain || panelPreview}`
+					: `Panel published at ${r.data.domain || panelPreview}`
+			);
+			panelDnsChecked = false;
+			panelDnsError = '';
+			await loadPanel();
+		} catch (err) {
+			toasts.error(errorMessage(err));
+		} finally {
+			panelBusy = false;
+		}
+	}
+
+	async function disablePanel() {
+		const domain = panel?.domain || 'panel domain';
+		const ok = await confirmDialog({
+			title: 'Disable panel access?',
+			message: `${domain} will no longer serve the control panel.`,
+			confirmLabel: 'Disable',
+			danger: true
+		});
+		if (!ok) return;
+		panelBusy = true;
+		try {
+			const r = await request('/api/panel/domain', { method: 'DELETE' });
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not disable panel access');
+				return;
+			}
+			toasts.success('Panel access disabled');
+			panelDnsChecked = false;
+			panelDnsError = '';
+			await loadPanel();
+		} catch (err) {
+			toasts.error(errorMessage(err));
+		} finally {
+			panelBusy = false;
+		}
+	}
+
+	async function checkPanelDNS() {
+		panelDnsBusy = true;
+		panelDnsError = '';
+		try {
+			const q = expectedA.trim() ? `?a=${encodeURIComponent(expectedA.trim())}` : '';
+			const r = await request<{ can_issue_certificate?: boolean }>(`/api/panel/dns${q}`);
+			if (!r.ok) {
+				panelDnsError = r.data.error || 'DNS check failed';
+				return;
+			}
+			panelDnsCanCert = !!r.data.can_issue_certificate;
+			panelDnsChecked = true;
+		} catch (e) {
+			panelDnsError = errorMessage(e);
+		} finally {
+			panelDnsBusy = false;
+		}
+	}
+
 	async function addSubdomain(e: SubmitEvent) {
 		e.preventDefault();
 		const sub = subPreview;
@@ -166,6 +296,7 @@
 
 	onMount(() => {
 		void loadSubdomains();
+		void loadPanel();
 	});
 </script>
 
@@ -320,6 +451,77 @@
 					</form>
 				{/snippet}
 			</Card>
+
+			<Card title="Panel access" description="Publish the control panel on a subdomain of this site">
+				{#if panelLoading && !panel}
+					<Skeleton lines={2} />
+				{:else if panelOwnedHere}
+					<div class="panel-active">
+						<a class="panel-host" href={`${panelScheme}://${panel.domain}`} target="_blank" rel="noopener noreferrer">
+							{panel.domain}
+						</a>
+						<p class="wbr-muted panel-dns-note">
+							Point an A/AAAA record for this hostname at this server, then check DNS.
+						</p>
+						<div class="panel-actions">
+							<button
+								class="wbr-btn wbr-btn-ghost sm"
+								type="button"
+								disabled={panelDnsBusy}
+								onclick={() => void checkPanelDNS()}
+							>
+								<Icon name="search" size={15} />
+								{panelDnsBusy ? 'Checking…' : 'Check DNS'}
+							</button>
+							<button
+								class="wbr-btn wbr-btn-ghost sm"
+								type="button"
+								disabled={panelBusy}
+								onclick={() => void disablePanel()}
+							>
+								{panelBusy ? 'Working…' : 'Disable'}
+							</button>
+						</div>
+						{#if panelDnsError}<p class="wbr-error" role="alert">{panelDnsError}</p>{/if}
+						{#if panelDnsChecked}
+							<div class="panel-status" role="status">
+								<StatusPill
+									tone={panelDnsCanCert ? 'ok' : 'warn'}
+									label={panelDnsCanCert ? 'DNS ready' : 'DNS not ready'}
+								/>
+							</div>
+						{/if}
+					</div>
+				{:else}
+					{#if panel?.domain}
+						<p class="wbr-muted panel-elsewhere">
+							Panel is at <code>{panel.domain}</code> under
+							<a href={`/sites/${encodeURIComponent(panel.parent_site || '')}/domains`}>
+								{panel.parent_site}
+							</a>. Enable below to move it here.
+						</p>
+					{/if}
+					<form class="panel-form" onsubmit={enablePanel}>
+						<label class="wbr-field">
+							<span>Subdomain label</span>
+							<input
+								bind:value={panelLabel}
+								placeholder="panel"
+								autocomplete="off"
+								spellcheck="false"
+								disabled={panelBusy}
+								required
+							/>
+							{#if panelPreview}
+								<span class="hint">Publishes at <code>{panelPreview}</code></span>
+							{/if}
+						</label>
+						<button class="wbr-btn" type="submit" disabled={panelBusy || !panelPreview}>
+							{panelBusy ? 'Enabling…' : 'Enable'}
+						</button>
+					</form>
+				{/if}
+			</Card>
 		{/if}
 	</div>
 </div>
@@ -460,6 +662,56 @@
 
 	.add-sub .wbr-field {
 		flex: 1;
+	}
+
+	.panel-form {
+		display: flex;
+		gap: 0.5rem;
+		align-items: flex-start;
+		flex-wrap: wrap;
+	}
+
+	.panel-form .wbr-field {
+		flex: 1;
+		min-width: 10rem;
+	}
+
+	.hint {
+		display: block;
+		margin-top: 0.35rem;
+		font-size: 0.8rem;
+		color: var(--muted);
+	}
+
+	.panel-active {
+		display: grid;
+		gap: 0.65rem;
+	}
+
+	.panel-host {
+		font-weight: 700;
+		overflow-wrap: anywhere;
+	}
+
+	.panel-dns-note {
+		margin: 0;
+		font-size: 0.85rem;
+	}
+
+	.panel-elsewhere {
+		margin: 0 0 0.85rem;
+		font-size: 0.85rem;
+	}
+
+	.panel-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+
+	.panel-status {
+		display: flex;
+		align-items: center;
 	}
 
 	@media (max-width: 1000px) {

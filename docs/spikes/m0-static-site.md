@@ -24,7 +24,7 @@ sudo /tmp/spike-m0-static \
   -disable-https
 
 curl -sS -H 'Host: example.com' http://127.0.0.1:8080/
-# expect: webor-m0-static-ok
+# expect: data-webor-seed="static-v2" and the site domain as brand
 
 curl -sS -H 'Host: www.example.com' http://127.0.0.1:8080/
 ls -la /srv/sites/example.com/public/

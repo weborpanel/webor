@@ -36,6 +36,8 @@ type Server struct {
 	CaddyConfigPath string
 	HTTPListen      string
 	DisableHTTPS    bool // lab / until DNS passes
+	// PanelListen is the panel process -listen address (for Caddy reverse_proxy).
+	PanelListen string
 
 	// UploadsDir stages deploy binaries (default /var/lib/webor/uploads).
 	UploadsDir string
@@ -206,6 +208,32 @@ func (s *Server) sessionOK(r *http.Request) *auth.Session {
 		return nil
 	}
 	return sess
+}
+
+// bearerToken extracts an Authorization: Bearer value.
+func bearerToken(r *http.Request) string {
+	h := strings.TrimSpace(r.Header.Get("Authorization"))
+	if h == "" {
+		return ""
+	}
+	const prefix = "Bearer "
+	if len(h) < len(prefix) || !strings.EqualFold(h[:len(prefix)], prefix) {
+		return ""
+	}
+	return strings.TrimSpace(h[len(prefix):])
+}
+
+// deployTokenOK validates a site-scoped deploy token from the Bearer header.
+func (s *Server) deployTokenOK(r *http.Request) *auth.DeployToken {
+	plain := bearerToken(r)
+	if plain == "" || s.Account == nil {
+		return nil
+	}
+	tok, err := s.Account.LookupDeployToken(plain)
+	if err != nil {
+		return nil
+	}
+	return tok
 }
 
 func clientIP(r *http.Request) string {

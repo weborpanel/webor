@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Public bootstrap installer (temporary host: 2bts.in).
+# Public bootstrap installer (S3 releases).
 # Usage:
-#   curl -fsSL https://2bts.in/webor/install | sudo bash
+#   curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
 # Optional:
-#   WEBOR_BASE_URL=https://2bts.in/webor WEBOR_CHANNEL=beta curl -fsSL ... | sudo bash -s -- --skip-ptr
+#   WEBOR_BASE_URL=... WEBOR_CHANNEL=stable curl -fsSL ... | sudo bash -s -- --skip-ptr
 set -euo pipefail
 
-BASE_URL="${WEBOR_BASE_URL:-https://2bts.in/webor}"
-CHANNEL="${WEBOR_CHANNEL:-beta}"
+BASE_URL="${WEBOR_BASE_URL:-https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor}"
+CHANNEL="${WEBOR_CHANNEL:-stable}"
 ARCH="$(uname -m)"
 case "$ARCH" in
   x86_64|amd64) ARCH=amd64 ;;
@@ -55,7 +55,7 @@ ROOT="$(find "$TMP" -maxdepth 1 -type d -name 'webor-linux-*' | head -n1)"
   exit 1
 }
 
-# Ensure Caddy exists (needed for site TLS later). Best-effort on Debian/Ubuntu.
+# Ensure Caddy exists (needed for site TLS later). Best-effort on Debian/Ubuntu or EL.
 if ! command -v caddy >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
     echo "[webor] installing caddy via apt"
@@ -63,7 +63,18 @@ if ! command -v caddy >/dev/null 2>&1; then
     apt-get update -y
     apt-get install -y caddy || echo "[webor] WARN: apt install caddy failed — continue; install Caddy manually then re-run"
   else
-    echo "[webor] WARN: caddy not found and no apt-get — install Caddy before enabling HTTPS"
+    echo "[webor] installing Caddy official binary to /usr/bin/caddy"
+    ver="$(curl -fsSL https://api.github.com/repos/caddyserver/caddy/releases/latest | grep -oE '"tag_name":[[:space:]]*"[^"]+"' | head -1 | sed 's/.*"v/v/;s/"$//')"
+    if [[ -z "$ver" ]]; then
+      echo "[webor] WARN: could not resolve Caddy release — install Caddy manually then re-run"
+    else
+      ctmp="$(mktemp -d)"
+      curl -fsSL "https://github.com/caddyserver/caddy/releases/download/${ver}/caddy_${ver#v}_linux_${ARCH}.tar.gz" -o "${ctmp}/caddy.tgz" \
+        && tar -xzf "${ctmp}/caddy.tgz" -C "${ctmp}" \
+        && install -m 0755 "${ctmp}/caddy" /usr/bin/caddy \
+        || echo "[webor] WARN: Caddy binary install failed — install Caddy manually then re-run"
+      rm -rf "${ctmp}"
+    fi
   fi
 fi
 

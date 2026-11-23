@@ -26,6 +26,8 @@ func main() {
 		os.Exit(runRequestApproval(os.Args[2:]))
 	case "doctor":
 		os.Exit(runDoctor(os.Args[2:]))
+	case "backup":
+		os.Exit(runBackup(os.Args[2:]))
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -33,6 +35,28 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
+}
+
+func runBackup(args []string) int {
+	if len(args) < 1 || args[0] != "run" {
+		fmt.Fprintln(os.Stderr, "usage: wbr backup run [-socket PATH] [-config PATH]")
+		return 2
+	}
+	fs := flag.NewFlagSet("backup run", flag.ExitOnError)
+	socket := fs.String("socket", ipc.DefaultSocketPath, "helper Unix socket")
+	configPath := fs.String("config", "/etc/webor/config.yaml", "config.yaml path")
+	_ = fs.Parse(args[1:])
+	raw, _ := json.Marshal(ipc.BackupRunArgs{ConfigPath: *configPath})
+	resp, err := ipc.Call(*socket, ipc.Request{ID: "wbr", Operation: ipc.OpBackupRun, Args: raw})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	printResp(resp)
+	if !resp.OK {
+		return 1
+	}
+	return 0
 }
 
 func runApprove(args []string) int {
@@ -196,6 +220,7 @@ func usage() {
 Usage:
   wbr version
   wbr doctor
+  wbr backup run                   (via helper; used by webor-backup.timer)
   wbr request-approval -domain example.com [-op DeleteSiteUser -delete-data]
   wbr approve list                 (root)
   wbr approve <approval-id>        (root; console step-up)

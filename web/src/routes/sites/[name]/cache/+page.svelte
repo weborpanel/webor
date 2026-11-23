@@ -32,11 +32,13 @@
 	};
 
 	const INSTALL_HINT =
-		'sudo apt-get update && sudo apt-get install -y valkey\nsudo systemctl enable --now valkey-server';
-	const START_HINT = 'sudo systemctl enable --now valkey-server';
+		'# Debian/Ubuntu\nsudo apt-get update && sudo apt-get install -y valkey\nsudo systemctl enable --now valkey-server\n# AlmaLinux / RHEL\nsudo dnf install -y redis\nsudo systemctl enable --now redis';
+	const START_HINT = 'sudo systemctl enable --now valkey-server || sudo systemctl enable --now redis';
 
 	let cache = $state.raw<CacheInfo | null>(null);
 	let valkey = $state.raw<ValkeyStatus | null>(null);
+	let hostInstallHint = $state(INSTALL_HINT);
+	let hostStartHint = $state(START_HINT);
 	let loading = $state(true);
 	let loadError = $state('');
 	let busy = $state(false);
@@ -54,7 +56,12 @@
 		loading = true;
 		try {
 			const r = await request<
-				CacheInfo & { cache?: CacheInfo | null; valkey?: ValkeyStatus | null }
+				CacheInfo & {
+					cache?: CacheInfo | null;
+					valkey?: ValkeyStatus | null;
+					install_hint?: string;
+					start_hint?: string;
+				}
 			>(site.path('/cache'));
 			if (!r.ok) {
 				loadError = r.data.error || 'Could not load cache';
@@ -63,6 +70,8 @@
 			loadError = '';
 			installHint = '';
 			const d = r.data;
+			if (d.install_hint) hostInstallHint = d.install_hint;
+			if (d.start_hint) hostStartHint = d.start_hint;
 			valkey = d.valkey ?? null;
 			cache = d.cache ?? {
 				attached: d.attached,
@@ -94,7 +103,7 @@
 				hint?: string;
 			}>(site.path('/cache'), { method: 'POST', json: { engine: 'valkey' } });
 			if (r.data.install_required || (!r.ok && r.status === 409)) {
-				installHint = r.data.hint || (needsStart ? START_HINT : INSTALL_HINT);
+				installHint = r.data.hint || (needsStart ? hostStartHint : hostInstallHint);
 				toasts.error(r.data.error || 'Valkey is not ready');
 				await load();
 				return;
@@ -250,7 +259,7 @@
 							Log in as root and start the Valkey service. Then click Refresh and Attach cache.
 						{/if}
 					</p>
-					<pre class="cmd">{installHint || (needsInstall ? INSTALL_HINT : START_HINT)}</pre>
+					<pre class="cmd">{installHint || (needsInstall ? hostInstallHint : hostStartHint)}</pre>
 					<p class="fallback">
 						Enable/start <code>valkey-server</code> (not the <code>valkey</code> alias). If port 6379 is
 						already taken, use Redis instead — the panel accepts either:

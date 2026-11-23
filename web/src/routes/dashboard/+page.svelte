@@ -26,6 +26,8 @@
 
 	let events = $state.raw<AuditEvent[]>([]);
 	let eventsLoaded = $state(false);
+	let panel = $state.raw<{ domain?: string; parent_site?: string } | null>(null);
+	let panelLoaded = $state(false);
 	let topBy = $state<'cpu' | 'mem' | 'disk'>('mem');
 	let shareBy = $state<'mem' | 'disk'>('mem');
 
@@ -144,6 +146,30 @@
 				detail: 'CPU and network figures appear within a few seconds; graphs fill in over time.'
 			});
 		}
+		if (panelLoaded && !panel?.domain) {
+			if (sites.length === 0) {
+				out.push({
+					key: 'panel',
+					tone: 'info',
+					title: 'Publish the panel on your domain',
+					detail:
+						'Add your domain first, then open Domains → Panel access to serve the panel at e.g. panel.example.com (high port stays as fallback).',
+					href: '/sites',
+					action: 'Add site'
+				});
+			} else {
+				const apex = sites.find((s) => !s.parent) ?? sites[0];
+				out.push({
+					key: 'panel',
+					tone: 'info',
+					title: 'Publish the panel on your domain',
+					detail:
+						'Panel is still on the high port. Open Domains → Panel access on your site and choose a subdomain label.',
+					href: `/sites/${encodeURIComponent(apex.name)}/domains`,
+					action: 'Set up'
+				});
+			}
+		}
 		return out;
 	});
 
@@ -158,16 +184,33 @@
 		}
 	}
 
+	async function loadPanel() {
+		try {
+			const r = await request<{ domain?: string; parent_site?: string }>('/api/panel');
+			if (r.ok) {
+				panel = {
+					domain: r.data.domain || '',
+					parent_site: r.data.parent_site || ''
+				};
+				panelLoaded = true;
+			}
+		} catch {
+			// panel attention is optional on the dashboard
+		}
+	}
+
 	function refreshAll() {
 		void overview.refresh();
 		void host.load();
 		void loadEvents();
+		void loadPanel();
 	}
 
 	onMount(() => {
 		void overview.ensure(5_000);
 		void host.load();
 		void loadEvents();
+		void loadPanel();
 		const stopOverview = poll(() => void overview.refresh(), 30_000);
 		const stopHost = poll(() => void host.load(), 60_000);
 		return () => {
@@ -378,7 +421,11 @@
 		{#if loading}
 			<div class="pad"><Skeleton lines={5} height="1.6rem" /></div>
 		{:else if sites.length === 0}
-			<EmptyState icon="globe" title="No sites yet" description="Create your first site to start hosting.">
+			<EmptyState
+				icon="globe"
+				title="No sites yet"
+				description="Create your first site to start hosting — then publish the panel on a subdomain."
+			>
 				<button type="button" class="wbr-btn" onclick={() => (ui.addSiteOpen = true)}>
 					<Icon name="plus" size={15} /> Add site
 				</button>

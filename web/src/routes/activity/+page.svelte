@@ -121,7 +121,19 @@
 	<label class="toggle"><input type="checkbox" bind:checked={detailed} /> Show details</label>
 </div>
 
-{#if error}<p class="wbr-error" role="alert">{error}</p>{/if}
+{#if error}
+	<div class="wbr-error corrupt" role="alert">
+		<p>{error}</p>
+		{#if /malformed|corrupt|state\.db/i.test(error)}
+			<p class="hint">
+				The panel state database is damaged. On the server, stop services and repair, then reload this page:
+			</p>
+			<pre>systemctl stop webor webor-helper
+webor -repair-state
+systemctl start webor-helper webor</pre>
+		{/if}
+	</div>
+{/if}
 
 {#if loading && events.length === 0}
 	<Card><Skeleton lines={8} /></Card>
@@ -222,6 +234,34 @@
 		color: var(--subtle);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+	}
+
+	.corrupt {
+		padding: 0.85rem 1rem;
+		border-radius: var(--radius);
+		background: var(--danger-soft);
+	}
+
+	.corrupt p {
+		margin: 0;
+	}
+
+	.corrupt .hint {
+		margin-top: 0.55rem;
+		font-size: 0.88rem;
+		color: var(--text);
+	}
+
+	.corrupt pre {
+		margin: 0.55rem 0 0;
+		padding: 0.65rem 0.75rem;
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		color: var(--text);
+		font-size: 0.8rem;
+		overflow-x: auto;
+		white-space: pre-wrap;
 	}
 
 	.more {

@@ -288,6 +288,65 @@ ensure_user() {
   log "created system user $name"
 }
 
+# Site users (wbr_*) must traverse STATE_DIR to exec shared Node under runtimes/.
+# Secrets stay 0640 on files; directory other+rx is intentional (not 0750).
+# On SELinux Enforcing, Node binaries under runtimes must be bin_t (not var_lib_t)
+# or systemd fails with status=203/EXEC.
+ensure_state_layout() {
+  install -d -m 0755 -o "$PANEL_USER" -g "$PANEL_USER" "$STATE_DIR"
+  # Re-assert mode on upgrades: older installs used 0750 and broke Node backends.
+  chmod 0755 "$STATE_DIR" || true
+  install -d -m 0755 -o root -g root "${STATE_DIR}/runtimes"
+  install -d -m 0755 -o root -g root "${STATE_DIR}/runtimes/node"
+  install -d -m 0755 -o root -g root "$SITES_ROOT"
+  install -d -m 0755 -o root -g root "$RUN_DIR" 2>/dev/null || true
+  label_node_runtimes_selinux
+}
+
+label_node_runtimes_selinux() {
+  local enforce node_root
+  node_root="${STATE_DIR}/runtimes/node"
+  [[ -d "$node_root" ]] || return 0
+  [[ -d /sys/fs/selinux ]] || return 0
+  command -v chcon >/dev/null 2>&1 || return 0
+  enforce="$(cat /sys/fs/selinux/enforce 2>/dev/null || echo 0)"
+  [[ "$enforce" == "1" ]] || return 0
+  # Best-effort; missing trees or chcon failures must not abort install.
+  find "$node_root" -type f -path '*/bin/*' -exec chcon -t bin_t {} + 2>/dev/null || true
+  find "$node_root" -type f \( -name '*.so' -o -name '*.so.*' \) -exec chcon -t lib_t {} + 2>/dev/null || true
+  log "SELinux Enforcing: labeled Node runtimes under ${node_root} (bin_t/lib_t)"
+}
+
+# Best-effort: Backups panel needs restic on PATH. Never fail the whole install.
+install_restic() {
+  if command -v restic >/dev/null 2>&1; then
+    log "restic already installed: $(command -v restic)"
+    return 0
+  fi
+  if command -v apt-get >/dev/null 2>&1; then
+    log "installing restic via apt"
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y >/dev/null || true
+    if apt-get install -y restic; then
+      log "restic installed: $(command -v restic)"
+      return 0
+    fi
+    warn "apt install restic failed — install manually later for Backups"
+    return 0
+  fi
+  if command -v dnf >/dev/null 2>&1; then
+    log "installing restic via dnf (EPEL)"
+    dnf install -y epel-release >/dev/null 2>&1 || true
+    if dnf install -y restic; then
+      log "restic installed: $(command -v restic)"
+      return 0
+    fi
+    warn "dnf install restic failed — try: sudo dnf install -y epel-release restic"
+    return 0
+  fi
+  warn "no apt/dnf — install restic manually for Backups"
+}
+
 install_binaries() {
   local bin
   for bin in webor webor-helper wbr; do
@@ -298,6 +357,11 @@ install_binaries() {
   install -m 0755 "${BIN_DIR}/webor-helper" "${PREFIX}/bin/webor-helper"
   install -m 0755 "${BIN_DIR}/wbr" "${PREFIX}/bin/wbr"
   log "installed binaries to ${PREFIX}/bin"
+  # RHEL/Alma sudo secure_path omits /usr/local/bin — keep wbr reachable as `sudo wbr`.
+  if [[ "${PREFIX}/bin" != "/usr/bin" ]]; then
+    ln -sfn "${PREFIX}/bin/wbr" /usr/bin/wbr
+    log "linked /usr/bin/wbr -> ${PREFIX}/bin/wbr"
+  fi
 }
 
 install_units() {
@@ -352,10 +416,7 @@ write_panel_config() {
   local port="$1" token="$2"
   # /etc/webor must be traversable by caddy (other+x); secrets stay 0640.
   install -d -m 0751 -o "$PANEL_USER" -g "$PANEL_USER" "$ETC_DIR"
-  install -d -m 0750 -o "$PANEL_USER" -g "$PANEL_USER" "$STATE_DIR"
-  # Caddy (user caddy) must traverse /srv/sites to serve public/.
-  install -d -m 0755 -o root -g root "$SITES_ROOT"
-  install -d -m 0755 -o root -g root "$RUN_DIR" 2>/dev/null || true
+  ensure_state_layout
 
   if [[ ! -f "${ETC_DIR}/config.yaml" ]]; then
     cat > "${ETC_DIR}/config.yaml" <<'EOF'
@@ -513,6 +574,9 @@ do_install() {
 
   install_binaries
   install_units
+  install_restic
+  # Always (re)assert state dir mode + SELinux Node labels — even on idempotent re-run.
+  ensure_state_layout
 
   local token
   if [[ -f "${ETC_DIR}/panel.env" ]] && grep -q 'WBR_SETUP_TOKEN=' "${ETC_DIR}/panel.env" 2>/dev/null; then

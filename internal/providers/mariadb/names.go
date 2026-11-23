@@ -29,7 +29,7 @@ func PeerDSN(domain, id string) string {
 }
 
 func PeerURL(domain, id string) string {
-	return fmt.Sprintf("mysql:///%s?socket=/run/mysqld/mysqld.sock", DBName(domain, id))
+	return fmt.Sprintf("mysql:///%s?socket=%s", DBName(domain, id), UnixSocketPath())
 }
 
 func SecretFileName(domain, id string) string {

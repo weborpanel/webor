@@ -5,22 +5,34 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
 )
 
 // UsedPorts returns the set of backend ports currently claimed in cfg.
+// Values are "site/backendID" labels.
 func UsedPorts(cfg *config.Config) map[int]string {
 	out := map[int]string{}
 	if cfg == nil {
 		return out
 	}
 	for _, s := range cfg.Sites {
-		if s.Backend == nil || !s.Backend.Enabled || s.Backend.Port == 0 {
-			continue
+		for _, b := range s.Backends {
+			if !b.Enabled || b.Port == 0 {
+				continue
+			}
+			out[b.Port] = s.Name + "/" + b.ID
 		}
-		out[s.Backend.Port] = s.Name
+		// Legacy singular field (before NormalizeSiteBackends).
+		if s.Backend != nil && s.Backend.Enabled && s.Backend.Port != 0 {
+			if _, ok := out[s.Backend.Port]; !ok {
+				id := s.Backend.ID
+				if id == "" {
+					id = "api"
+				}
+				out[s.Backend.Port] = s.Name + "/" + id
+			}
+		}
 	}
 	return out
 }
@@ -36,16 +48,8 @@ func IsFreeOnLoopback(port int) bool {
 }
 
 // Allocate picks the next free port in [BackendPortMin, BackendPortMax].
-// excludeDomain's existing port is ignored so re-attach can keep or replace cleanly.
-func Allocate(cfg *config.Config, excludeDomain string) (int, error) {
+func Allocate(cfg *config.Config) (int, error) {
 	used := UsedPorts(cfg)
-	if excludeDomain != "" {
-		for p, name := range used {
-			if strings.EqualFold(name, excludeDomain) {
-				delete(used, p)
-			}
-		}
-	}
 	for p := config.BackendPortMin; p <= config.BackendPortMax; p++ {
 		if _, taken := used[p]; taken {
 			continue

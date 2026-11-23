@@ -22,10 +22,11 @@ var domainRE = regexp.MustCompile(`(?i)^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-
 
 // Config is the top-level desired-state document.
 type Config struct {
-	Version int    `yaml:"version"`
-	Panel   Panel  `yaml:"panel"`
-	Sites   []Site `yaml:"sites"`
-	Mail    *Mail  `yaml:"mail,omitempty"` // reserved for later; ignored in v1
+	Version int     `yaml:"version"`
+	Panel   Panel   `yaml:"panel"`
+	Sites   []Site  `yaml:"sites"`
+	Backup  *Backup `yaml:"backup,omitempty"`
+	Mail    *Mail   `yaml:"mail,omitempty"` // reserved for later; ignored in v1
 }
 
 // Panel holds panel listen and domain settings.
@@ -46,6 +47,7 @@ type Site struct {
 	SourceDir        string            `yaml:"source_dir,omitempty"`
 	BuildCommand     string            `yaml:"build_command,omitempty"`
 	Exec             string            `yaml:"exec,omitempty"`
+	Runtime          *SiteRuntime      `yaml:"runtime,omitempty"` // optional Node (managed or BYO)
 	SocketActivation bool              `yaml:"socket_activation,omitempty"`
 	SocketProxy      bool              `yaml:"socket_proxy,omitempty"` // proxyd + private backend (non-LISTEN_FDS apps)
 	IdleTimeout      string            `yaml:"idle_timeout,omitempty"`
@@ -55,9 +57,11 @@ type Site struct {
 	Databases []SiteDatabase `yaml:"databases,omitempty"`
 	Cache     string         `yaml:"cache,omitempty"`
 	// HTTPS enables automatic TLS for this site when the panel is not force-disabling HTTPS.
-	HTTPS   bool         `yaml:"https,omitempty"`
-	Backend *SiteBackend `yaml:"backend,omitempty"` // optional HTTP API on a static site
-	Limits  Limits       `yaml:"limits,omitempty"`
+	HTTPS bool `yaml:"https,omitempty"`
+	// Backend is legacy singular HTTP API; migrated into Backends on load.
+	Backend  *SiteBackend  `yaml:"backend,omitempty"`
+	Backends []SiteBackend `yaml:"backends,omitempty"` // HTTP APIs on a static site
+	Limits   Limits        `yaml:"limits,omitempty"`
 	Cron    []CronJob    `yaml:"cron,omitempty"`
 	Jobs    []Job        `yaml:"jobs,omitempty"` // long-running Type=simple services
 	Extra   map[string]string `yaml:"extra,omitempty"`
@@ -105,6 +109,7 @@ func Parse(data []byte) (*Config, error) {
 	}
 	for i := range c.Sites {
 		NormalizeSiteDatabases(&c.Sites[i])
+		NormalizeSiteBackends(&c.Sites[i])
 	}
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -116,6 +121,7 @@ func Parse(data []byte) (*Config, error) {
 func Save(path string, c *Config) error {
 	for i := range c.Sites {
 		NormalizeSiteDatabases(&c.Sites[i])
+		NormalizeSiteBackends(&c.Sites[i])
 	}
 	if err := c.Validate(); err != nil {
 		return err
@@ -138,6 +144,12 @@ func (c *Config) Validate() error {
 	if c.Panel.Domain != "" {
 		if err := validateDomain(c.Panel.Domain); err != nil {
 			return fmt.Errorf("panel.domain: %w", err)
+		}
+	}
+	if c.Backup != nil {
+		NormalizeBackup(c.Backup)
+		if err := ValidateBackup(c.Backup); err != nil {
+			return err
 		}
 	}
 
@@ -203,9 +215,12 @@ func (c *Config) Validate() error {
 		if err := validateIdleTimeout(s); err != nil {
 			return fmt.Errorf("%s: %w", prefix, err)
 		}
-		if s.Backend != nil {
-			NormalizeBackend(s.Backend)
-			if err := ValidateSiteBackend(s.Type, s.Backend); err != nil {
+		if err := ValidateSiteBackends(s.Type, s.Backends); err != nil {
+			return fmt.Errorf("%s: %w", prefix, err)
+		}
+		if s.Runtime != nil {
+			NormalizeRuntime(s.Runtime)
+			if err := ValidateSiteRuntime(s.Type, s.Runtime); err != nil {
 				return fmt.Errorf("%s: %w", prefix, err)
 			}
 		}
@@ -258,14 +273,119 @@ func (c *Config) Validate() error {
 	}
 	seenPorts := map[int]string{}
 	for i, s := range c.Sites {
-		if s.Backend == nil || !s.Backend.Enabled || s.Backend.Port == 0 {
+		for j, b := range s.Backends {
+			if !b.Enabled || b.Port == 0 {
+				continue
+			}
+			p := b.Port
+			label := fmt.Sprintf("%s/%s", s.Name, b.ID)
+			if other, ok := seenPorts[p]; ok {
+				return fmt.Errorf("sites[%d].backends[%d].port: %d already used by %q", i, j, p, other)
+			}
+			seenPorts[p] = label
+		}
+	}
+	if d := strings.ToLower(strings.TrimSpace(c.Panel.Domain)); d != "" {
+		if name, ok := c.HostnameTaken(d); ok {
+			return fmt.Errorf("panel.domain %q conflicts with site %q", c.Panel.Domain, name)
+		}
+	}
+	return nil
+}
+
+// HostnameTaken reports whether host is already used as a site name or alias.
+func (c *Config) HostnameTaken(host string) (siteName string, taken bool) {
+	if c == nil {
+		return "", false
+	}
+	want := strings.ToLower(strings.TrimSpace(host))
+	if want == "" {
+		return "", false
+	}
+	for _, s := range c.Sites {
+		if strings.ToLower(s.Name) == want {
+			return s.Name, true
+		}
+		for _, a := range s.Aliases {
+			if strings.ToLower(strings.TrimSpace(a)) == want {
+				return s.Name, true
+			}
+		}
+	}
+	return "", false
+}
+
+// PanelParentSite returns the apex site that owns panel.domain, if any.
+// Ownership means panel.domain equals the apex or is a subdomain of it.
+func (c *Config) PanelParentSite() string {
+	if c == nil {
+		return ""
+	}
+	domain := strings.ToLower(strings.TrimSpace(c.Panel.Domain))
+	if domain == "" {
+		return ""
+	}
+	for _, s := range c.Sites {
+		if strings.TrimSpace(s.Parent) != "" {
 			continue
 		}
-		p := s.Backend.Port
-		if other, ok := seenPorts[p]; ok {
-			return fmt.Errorf("sites[%d].backend.port: %d already used by %q", i, p, other)
+		apex := strings.ToLower(strings.TrimSpace(s.Name))
+		if apex == "" {
+			continue
 		}
-		seenPorts[p] = s.Name
+		if domain == apex || strings.HasSuffix(domain, "."+apex) {
+			return s.Name
+		}
+	}
+	return ""
+}
+
+// ClearPanelDomainIfOwned clears panel.domain when it belongs to the given apex site.
+func (c *Config) ClearPanelDomainIfOwned(apex string) {
+	if c == nil {
+		return
+	}
+	apex = strings.ToLower(strings.TrimSpace(apex))
+	if apex == "" {
+		return
+	}
+	parent := strings.ToLower(c.PanelParentSite())
+	domain := strings.ToLower(strings.TrimSpace(c.Panel.Domain))
+	if parent == apex || domain == apex {
+		c.Panel.Domain = ""
+	}
+}
+
+// BuildPanelDomain joins a DNS label with an apex domain.
+func BuildPanelDomain(label, apex string) (string, error) {
+	label = strings.ToLower(strings.TrimSpace(label))
+	apex = strings.ToLower(strings.TrimSpace(apex))
+	if err := validateDomain(apex); err != nil {
+		return "", fmt.Errorf("parent: %w", err)
+	}
+	if err := validateDomainLabel(label); err != nil {
+		return "", fmt.Errorf("label: %w", err)
+	}
+	domain := label + "." + apex
+	if err := validateDomain(domain); err != nil {
+		return "", err
+	}
+	return domain, nil
+}
+
+func validateDomainLabel(label string) error {
+	n := strings.TrimSpace(label)
+	if n == "" {
+		return fmt.Errorf("empty label")
+	}
+	if strings.Contains(n, ".") {
+		return fmt.Errorf("label must be a single DNS label")
+	}
+	if len(n) > 63 {
+		return fmt.Errorf("label too long")
+	}
+	if !domainRE.MatchString(n) {
+		return fmt.Errorf("invalid label %q", label)
 	}
 	return nil
 }

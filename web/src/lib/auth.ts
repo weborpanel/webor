@@ -27,7 +27,7 @@ export function isPublicPath(pathname: string): boolean {
 	return pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/setup');
 }
 
-const PROTECTED_PREFIXES = ['/dashboard', '/sites', '/activity', '/account'];
+const PROTECTED_PREFIXES = ['/dashboard', '/sites', '/activity', '/account', '/backups'];
 
 /** Panel routes that require an authenticated session. */
 export function isProtectedPath(pathname: string): boolean {

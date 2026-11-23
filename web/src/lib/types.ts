@@ -62,6 +62,7 @@ export type SiteConfig = {
 	type?: string;
 	https?: boolean;
 	root?: string;
+	exec?: string;
 	socket_proxy?: boolean;
 	cron?: string[];
 	jobs?: string[];
@@ -69,6 +70,8 @@ export type SiteConfig = {
 	cache?: string;
 	databases?: { id?: string; engine?: string }[];
 	subdomain_count?: number;
+	runtime?: { kind?: string; version?: string; command?: string };
+	backends?: { id?: string; prefix?: string; exec?: string }[];
 };
 
 export type MetricsRange = '1h' | '24h' | '7d';

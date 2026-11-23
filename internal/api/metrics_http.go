@@ -209,6 +209,10 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	events, err := audit.List(s.Account.DB, before, limit)
 	if err != nil {
+		if config.IsCorrupt(err) {
+			s.writeErr(w, 500, "activity database is corrupted (state.db). On the server: systemctl stop webor webor-helper && webor -repair-state && systemctl start webor-helper webor")
+			return
+		}
 		s.writeErr(w, 500, err.Error())
 		return
 	}

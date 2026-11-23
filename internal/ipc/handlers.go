@@ -34,6 +34,7 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpExtractPublicArchive: makeExtractPublicArchive(ops),
 		OpDeployStaticZip:      makeDeployStaticZip(ops),
 		OpDeployAppBinary: makeDeployAppBinary(ops),
+		OpDeployAppZip:    makeDeployAppZip(ops),
 		OpDeployAppGit:    makeDeployAppGit(ops),
 		OpRunBuild:        makeRunBuild(ops),
 		OpWriteUnitFile:   makeWriteUnitFile(ops),
@@ -61,7 +62,18 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpEnsureHTTPBackend:      makeEnsureHTTPBackend(ops),
 		OpRemoveHTTPBackend:      makeRemoveHTTPBackend(ops),
 		OpDeployHTTPBackend:      makeDeployHTTPBackend(ops),
+		OpDeployHTTPBackendZip:   makeDeployHTTPBackendZip(ops),
 		OpHTTPBackendStatus:      makeHTTPBackendStatus(ops),
+		OpRestartHTTPBackend:     makeRestartHTTPBackend(ops),
+		OpListAPIDir:             makeListAPIDir(ops),
+		OpBackupConfigure:        makeBackupConfigure(ops, store, log),
+		OpBackupRun:              makeBackupRun(ops),
+		OpBackupList:             makeBackupList(ops),
+		OpBackupForget:           makeBackupForget(ops, store, log),
+		OpBackupRestore:          makeBackupRestore(ops, store, log),
+		OpBackupStatus:           makeBackupStatus(ops),
+		OpEnsureBackupSchedule:   makeEnsureBackupSchedule(ops),
+		OpEnsureNodeRuntime:      makeEnsureNodeRuntime(ops),
 	}
 	return h
 }
@@ -251,6 +263,26 @@ func makeDeployAppBinary(ops *helper.Ops) HandlerFunc {
 	}
 }
 
+func makeDeployAppZip(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args DeployAppZipArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateDeployAppZipArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		defer cancel()
+		res, err := ops.DeployAppZip(ctx, args.Domain, args.ZipPath)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		raw, _ := json.Marshal(res)
+		return Response{ID: req.ID, OK: true, Message: string(raw)}
+	}
+}
+
 func makeDeployAppGit(ops *helper.Ops) HandlerFunc {
 	return func(req Request, _ PeerCred) Response {
 		var args DeployAppGitArgs
@@ -368,11 +400,26 @@ func makeJournalTail(ops *helper.Ops) HandlerFunc {
 		if err := ValidateJournalTailArgs(args); err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
-		unit, text, err := ops.SiteJournalTail(args.Domain, args.Unit, args.Lines)
+		sel := strings.TrimSpace(args.Unit)
+		if sel == "" {
+			sel = "app"
+		}
+		var (
+			unit string
+			text string
+			err  error
+		)
+		if sel == "apis" {
+			var units []string
+			units, text, err = ops.SiteJournalTailAPIs(args.Domain, args.APIIds, args.Lines)
+			unit = strings.Join(units, ",")
+		} else {
+			unit, text, err = ops.SiteJournalTail(args.Domain, sel, args.Lines)
+		}
 		if err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
-		msg := fmt.Sprintf("%s\n%s", unit, text)
-		return Response{ID: req.ID, OK: true, Message: msg}
+		raw, _ := json.Marshal(map[string]any{"unit": unit, "text": text})
+		return Response{ID: req.ID, OK: true, Message: string(raw)}
 	}
 }

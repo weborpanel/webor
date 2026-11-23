@@ -24,6 +24,7 @@ type AppApplyOptions struct {
 	CaddyLastGood   string
 	HTTPListen      string
 	DisableHTTPS    bool
+	PanelUpstream   string
 	// SampleBinary, when set, is installed as the site Exec target for lab demos.
 	SampleBinary string
 }
@@ -65,8 +66,9 @@ func ApplyAppSites(ctx context.Context, cfg *config.Config, ops *helper.Ops, opt
 	}
 
 	raw, err := caddy.Render(cfg, caddy.RenderOptions{
-		HTTPListen:   opt.HTTPListen,
-		DisableHTTPS: opt.DisableHTTPS,
+		HTTPListen:    opt.HTTPListen,
+		DisableHTTPS:  opt.DisableHTTPS,
+		PanelUpstream: opt.PanelUpstream,
 	})
 	if err != nil {
 		return err

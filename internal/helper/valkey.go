@@ -2,12 +2,12 @@ package helper
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/distro"
 	"github.com/weborpanel/webor/internal/providers/valkey"
 )
 
@@ -61,33 +61,27 @@ func (o *Ops) valkeyCLI() string {
 	return ""
 }
 
-// InstallValkey installs and enables Valkey (falls back to redis-server).
+// InstallValkey installs and enables Valkey (falls back to Redis).
 func (o *Ops) InstallValkey() error {
-	if _, err := exec.LookPath("apt-get"); err != nil {
-		return fmt.Errorf("apt-get not found (InstallValkey supports Debian/Ubuntu)")
-	}
-	update := exec.Command("apt-get", "update", "-qq")
-	update.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-	if out, err := update.CombinedOutput(); err != nil {
-		return fmt.Errorf("apt-get update: %w (%s)", err, truncateOut(out))
-	}
-	installPkg := func(pkg string) error {
-		cmd := exec.Command("apt-get", "install", "-y", pkg)
-		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("apt-get install %s: %w (%s)", pkg, err, truncateOut(out))
+	info := distro.Detect()
+	switch {
+	case info.IsRHEL() || distro.LookManager() == "dnf" || distro.LookManager() == "yum":
+		if err := distro.TryInstallPackages([]string{"valkey"}, []string{"redis"}); err != nil {
+			return err
 		}
-		return nil
-	}
-	if err := installPkg("valkey"); err != nil {
-		if err2 := installPkg("redis-server"); err2 != nil {
-			return fmt.Errorf("install valkey failed (%v); redis-server failed (%v)", err, err2)
+		for _, unit := range []string{"valkey", "valkey-server", "redis", "redis-server"} {
+			_ = exec.Command("systemctl", "enable", "--now", unit).Run()
 		}
-	}
-	// Prefer real unit names; "valkey"/"redis" are aliases and `enable` refuses them.
-	for _, unit := range []string{"valkey-server", "redis-server"} {
-		_ = exec.Command("systemctl", "enable", "--now", unit).Run()
+	case info.IsDebian() || distro.LookManager() == "apt-get":
+		if err := distro.TryInstallPackages([]string{"valkey"}, []string{"redis-server"}); err != nil {
+			return err
+		}
+		// Prefer real unit names; "valkey"/"redis" are aliases and `enable` refuses them on Debian.
+		for _, unit := range []string{"valkey-server", "redis-server"} {
+			_ = exec.Command("systemctl", "enable", "--now", unit).Run()
+		}
+	default:
+		return fmt.Errorf("InstallValkey needs apt-get or dnf (Debian/Ubuntu or AlmaLinux/RHEL)")
 	}
 	st, err := o.ValkeyStatus()
 	if err != nil {

@@ -3,7 +3,9 @@ package caddy
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
@@ -18,10 +20,31 @@ type RenderOptions struct {
 	AdminListen string
 	// DisableHTTPS turns off automatic HTTPS (lab / no DNS).
 	DisableHTTPS bool
+	// PanelUpstream is the dial address for panel.domain (e.g. 127.0.0.1:21215).
+	// When empty, PanelDial(cfg.Panel.Port) is used if panel.domain is set.
+	PanelUpstream string
+}
+
+// PanelDial builds a loopback dial target for the panel reverse proxy.
+func PanelDial(panelListen string, port int) (string, error) {
+	listen := strings.TrimSpace(panelListen)
+	if listen != "" {
+		if _, p, err := net.SplitHostPort(listen); err == nil && p != "" {
+			return net.JoinHostPort("127.0.0.1", p), nil
+		}
+		if strings.HasPrefix(listen, ":") {
+			return "127.0.0.1" + listen, nil
+		}
+	}
+	if port > 0 && port <= 65535 {
+		return net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), nil
+	}
+	return "", fmt.Errorf("panel upstream port unknown")
 }
 
 // Render builds a Caddy JSON config for static and app sites in cfg.
 // Container sites are skipped until a later milestone.
+// When panel.domain is set, a reverse_proxy route for the panel is prepended.
 func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
@@ -39,6 +62,20 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 	}
 
 	var routes []map[string]any
+	if domain := strings.TrimSpace(cfg.Panel.Domain); domain != "" {
+		upstream := strings.TrimSpace(opt.PanelUpstream)
+		if upstream == "" {
+			var err error
+			upstream, err = PanelDial("", cfg.Panel.Port)
+			if err != nil {
+				return nil, fmt.Errorf("panel.domain set but %w", err)
+			}
+		}
+		routes = append(routes, map[string]any{
+			"match":  []map[string]any{{"host": []string{domain}}},
+			"handle": []map[string]any{reverseProxyHandler(upstream, true)},
+		})
+	}
 	for _, site := range cfg.Sites {
 		hosts := append([]string{site.Name}, site.Aliases...)
 		switch site.Type {
@@ -50,18 +87,24 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 			fsRoot := filepath.Join(sites.Root(site.Name), rootName)
 
 			backendWholeHost := false
-			if site.Backend != nil && site.Backend.Enabled && site.Backend.Port > 0 {
-				config.NormalizeBackend(site.Backend)
-				prefixes := site.Backend.BackendPathPrefixes()
+			for i := range site.Backends {
+				b := &site.Backends[i]
+				if !b.Enabled || b.Port <= 0 {
+					continue
+				}
+				config.NormalizeBackend(b)
+				prefixes := b.BackendPathPrefixes()
+				whole := false
 				for _, p := range prefixes {
 					if p == "/" {
+						whole = true
 						backendWholeHost = true
 						break
 					}
 				}
-				proxy := reverseProxyHandler(fmt.Sprintf("127.0.0.1:%d", site.Backend.Port), site.Backend.WebSocket)
+				proxy := reverseProxyHandler(fmt.Sprintf("127.0.0.1:%d", b.Port), b.WebSocket)
 				match := map[string]any{"host": hosts}
-				if !backendWholeHost {
+				if !whole {
 					match["path"] = config.CaddyPathMatchers(prefixes)
 				}
 				routes = append(routes, map[string]any{
@@ -100,7 +143,7 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 		}
 	}
 	if len(routes) == 0 {
-		return nil, fmt.Errorf("no static or app sites to render")
+		return nil, fmt.Errorf("no panel domain or static/app sites to render")
 	}
 
 	server := map[string]any{

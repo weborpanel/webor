@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
-# Build a beta public tarball for temporary hosting (e.g. 2bts.in).
+# Build a public release tarball for S3 hosting.
 # Usage (from repo root):
 #   make web build   # if bins/UI stale
 #   ./scripts/pack-public.sh
+#   WEBOR_ARCH=arm64 ./scripts/pack-public.sh   # after cross-build into bin/
+#
+# Multi-arch: pack each arch, then merge SHA256SUMS before upload:
+#   ./scripts/pack-public.sh && WEBOR_ARCH=arm64 ./scripts/pack-public.sh
+#   ./scripts/merge-public-sums.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CHANNEL="${WEBOR_CHANNEL:-beta}"
+CHANNEL="${WEBOR_CHANNEL:-stable}"
 ARCH="${WEBOR_ARCH:-amd64}"
+BASE_URL="${WEBOR_BASE_URL:-https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor}"
 OUT_DIR="${ROOT}/dist/${CHANNEL}"
 STAGE="${OUT_DIR}/webor-linux-${ARCH}"
 TAR_NAME="webor-linux-${ARCH}.tar.gz"
 
 need_bin() {
   [[ -x "${ROOT}/bin/$1" ]] || {
-    echo "missing bin/$1 — run: make web && make build" >&2
+    echo "missing bin/$1 — run: make web && make build (or cross-build for ARCH=${ARCH})" >&2
     exit 1
   }
 }
@@ -39,43 +45,46 @@ if [[ -f "${ROOT}/install/install.yaml.example" ]]; then
   install -m 0644 "${ROOT}/install/install.yaml.example" "${STAGE}/install/install.yaml.example"
 fi
 
-# Bootstrap script lives at channel root for easy URL: .../webor/install
-mkdir -p "${OUT_DIR}/../upload"
+# Bootstrap script at upload root: .../webor/install
+mkdir -p "${ROOT}/dist/upload"
 install -m 0755 "${ROOT}/install/public/install" "${ROOT}/dist/upload/install"
 
 (
   cd "$OUT_DIR"
   tar -czf "$TAR_NAME" "webor-linux-${ARCH}"
-  sha256sum "$TAR_NAME" > SHA256SUMS
+  sha256sum "$TAR_NAME" > "SHA256SUMS.${ARCH}"
 )
 
-# Flat upload kit: copy tarball + sums next to install
-cp -f "${OUT_DIR}/${TAR_NAME}" "${ROOT}/dist/upload/${TAR_NAME}"
-cp -f "${OUT_DIR}/SHA256SUMS" "${ROOT}/dist/upload/SHA256SUMS"
-
-# Also mirror downloads/beta layout for the bootstrap URLs
 mkdir -p "${ROOT}/dist/upload/downloads/${CHANNEL}"
 cp -f "${OUT_DIR}/${TAR_NAME}" "${ROOT}/dist/upload/downloads/${CHANNEL}/${TAR_NAME}"
-cp -f "${OUT_DIR}/SHA256SUMS" "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS"
+cp -f "${OUT_DIR}/SHA256SUMS.${ARCH}" "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS.${ARCH}"
+
+# Keep a single-arch SHA256SUMS for convenience; merge-public-sums.sh replaces it for multi-arch.
+if [[ ! -f "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS" ]]; then
+  cp -f "${OUT_DIR}/SHA256SUMS.${ARCH}" "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS"
+else
+  # Append this arch line if missing
+  line="$(cat "${OUT_DIR}/SHA256SUMS.${ARCH}")"
+  grep -qF "$TAR_NAME" "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS" \
+    || echo "$line" >> "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS"
+fi
 
 cat <<EOF
-Packed OK.
+Packed OK (${ARCH} → ${CHANNEL}).
 
-Upload the contents of:
+Upload kit:
   ${ROOT}/dist/upload/
 
-To your host so these URLs work:
-  https://2bts.in/webor/install
-  https://2bts.in/webor/downloads/${CHANNEL}/${TAR_NAME}
-  https://2bts.in/webor/downloads/${CHANNEL}/SHA256SUMS
+Public URLs (after sync):
+  ${BASE_URL}/install
+  ${BASE_URL}/downloads/${CHANNEL}/${TAR_NAME}
+  ${BASE_URL}/downloads/${CHANNEL}/SHA256SUMS
 
-Suggested remote layout under the webor/ web root:
-  install
-  downloads/${CHANNEL}/${TAR_NAME}
-  downloads/${CHANNEL}/SHA256SUMS
+Sync with:
+  ./scripts/upload-public.sh
 
-Then on a clean VPS:
-  curl -fsSL https://2bts.in/webor/install | sudo bash -s -- --skip-ptr
+Install:
+  curl -fsSL ${BASE_URL}/install | sudo bash -s -- --skip-ptr
 
 Files:
 EOF

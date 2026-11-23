@@ -58,10 +58,10 @@ func (o *Ops) CreateSiteUser(domain string) error {
 	if err := sites.EnsurePublicDir(domain); err != nil {
 		return fmt.Errorf("public dir: %w", err)
 	}
-	// Seed a demo index when public/ is empty (panel may not write /srv/sites).
+	// Seed a starter landing page when public/ is empty (panel may not write /srv/sites).
 	index := filepath.Join(sites.Public(domain), "index.html")
 	if _, err := os.Stat(index); os.IsNotExist(err) {
-		body := []byte("<!doctype html><title>Webor</title><h1>webor-m0-static-ok</h1>\n")
+		body := []byte(sites.DefaultIndexHTML(domain))
 		if err := os.WriteFile(index, body, 0o644); err == nil {
 			_ = os.Chmod(index, 0o644) // resist restrictive process umask
 		}

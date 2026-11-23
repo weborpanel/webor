@@ -113,6 +113,26 @@ CREATE TABLE metrics_site (
 CREATE INDEX metrics_site_res_ts ON metrics_site (res, ts);
 `,
 	},
+	{
+		version: 4,
+		name:    "004_deploy_tokens",
+		sql: `
+CREATE TABLE deploy_tokens (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL DEFAULT '',
+  site TEXT NOT NULL,
+  scopes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  last_used_at TEXT,
+  expires_at TEXT,
+  revoked_at TEXT
+);
+
+CREATE INDEX deploy_tokens_site ON deploy_tokens (site);
+CREATE INDEX deploy_tokens_hash ON deploy_tokens (token_hash);
+`,
+	},
 }
 
 // Migrate applies all pending schema migrations in order.

@@ -22,6 +22,7 @@ export function siteSections(name: string, type?: string): SiteSection[] {
 		{ key: 'cache', href: `${base}/cache`, label: 'Cache', icon: 'zap' },
 		{ key: 'domains', href: `${base}/domains`, label: 'Domains & SSL', icon: 'globe' },
 		{ key: 'logs', href: `${base}/logs`, label: 'Logs', icon: 'terminal' },
+		{ key: 'ci', href: `${base}/ci`, label: 'CI', icon: 'rocket' },
 		{ key: 'settings', href: `${base}/settings`, label: 'Settings', icon: 'settings' }
 	);
 	return sections;

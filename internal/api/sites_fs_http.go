@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/weborpanel/webor/internal/deploy"
 	"github.com/weborpanel/webor/internal/helper"
@@ -19,6 +21,8 @@ import (
 const (
 	maxPublicFileBytes    = 32 * 1024 * 1024
 	maxPublicArchiveBytes = 100 * 1024 * 1024
+	// Panel text editor cap (textarea + JSON round-trip).
+	maxPublicEditBytes = 1 * 1024 * 1024
 )
 
 func (s *Server) mountFSRoutes(mux *http.ServeMux) {
@@ -27,6 +31,8 @@ func (s *Server) mountFSRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/sites/{name}/fs/mkdir", s.handleFSMkdir)
 	mux.HandleFunc("POST /api/sites/{name}/fs/rename", s.handleFSRename)
 	mux.HandleFunc("GET /api/sites/{name}/fs/raw", s.handleFSRaw)
+	mux.HandleFunc("GET /api/sites/{name}/fs/content", s.handleFSContentGet)
+	mux.HandleFunc("PUT /api/sites/{name}/fs/content", s.handleFSContentPut)
 	mux.HandleFunc("POST /api/sites/{name}/fs/upload", s.handleFSUpload)
 	mux.HandleFunc("POST /api/sites/{name}/fs/extract", s.handleFSExtract)
 }
@@ -52,11 +58,15 @@ func (s *Server) requireSiteName(w http.ResponseWriter, r *http.Request) (string
 }
 
 func (s *Server) handleFSList(w http.ResponseWriter, r *http.Request) {
-	if !s.requireAuth(w, r) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
 		return
 	}
-	name, ok := s.requireSiteName(w, r)
-	if !ok {
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
 		return
 	}
 	path := r.URL.Query().Get("path")
@@ -69,11 +79,15 @@ func (s *Server) handleFSList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFSDelete(w http.ResponseWriter, r *http.Request) {
-	if !s.requireAuth(w, r) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
 		return
 	}
-	name, ok := s.requireSiteName(w, r)
-	if !ok {
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
 		return
 	}
 	path := r.URL.Query().Get("path")
@@ -86,11 +100,15 @@ func (s *Server) handleFSDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFSMkdir(w http.ResponseWriter, r *http.Request) {
-	if !s.requireAuth(w, r) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
 		return
 	}
-	name, ok := s.requireSiteName(w, r)
-	if !ok {
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
 		return
 	}
 	var body struct {
@@ -105,11 +123,15 @@ func (s *Server) handleFSMkdir(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFSRename(w http.ResponseWriter, r *http.Request) {
-	if !s.requireAuth(w, r) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
 		return
 	}
-	name, ok := s.requireSiteName(w, r)
-	if !ok {
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
 		return
 	}
 	var body struct {
@@ -125,11 +147,15 @@ func (s *Server) handleFSRename(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFSRaw(w http.ResponseWriter, r *http.Request) {
-	if !s.requireAuth(w, r) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
 		return
 	}
-	name, ok := s.requireSiteName(w, r)
-	if !ok {
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
 		return
 	}
 	path := r.URL.Query().Get("path")
@@ -145,12 +171,92 @@ func (s *Server) handleFSRaw(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func (s *Server) handleFSUpload(w http.ResponseWriter, r *http.Request) {
-	if !s.requireAuth(w, r) {
+func (s *Server) handleFSContentGet(w http.ResponseWriter, r *http.Request) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
 		return
 	}
-	name, ok := s.requireSiteName(w, r)
-	if !ok {
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
+		return
+	}
+	path := strings.TrimSpace(r.URL.Query().Get("path"))
+	if path == "" {
+		s.writeErr(w, 400, "path is required")
+		return
+	}
+	fname, data, err := s.readPublicFile(name, path)
+	if err != nil {
+		s.writeErr(w, 400, err.Error())
+		return
+	}
+	if len(data) > maxPublicEditBytes {
+		s.writeErr(w, 400, fmt.Sprintf("file exceeds editor limit of %d bytes — download instead", maxPublicEditBytes))
+		return
+	}
+	if bytes.IndexByte(data, 0) >= 0 || !utf8.Valid(data) {
+		s.writeErr(w, 400, "binary file — download instead of editing")
+		return
+	}
+	s.writeJSON(w, 200, map[string]any{
+		"ok":      true,
+		"path":    path,
+		"name":    fname,
+		"content": string(data),
+		"size":    len(data),
+	})
+}
+
+func (s *Server) handleFSContentPut(w http.ResponseWriter, r *http.Request) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
+		return
+	}
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
+		return
+	}
+	var body struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxPublicEditBytes+4096)).Decode(&body); err != nil {
+		s.writeErr(w, 400, "invalid JSON body")
+		return
+	}
+	path := strings.TrimSpace(body.Path)
+	if path == "" {
+		s.writeErr(w, 400, "path is required")
+		return
+	}
+	data := []byte(body.Content)
+	if len(data) > maxPublicEditBytes {
+		s.writeErr(w, 400, fmt.Sprintf("content exceeds editor limit of %d bytes", maxPublicEditBytes))
+		return
+	}
+	if err := s.writePublicFile(name, path, data); err != nil {
+		s.writeErr(w, 400, err.Error())
+		return
+	}
+	s.writeJSON(w, 200, map[string]any{"ok": true, "path": path, "size": len(data)})
+}
+
+func (s *Server) handleFSUpload(w http.ResponseWriter, r *http.Request) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
+		return
+	}
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
 		return
 	}
 	if err := r.ParseMultipartForm(maxPublicFileBytes + 1024); err != nil {
@@ -186,11 +292,15 @@ func (s *Server) handleFSUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFSExtract(w http.ResponseWriter, r *http.Request) {
-	if !s.requireAuth(w, r) {
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	if name == "" {
+		s.writeErr(w, 400, "site name required")
 		return
 	}
-	name, ok := s.requireSiteName(w, r)
-	if !ok {
+	if !s.requireSiteScope(w, r, name, "files") {
+		return
+	}
+	if _, ok := s.requireSiteName(w, r); !ok {
 		return
 	}
 	ct := r.Header.Get("Content-Type")

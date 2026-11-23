@@ -15,9 +15,46 @@
 	let revealed = $state(false);
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
-	async function copy() {
+	/** Clipboard API needs a secure context (HTTPS/localhost); fall back for plain HTTP panels. */
+	function fallbackCopy(text: string) {
+		const ta = document.createElement('textarea');
+		ta.value = text;
+		ta.setAttribute('readonly', '');
+		ta.setAttribute('aria-hidden', 'true');
+		ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+		document.body.appendChild(ta);
+		ta.focus();
+		ta.select();
+		ta.setSelectionRange(0, text.length);
+		let ok = false;
 		try {
-			await navigator.clipboard.writeText(value);
+			ok = document.execCommand('copy');
+		} finally {
+			document.body.removeChild(ta);
+		}
+		if (!ok) throw new Error('execCommand copy failed');
+	}
+
+	async function copyText(text: string) {
+		if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText && window.isSecureContext) {
+			try {
+				await navigator.clipboard.writeText(text);
+				return;
+			} catch {
+				// fall through — Permissions-Policy or transient denial
+			}
+		}
+		fallbackCopy(text);
+	}
+
+	async function copy() {
+		const text = value ?? '';
+		if (!text) {
+			toasts.error('Nothing to copy');
+			return;
+		}
+		try {
+			await copyText(text);
 			copied = true;
 			clearTimeout(timer);
 			timer = setTimeout(() => (copied = false), 1500);
