@@ -19,6 +19,11 @@ CADDY_UNIT  ?= webor-caddy-lab
 
 BINS := webor webor-helper wbr
 
+# Overridden in CI from the git tag. Local: git describe, else 0.0.0-dev.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)
+VERSION := $(patsubst v%,%,$(VERSION))
+LDFLAGS ?= -s -w -X github.com/weborpanel/webor/internal/version.Version=$(VERSION)
+
 .PHONY: help web build clean test \
 	lab-dirs lab-start lab-stop lab-restart lab-status lab-logs lab-health lab-reset \
 	lab-app lab-deploy lab-idle lab-cron lab-node lab-proxyd lab-job lab-postgres lab-databases
@@ -63,9 +68,10 @@ web:
 build:
 	@test -f internal/ui/dist/200.html || { echo "missing embedded UI; run: make web"; exit 1; }
 	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/webor ./cmd/webor
-	go build -o $(BIN_DIR)/webor-helper ./cmd/webor-helper
-	go build -o $(BIN_DIR)/wbr ./cmd/wbr
+	go build -trimpath -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/webor ./cmd/webor
+	go build -trimpath -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/webor-helper ./cmd/webor-helper
+	go build -trimpath -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/wbr ./cmd/wbr
+	@echo "version $(VERSION)"
 	@ls -lh $(addprefix $(BIN_DIR)/,$(BINS))
 
 test:

@@ -70,6 +70,7 @@ Installer links `/usr/bin/wbr` so Alma `sudo secure_path` can find `wbr`.
 - [x] Admin setup + login
 - [x] Static site create + Caddy `:8080` Host-header serve
 - [x] Node HTTP backend under Enforcing (state dir 0755 + `bin_t` on runtime)
-- [ ] DNS / Let's Encrypt HTTPS
+- [x] DNS / Let's Encrypt HTTPS
+- [x] Panel restart while site HTTPS traffic continues (2026-11-23: 40/40 requests OK to fakerequest.com)
 - [ ] Postgres / MariaDB / Redis via helper or manual dnf
 - [ ] restic backup

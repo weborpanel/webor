@@ -54,7 +54,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Workflow [`.github/workflows/release.yml`](../../.github/workflows/release.yml) builds UI + both arches, packs, and syncs to S3 under channel **stable**.
+Workflow [`.github/workflows/release.yml`](../../.github/workflows/release.yml) builds UI + both arches, packs, and syncs to S3 under channel **stable**. The tag (leading `v` stripped) is stamped into binaries via `-ldflags -X …/internal/version.Version=…`, which the panel sidebar shows as `Webor <version>`.
 
 Manual / beta: Actions → **Release** → Run workflow → channel `beta`.
 
@@ -62,11 +62,10 @@ Manual / beta: Actions → **Release** → Run workflow → channel `beta`.
 
 ```bash
 make web
-# native arch:
+# native arch (embeds VERSION from git describe, or VERSION=0.1.0 make build):
 make build && WEBOR_CHANNEL=beta ./scripts/pack-public.sh
-# or cross:
-GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/webor ./cmd/webor
-# … helper + wbr, then:
+# or cross with the same ldflags Makefile uses:
+VERSION=0.1.0-test.7 make build
 WEBOR_ARCH=arm64 WEBOR_CHANNEL=beta ./scripts/pack-public.sh
 ./scripts/upload-public.sh
 ```

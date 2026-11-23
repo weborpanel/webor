@@ -59,14 +59,19 @@ jobs:
           set -euo pipefail
           test -f internal/ui/dist/200.html
           mkdir -p bin dist
+          # Strip leading v so UI matches 0.0.0-dev style (v0.1.0 → 0.1.0).
+          VER="${{ steps.meta.outputs.version }}"
+          VER="${VER#v}"
+          LDFLAGS="-s -w -X github.com/weborpanel/webor/internal/version.Version=${VER}"
+          echo "embedding version=${VER}"
           for arch in amd64 arm64; do
             echo "::group::build $arch"
             GOOS=linux GOARCH="$arch" CGO_ENABLED=0 \
-              go build -trimpath -ldflags="-s -w" -o "bin/webor" ./cmd/webor
+              go build -trimpath -ldflags="$LDFLAGS" -o "bin/webor" ./cmd/webor
             GOOS=linux GOARCH="$arch" CGO_ENABLED=0 \
-              go build -trimpath -ldflags="-s -w" -o "bin/webor-helper" ./cmd/webor-helper
+              go build -trimpath -ldflags="$LDFLAGS" -o "bin/webor-helper" ./cmd/webor-helper
             GOOS=linux GOARCH="$arch" CGO_ENABLED=0 \
-              go build -trimpath -ldflags="-s -w" -o "bin/wbr" ./cmd/wbr
+              go build -trimpath -ldflags="$LDFLAGS" -o "bin/wbr" ./cmd/wbr
             WEBOR_CHANNEL="${{ steps.meta.outputs.channel }}" WEBOR_ARCH="$arch" \
               ./scripts/pack-public.sh
             echo "::endgroup::"

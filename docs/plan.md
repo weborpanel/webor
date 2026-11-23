@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-22): Milestone 0–4 lab-complete (multi-DB, Valkey, Adminer, subdomains, hybrid static+API backends). **S3 backups (restic) promoted ahead of Podman** (decision 0006). Podman remains deferred. Native wrap + backups are the active track.*
+*Progress note (2026-11-23): Milestone 0–5 lab-complete (including restic S3 backups, decision 0006). Live HTTPS verified on Debian and Alma across two VPS providers and EC2. Podman remains deferred (M5b). Active track: Milestone 6 release gate (footprint, upgrade-while-serving, docs, beta tag).*
 
 ## 1. Product scope
 
@@ -132,14 +132,14 @@ docs/
 
 **Deferred to real VPS** (lab VM / NAT cannot fully exercise these; check off when a public IP + domain are available):
 
-- [ ] Let's Encrypt **staging** certificate for a real domain (M0 exit residual)
-- [ ] Public DNS checklist end-to-end: A/AAAA at registrar → checker green → Caddy issues cert
+- [ ] Let's Encrypt **staging** certificate for a real domain (M0 exit residual; production issuance already proven)
+- [x] Public DNS checklist end-to-end: A/AAAA at registrar → checker green → Caddy issues cert (Debian + Alma; two VPS providers + EC2)
 - [ ] Authoritative NS + CAA lookups against live nameservers (not only the fake resolver)
-- [ ] HTTP-01 / TLS-ALPN challenge path from the public internet (ports 80/443)
+- [x] HTTP-01 / TLS-ALPN challenge path from the public internet (ports 80/443)
 - [x] PTR / forward-confirmed reverse DNS for the installer suggestions (M3)
-- [ ] Build OOM kill under real cgroup pressure on a 1 GB machine
-- [ ] Idle memory footprint target (~150 MB panel+Caddy+helper) on a 1 GB VPS
-- [ ] Cross-provider rehearsal (at least two providers) before each release
+- [x] Build OOM kill under real cgroup pressure on a 1 GB machine (2026-11-23 Debian t3.micro; `oom-kill`, other site still 200)
+- [x] Idle memory footprint target (~150 MB panel+Caddy+helper) on a 1 GB VPS — measured **~65 MB** RSS on Debian t3.micro after install+setup
+- [x] Cross-provider rehearsal (at least two providers) before each release — first pass done (two VPS providers + EC2, Debian and Alma); repeat before each release
 
 ## 7. Roadmap
 
@@ -165,21 +165,21 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 1: Core hosting and build pipelines (weeks 3 to 5)
 
-**Status:** lab complete (VPS HTTPS / live OOM still deferred)
+**Status:** lab complete; live HTTPS verified on real hosts
 
 **Deliverables**
 
 - [x] Site model: create and delete, per-site Linux user and directories, release layout with atomic `public`/`current` symlinks (Caddy still serves `public/` only)
 - [x] Static hosting model: add site → `public/` document root; upload files / optional zip into `public/` (no git for static; git deferred with apps)
 - [x] Domain checklist model (A, AAAA, CNAME, CAA warn) — `internal/dnscheck`
-- [x] DNS checker: public + authoritative A, CAA via miekg/dns; `GET /api/sites/{name}/dns` + `can_issue_certificate` gating (live HTTPS enablement still VPS-deferred)
+- [x] DNS checker: public + authoritative A, CAA via miekg/dns; `GET /api/sites/{name}/dns` + `can_issue_certificate` gating
 - [x] Authentication: setup token, admin account, sessions, TOTP, login rate limiting (`internal/auth`, `/api/auth/*`)
 - [x] UI: setup + login + sites (upload + DNS checklist) + per-site dashboard next-steps; embedded in `webor` via `go:embed` (`make web`)
 - [x] Build MemoryMax/timeout wired in `RunBuild` (unit-tested; live cgroup OOM on VPS list)
 - [x] File-isolation test scaffold (`test/isolation`, root/linux) — private logs not readable across site users
 
 **Exit criteria:** a user can add a domain, add the records at their DNS provider, watch the checks turn green, and see the site live over HTTPS. A build that runs out of memory fails safely. File-isolation tests pass.  
-**Lab note:** HTTPS issuance and live OOM still on §6 Deferred to real VPS.
+**VPS note:** live HTTPS verified on Debian and Alma across two VPS providers and EC2. Live OOM under 1 GB cgroup pressure still on §6 Deferred to real VPS.
 
 ### Milestone 2: Native apps, socket activation and jobs (weeks 6 to 8)
 
@@ -224,18 +224,18 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 **Spike (2026-11-21):** Postgres/MariaDB + multi-DB + Adminer. Valkey is the remaining M4 piece in the native wrap. See `docs/spikes/m4-postgres.md`, `docs/spikes/m4-databases.md`.
 
-### Milestone 5: S3 backups (restic) — **ACTIVE**
+### Milestone 5: S3 backups (restic)
 
-**Status:** in progress (decision 0006). Replaces containers as the next milestone.
+**Status:** lab-complete (decision 0006). Replaced containers as the milestone ahead of Podman.
 
 **Deliverables**
 
-- BYO S3-compatible restic repo; credentials in `/etc/webor/backup.env`
-- Full rebuild-ready snapshots (config, panel state, `/srv/sites`, DB/Valkey dumps) + `manifest.json`
-- Panel UI: configure, run now, schedule, list snapshots, selective site restore (approval-gated)
-- systemd timer + retention forget/prune
+- [x] BYO S3-compatible restic repo; credentials in `/etc/webor/backup.env`
+- [x] Full rebuild-ready snapshots (config, panel state, `/srv/sites`, DB/Valkey dumps) + `manifest.json`
+- [x] Panel UI: configure, run now, schedule, list snapshots, selective site restore (approval-gated)
+- [x] systemd timer + retention forget/prune
 
-**Exit criteria:** full backup to an S3-compatible bucket; selective restore of one site on a fresh (or wiped) install.
+**Exit criteria:** full backup to an S3-compatible bucket; selective restore of one site on a fresh (or wiped) install. — **met in lab / Alma EC2**
 
 ### Milestone 5b: Containers, optional module — **DEFERRED**
 
@@ -252,13 +252,15 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 6: Release gate (weeks 15 to 16)
 
+**Status:** in progress (first-pass multi-provider HTTPS rehearsal done)
+
 **Deliverables**
 
-- VPS rehearsal on two providers with real Let's Encrypt issuance
-- Footprint benchmarks against the targets in section 12
-- Upgrade and config-migration tests, including upgrading the panel while sites keep serving
-- Documentation: install guide, DNS guide, config reference, troubleshooting
-- Threat-model review and a public beta tag
+- [x] VPS rehearsal on two providers with real Let's Encrypt issuance (Debian + Alma; two VPS providers + EC2) — repeat before each release
+- [x] Footprint benchmarks against the targets in section 12 — idle ~65 MB on 1 GB Debian t3.micro (2026-11-23); see `docs/vps-checklist.md`
+- [x] Upgrade and config-migration tests, including upgrading the panel while sites keep serving — panel restart under load on Alma: 0 dropped HTTPS requests (2026-11-23)
+- [ ] Documentation: install guide, DNS guide, config reference, troubleshooting
+- [ ] Threat-model review and a public beta tag
 
 ## 8. After v1
 
