@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/weborpanel/webor/internal/api"
@@ -138,6 +140,74 @@ func TestPanelDomainCollisionWithSite(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != 409 {
 		t.Fatalf("want 409, got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPanelListenLockRequiresDomain(t *testing.T) {
+	sess, srv, mux, _ := setupPanelTest(t)
+	envPath := filepath.Join(t.TempDir(), "panel.env")
+	if err := os.WriteFile(envPath, []byte("WBR_PANEL_ARGS=-listen 0.0.0.0:21215 -state-dir /tmp\nWBR_PANEL_PORT=21215\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	srv.PanelEnvPath = envPath
+
+	req := httptest.NewRequest("POST", "/api/panel/listen", bytes.NewBufferString(`{"host":"127.0.0.1"}`))
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: sess})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 400 {
+		t.Fatalf("want 400 without domain, got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPanelListenLockAndDeleteRestoresPublic(t *testing.T) {
+	sess, srv, mux, cfgPath := setupPanelTest(t)
+	envPath := filepath.Join(t.TempDir(), "panel.env")
+	if err := os.WriteFile(envPath, []byte("WBR_PANEL_ARGS=-listen 0.0.0.0:21215 -state-dir /tmp\nWBR_PANEL_PORT=21215\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	srv.PanelEnvPath = envPath
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Panel.Domain = "panel.example.com"
+	cfg.Panel.Port = 21215
+	if err := config.Save(cfgPath, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/api/panel/listen", bytes.NewBufferString(`{"host":"0.0.0.0"}`))
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: sess})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 400 {
+		t.Fatalf("panel must not re-expose publicly via POST: %d %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest("POST", "/api/panel/listen", bytes.NewBufferString(`{"host":"127.0.0.1"}`))
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: sess})
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("lock: %d %s", rec.Code, rec.Body.String())
+	}
+	raw, _ := os.ReadFile(envPath)
+	if !strings.Contains(string(raw), "-listen 127.0.0.1:21215") {
+		t.Fatalf("not locked: %s", raw)
+	}
+
+	req = httptest.NewRequest("DELETE", "/api/panel/domain", nil)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: sess})
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
+	}
+	raw, _ = os.ReadFile(envPath)
+	if !strings.Contains(string(raw), "-listen 0.0.0.0:21215") {
+		t.Fatalf("public not restored: %s", raw)
 	}
 }
 

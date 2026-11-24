@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/panelenv"
 )
 
 const (
@@ -1026,6 +1027,25 @@ func ValidateApplyUpdateArgs(a ApplyUpdateArgs) error {
 	}
 	if strings.TrimSpace(strings.TrimPrefix(a.Version, "v")) == "" {
 		return fmt.Errorf("version is required")
+	}
+	return nil
+}
+
+// ValidateSetPanelListenHostArgs validates SetPanelListenHost.
+func ValidateSetPanelListenHostArgs(a SetPanelListenHostArgs) error {
+	if err := panelenv.ValidateListenHost(a.Host); err != nil {
+		return err
+	}
+	envPath := strings.TrimSpace(a.EnvPath)
+	if envPath == "" {
+		return nil
+	}
+	if !filepath.IsAbs(envPath) {
+		return fmt.Errorf("env_path must be absolute")
+	}
+	// Only allow the production path or temp paths under /tmp for tests.
+	if envPath != panelenv.DefaultEnvPath && !strings.HasPrefix(envPath, "/tmp/") {
+		return fmt.Errorf("env_path not allowed")
 	}
 	return nil
 }

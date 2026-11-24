@@ -82,6 +82,7 @@ const (
 	OpApplySiteLimits        = "ApplySiteLimits"
 	OpCheckUpdate            = "CheckUpdate"
 	OpApplyUpdate            = "ApplyUpdate" // approval-gated when called from panel path
+	OpSetPanelListenHost     = "SetPanelListenHost"
 )
 
 // Request is a single typed helper operation. Arguments are never shell strings.
@@ -582,4 +583,11 @@ type ApplyUpdateArgs struct {
 	Force           bool   `json:"force,omitempty"`
 	SaveChannel     bool   `json:"save_channel,omitempty"`
 	ApprovalID      string `json:"approval_id,omitempty"`
+}
+
+// SetPanelListenHostArgs rewrites panel.env -listen host and restarts webor.
+// Host must be 127.0.0.1 (lock) or 0.0.0.0 (public fallback).
+type SetPanelListenHostArgs struct {
+	Host    string `json:"host"`
+	EnvPath string `json:"env_path,omitempty"` // default /etc/webor/panel.env
 }

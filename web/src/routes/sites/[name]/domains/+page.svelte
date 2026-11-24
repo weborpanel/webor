@@ -31,11 +31,19 @@
 	let subBusy = $state(false);
 	let subRemoving = $state('');
 
-	type PanelInfo = { domain?: string; parent_site?: string; port?: number };
+	type PanelInfo = {
+		domain?: string;
+		parent_site?: string;
+		port?: number;
+		listen?: string;
+		listen_host?: string;
+		public_listen?: boolean;
+	};
 	let panel = $state.raw<PanelInfo | null>(null);
 	let panelLoading = $state(true);
 	let panelLabel = $state('panel');
 	let panelBusy = $state(false);
+	let panelListenBusy = $state(false);
 	let panelDnsBusy = $state(false);
 	let panelDnsChecked = $state(false);
 	let panelDnsCanCert = $state(false);
@@ -148,7 +156,10 @@
 				panel = {
 					domain: r.data.domain || '',
 					parent_site: r.data.parent_site || '',
-					port: r.data.port
+					port: r.data.port,
+					listen: r.data.listen || '',
+					listen_host: r.data.listen_host || '',
+					public_listen: !!r.data.public_listen
 				};
 			}
 		} catch {
@@ -203,19 +214,20 @@
 		const domain = panel?.domain || 'panel domain';
 		const ok = await confirmDialog({
 			title: 'Disable panel access?',
-			message: `${domain} will no longer serve the control panel.`,
+			message: `${domain} will no longer serve the control panel. The high-port IP fallback will be restored.`,
 			confirmLabel: 'Disable',
 			danger: true
 		});
 		if (!ok) return;
 		panelBusy = true;
 		try {
-			const r = await request('/api/panel/domain', { method: 'DELETE' });
+			const r = await request<{ warning?: string }>('/api/panel/domain', { method: 'DELETE' });
 			if (!r.ok) {
 				toasts.error(r.data.error || 'Could not disable panel access');
 				return;
 			}
 			toasts.success('Panel access disabled');
+			if (r.data.warning) toasts.error(r.data.warning);
 			panelDnsChecked = false;
 			panelDnsError = '';
 			await loadPanel();
@@ -223,6 +235,54 @@
 			toasts.error(errorMessage(err));
 		} finally {
 			panelBusy = false;
+		}
+	}
+
+	async function restrictPublicListen() {
+		if (!panel?.domain) return;
+		if (!panelDnsChecked || !panelDnsCanCert) {
+			toasts.error('Check DNS first — Restrict is available when the A record is green.');
+			return;
+		}
+		const panelURL = `${panelScheme}://${panel.domain}`;
+		// Open hostname in a separate tab so the operator can verify before locking IP:port.
+		window.open(panelURL, '_blank', 'noopener,noreferrer');
+		const ok = await confirmDialog({
+			title: 'Confirm panel hostname works?',
+			message: `We opened ${panel.domain} in a new tab. Switch to that tab and confirm the panel loads. Only then approve — public IP:${panel.port || 'port'} will stop working and this tab may disconnect.`,
+			details: [
+				`Keep using ${panel.domain} after this`,
+				'Disable Panel access or run sudo wbr panel listen -host 0.0.0.0 to restore IP access'
+			],
+			confirmLabel: 'Hostname works — close IP access',
+			cancelLabel: 'Cancel',
+			danger: true
+		});
+		if (!ok) return;
+		panelListenBusy = true;
+		try {
+			const r = await request<PanelInfo & { restarting?: boolean }>('/api/panel/listen', {
+				method: 'POST',
+				json: { host: '127.0.0.1' }
+			});
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not restrict public access');
+				return;
+			}
+			toasts.success(`Public IP access closed. Continue on ${panel.domain} (panel is restarting).`);
+			await new Promise((res) => setTimeout(res, 800));
+			await loadPanel();
+		} catch {
+			// Restart can drop the in-flight connection; treat as likely success.
+			toasts.success(`Restrict applied. If this tab dies, reopen ${panel.domain}.`);
+			await new Promise((res) => setTimeout(res, 800));
+			try {
+				await loadPanel();
+			} catch {
+				/* ignore */
+			}
+		} finally {
+			panelListenBusy = false;
 		}
 	}
 
@@ -461,7 +521,8 @@
 							{panel.domain}
 						</a>
 						<p class="wbr-muted panel-dns-note">
-							Point an A/AAAA record for this hostname at this server, then check DNS.
+							Point an A/AAAA record for this hostname at this server, then Check DNS.
+							When DNS is green, verify the panel in a new tab, then approve closing public IP access.
 						</p>
 						<div class="panel-actions">
 							<button
@@ -473,10 +534,27 @@
 								<Icon name="search" size={15} />
 								{panelDnsBusy ? 'Checking…' : 'Check DNS'}
 							</button>
+							{#if !panel.public_listen}
+								<span class="panel-locked wbr-muted">Public IP closed (localhost only)</span>
+							{:else if panelDnsChecked && panelDnsCanCert}
+								<button
+									class="wbr-btn wbr-btn-ghost sm"
+									type="button"
+									disabled={panelListenBusy || panelBusy}
+									onclick={() => void restrictPublicListen()}
+								>
+									<Icon name="lock" size={15} />
+									{panelListenBusy ? 'Restricting…' : 'Restrict public access'}
+								</button>
+							{:else if panelDnsChecked}
+								<span class="panel-locked wbr-muted">Fix DNS, then Restrict appears</span>
+							{:else}
+								<span class="panel-locked wbr-muted">Check DNS first to close IP access</span>
+							{/if}
 							<button
 								class="wbr-btn wbr-btn-ghost sm"
 								type="button"
-								disabled={panelBusy}
+								disabled={panelBusy || panelListenBusy}
 								onclick={() => void disablePanel()}
 							>
 								{panelBusy ? 'Working…' : 'Disable'}
@@ -707,6 +785,11 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.45rem;
+		align-items: center;
+	}
+
+	.panel-locked {
+		font-size: 0.8rem;
 	}
 
 	.panel-status {

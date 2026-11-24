@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/dnscheck"
+	"github.com/weborpanel/webor/internal/ipc"
+	"github.com/weborpanel/webor/internal/panelenv"
 	"github.com/weborpanel/webor/internal/providers/caddy"
 )
 
@@ -19,6 +22,7 @@ func (s *Server) MountPanel(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/panel", s.handleGetPanel)
 	mux.HandleFunc("PUT /api/panel/domain", s.handlePutPanelDomain)
 	mux.HandleFunc("DELETE /api/panel/domain", s.handleDeletePanelDomain)
+	mux.HandleFunc("POST /api/panel/listen", s.handlePostPanelListen)
 	mux.HandleFunc("GET /api/panel/dns", s.handlePanelDNS)
 }
 
@@ -53,6 +57,57 @@ func (s *Server) panelPort() int {
 	return 0
 }
 
+func (s *Server) panelListenHost() string {
+	addr := strings.TrimSpace(s.PanelListen)
+	if addr == "" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	if strings.HasPrefix(addr, ":") {
+		return ""
+	}
+	return addr
+}
+
+func (s *Server) panelPublicListen() bool {
+	host := s.panelListenHost()
+	return host == "" || host == "0.0.0.0" || host == "::" || host == "[::]"
+}
+
+// setPanelListenHost rewrites panel.env and restarts webor via helper (or PanelEnvPath in tests).
+func (s *Server) setPanelListenHost(host string) (listenAddr string, err error) {
+	if err := panelenv.ValidateListenHost(host); err != nil {
+		return "", err
+	}
+	if s.HelperSocket != "" {
+		raw, _ := json.Marshal(ipc.SetPanelListenHostArgs{Host: host})
+		resp, err := ipc.Call(s.HelperSocket, ipc.Request{
+			ID: "panel", Operation: ipc.OpSetPanelListenHost, Args: raw,
+		})
+		if err != nil {
+			return "", err
+		}
+		if !resp.OK {
+			return "", fmt.Errorf("%s", resp.Error)
+		}
+		var out struct {
+			Listen string `json:"listen"`
+		}
+		_ = json.Unmarshal([]byte(resp.Message), &out)
+		if out.Listen != "" {
+			return out.Listen, nil
+		}
+		return host, nil
+	}
+	envPath := strings.TrimSpace(s.PanelEnvPath)
+	if envPath == "" {
+		return "", fmt.Errorf("helper socket not configured")
+	}
+	return panelenv.SetListenHost(envPath, host)
+}
+
 func (s *Server) handleGetPanel(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAuth(w, r) {
 		return
@@ -68,13 +123,16 @@ func (s *Server) handleGetPanel(w http.ResponseWriter, r *http.Request) {
 	if p := s.panelPort(); p > 0 {
 		port = p
 	}
+	host := s.panelListenHost()
 	s.writeJSON(w, 200, map[string]any{
-		"ok":          true,
-		"domain":      cfg.Panel.Domain,
-		"port":        port,
-		"listen":      s.PanelListen,
-		"parent_site": cfg.PanelParentSite(),
-		"upstream":    s.panelUpstreamDial(),
+		"ok":            true,
+		"domain":        cfg.Panel.Domain,
+		"port":          port,
+		"listen":        s.PanelListen,
+		"listen_host":   host,
+		"public_listen": s.panelPublicListen(),
+		"parent_site":   cfg.PanelParentSite(),
+		"upstream":      s.panelUpstreamDial(),
 	})
 }
 
@@ -195,7 +253,61 @@ func (s *Server) handleDeletePanelDomain(w http.ResponseWriter, r *http.Request)
 	}
 	// Best-effort: may fail when no sites remain to render.
 	_ = s.applyCaddy(cfg)
-	s.writeJSON(w, 200, map[string]any{"ok": true, "domain": ""})
+	warnings := []string{}
+	// Restore public high-port fallback so operators can reach the panel by IP again.
+	if _, err := s.setPanelListenHost(panelenv.HostPublic); err != nil {
+		warnings = append(warnings, "restore public listen: "+err.Error())
+	}
+	out := map[string]any{"ok": true, "domain": "", "public_listen": true}
+	if len(warnings) > 0 {
+		out["warning"] = strings.Join(warnings, "; ")
+	}
+	s.writeJSON(w, 200, out)
+}
+
+func (s *Server) handlePostPanelListen(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAuth(w, r) {
+		return
+	}
+	var body struct {
+		Host string `json:"host"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.writeErr(w, 400, "invalid json")
+		return
+	}
+	host := strings.TrimSpace(body.Host)
+	// Panel UI may only lock to localhost. Re-exposing 0.0.0.0 is Disable or root CLI.
+	if host != panelenv.HostLocal {
+		s.writeErr(w, 400, "host must be "+panelenv.HostLocal+" (use Disable panel access or wbr panel listen to restore public bind)")
+		return
+	}
+
+	sitesMu.Lock()
+	cfg, err := s.loadOrEmptyConfig()
+	sitesMu.Unlock()
+	if err != nil {
+		s.writeErr(w, 500, err.Error())
+		return
+	}
+	if strings.TrimSpace(cfg.Panel.Domain) == "" {
+		s.writeErr(w, 400, "panel domain is not set; enable Panel access first")
+		return
+	}
+
+	listenAddr, err := s.setPanelListenHost(host)
+	if err != nil {
+		s.writeErr(w, 502, err.Error())
+		return
+	}
+	s.writeJSON(w, 200, map[string]any{
+		"ok":            true,
+		"listen":        listenAddr,
+		"listen_host":   host,
+		"public_listen": false,
+		"domain":        cfg.Panel.Domain,
+		"restarting":    true,
+	})
 }
 
 func (s *Server) handlePanelDNS(w http.ResponseWriter, r *http.Request) {

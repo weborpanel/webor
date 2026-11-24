@@ -38,6 +38,9 @@ type Server struct {
 	DisableHTTPS    bool // lab / until DNS passes
 	// PanelListen is the panel process -listen address (for Caddy reverse_proxy).
 	PanelListen string
+	// PanelEnvPath is /etc/webor/panel.env (or a test temp file). Used when
+	// HelperSocket is empty so lab/tests can rewrite -listen without IPC.
+	PanelEnvPath string
 
 	// UploadsDir stages deploy binaries (default /var/lib/webor/uploads).
 	UploadsDir string

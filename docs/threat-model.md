@@ -72,7 +72,7 @@ Date: 2026-11-24. Scope: public beta of the native VPS panel (`webor`, `webor-he
 | Install Postgres via helper | Approval required | After approve, packaging trust is distro + network |
 | Change site memory/CPU/disk | Routine (no approval) — intentional for Settings UX | Compromised panel can OOM-kill site builds/units within presets |
 | Shared SQLite between panel and helper | Convenient for v1 | Panel compromise can rewrite non-approval state; split DBs later |
-| Firewall / panel port changes | Not fully approval-class yet | Operator should lock high port after panel domain is live |
+| Firewall / panel listen | Firewall still guidance-only; panel listen lock is routine via Domains → Restrict public access | Compromised panel can lock (reducing exposure) or Disable domain to restore public bind; free-form public unlock is root `wbr panel listen` |
 | Helper TOTP step-up (in-panel) | Not implemented | Console approve remains the only step-up |
 | Stolen panel session opens Adminer Edit | Session-gated `/db/{slug}/edit/` can mutate SQL data (decision 0012) | Same class as other authenticated panel mutations; Browse stays RO |
 
@@ -96,6 +96,6 @@ Ship public beta when:
 
 - Split helper/panel databases
 - Optional in-panel TOTP step-up alongside `wbr approve`
-- Approval class for firewall / panel listen changes when automated
+- Approval class for firewall rule changes when/if automated (panel listen lock/unlock already shipped; public unlock is root CLI or Disable Panel access)
 - Remote audit sink
 - Expand fuzzing on IPC validators

@@ -29,7 +29,7 @@ First boot prints a one-time setup token. Open the panel URL (high port until yo
 ## After setup
 
 1. **Add a site** (Sites → Add) — creates the Linux user and `/srv/sites/<domain>/`.
-2. **Panel access (optional):** on the apex site → **Domains** → **Panel access**, choose a label (`panel`, `cp`, …) and Enable. Point A/AAAA for `label.yourdomain` at the VPS, use **Check DNS**, then open that hostname. Caddy reverse-proxies to the panel; the high port remains a fallback until you close it in the firewall.
+2. **Panel access (optional):** on the apex site → **Domains** → **Panel access**, choose a label (`panel`, `cp`, …) and Enable. Point A/AAAA for `label.yourdomain` at the VPS, use **Check DNS**, then open that hostname. Caddy reverse-proxies to the panel. When DNS is green, **Restrict public access** opens the hostname in a new tab — confirm it loads, then approve to bind the panel to localhost (public IP:port stops working). Disable Panel access (or `sudo wbr panel listen -host 0.0.0.0`) restores the high-port fallback.
 3. **Static:** use the site **Files** tab to browse `public/`, upload, and extract zip/tar/tar.gz. SQLite lives under `data/`, not in Files. **App:** deploy binary or git from Deploy; Files still manages `public/` assets.
 4. **DNS:** point A/AAAA at the VPS; use the site DNS checklist until it is green.
 5. **HTTPS:** on a real VPS, run the panel **without** `-disable-https` and with `-expected-a <public-ip>`. When DNS is green, click **Enable HTTPS** on the site page.

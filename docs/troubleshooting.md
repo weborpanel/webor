@@ -37,8 +37,10 @@ See [dns-https.md](dns-https.md).
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `panel.example.com` 502 / connection refused | Panel unit down, or panel domain not reconciled | `sudo systemctl restart webor`; confirm Domains → Panel access is Enabled; high port remains a fallback |
+| `panel.example.com` 502 / connection refused | Panel unit down, or panel domain not reconciled | `sudo systemctl restart webor`; confirm Domains → Panel access is Enabled |
+| Locked out after Restrict public access | DNS/Caddy broken while panel is localhost-only | On the VPS: `sudo wbr panel listen -host 0.0.0.0`, then open `http://IP:PORT` from sidebar/`panel.env` |
 | High port works, hostname does not | DNS for the panel label not green | Point A/AAAA for the label; Check DNS |
+| Want IP:port again after locking | Intentional localhost bind | Domains → Disable Panel access, or `sudo wbr panel listen -host 0.0.0.0` |
 
 ## Sites and deploys
 

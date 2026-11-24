@@ -36,7 +36,7 @@ Then **Enable HTTPS** on the site page. Config stores `https: true` for that sit
 
 ### Panel on a hostname
 
-On the apex site → **Domains** → **Panel access**: pick a label (`panel`, `cp`, …), Enable, point DNS, **Check DNS**, then open that hostname. Caddy reverse-proxies to the panel. Leave the high port open until you confirm the hostname works, then restrict it in the firewall if you want.
+On the apex site → **Domains** → **Panel access**: pick a label (`panel`, `cp`, …), Enable, point DNS, **Check DNS**, then open that hostname. Caddy reverse-proxies to the panel. When DNS is green, **Restrict public access** opens the hostname in a new tab — confirm it loads, then approve to bind `127.0.0.1` (no firewall change required). Recovery: `sudo wbr panel listen -host 0.0.0.0`.
 
 ## Lab
 

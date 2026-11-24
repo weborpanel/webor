@@ -53,6 +53,7 @@ sites:
 ## Rules
 
 - `panel.domain` must not collide with a site name or alias. Set it from the apex site’s Domains → **Panel access** UI (not as a child site).
+- After Panel access is live, Domains → **Restrict public access** rewrites `-listen` in `/etc/webor/panel.env` to `127.0.0.1:<port>` and restarts `webor` (Caddy still proxies via loopback). Restore with Disable or `sudo wbr panel listen -host 0.0.0.0`.
 - Children (`parent:`) cannot declare `databases` or `cache`.
 - Blank database `id` on create becomes `slug(parent)`.
 - Passwords are not stored in this file; they live under `state/secrets/`.

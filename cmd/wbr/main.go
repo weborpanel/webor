@@ -13,7 +13,9 @@ import (
 
 	"github.com/weborpanel/webor/internal/auth"
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/helper"
 	"github.com/weborpanel/webor/internal/ipc"
+	"github.com/weborpanel/webor/internal/panelenv"
 	"github.com/weborpanel/webor/internal/update"
 	"github.com/weborpanel/webor/internal/version"
 )
@@ -36,6 +38,8 @@ func main() {
 		os.Exit(runBackup(os.Args[2:]))
 	case "recover":
 		os.Exit(runRecover(os.Args[2:]))
+	case "panel":
+		os.Exit(runPanel(os.Args[2:]))
 	case "update":
 		os.Exit(runUpdate(os.Args[2:]))
 	case "help", "-h", "--help":
@@ -178,6 +182,46 @@ func runRequestApproval(args []string) int {
 	return 0
 }
 
+func runPanel(args []string) int {
+	if len(args) < 1 || args[0] != "listen" {
+		fmt.Fprintln(os.Stderr, "usage: wbr panel listen -host 127.0.0.1|0.0.0.0 [-env PATH] [-socket PATH]")
+		return 2
+	}
+	fs := flag.NewFlagSet("panel listen", flag.ExitOnError)
+	host := fs.String("host", "", "127.0.0.1 (lock) or 0.0.0.0 (public fallback)")
+	envPath := fs.String("env", panelenv.DefaultEnvPath, "panel.env path")
+	socket := fs.String("socket", ipc.DefaultSocketPath, "helper Unix socket")
+	_ = fs.Parse(args[1:])
+	if err := requireRoot(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if err := panelenv.ValidateListenHost(*host); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	raw, _ := json.Marshal(ipc.SetPanelListenHostArgs{Host: *host, EnvPath: *envPath})
+	resp, err := ipc.Call(*socket, ipc.Request{ID: "wbr", Operation: ipc.OpSetPanelListenHost, Args: raw})
+	if err == nil {
+		printResp(resp)
+		if !resp.OK {
+			return 1
+		}
+		fmt.Printf("Panel listen host set to %s. Use the panel domain (or IP:port if public) after restart.\n", *host)
+		return 0
+	}
+	// Helper down: rewrite env and restart directly.
+	fmt.Fprintf(os.Stderr, "helper unreachable (%v); applying locally\n", err)
+	ops := helper.DefaultOps()
+	listenAddr, err := ops.SetPanelListenHostSync(*host, *envPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Printf("Panel listen set to %s\n", listenAddr)
+	return 0
+}
+
 func runRecover(args []string) int {
 	if len(args) < 1 || args[0] != "totp" {
 		fmt.Fprintln(os.Stderr, "usage: wbr recover totp [-state-dir PATH]")
@@ -234,6 +278,11 @@ func runDoctor(args []string) int {
 	fmt.Println()
 	fmt.Println("Lost authenticator (TOTP lockout):")
 	fmt.Println("  sudo wbr recover totp")
+	fmt.Println()
+	fmt.Println("Panel listen (after Panel access subdomain):")
+	fmt.Println("  Domains → Restrict public access  (binds 127.0.0.1)")
+	fmt.Println("  sudo wbr panel listen -host 0.0.0.0   # restore IP:port fallback")
+	fmt.Println("  sudo wbr panel listen -host 127.0.0.1  # lock again")
 	fmt.Println()
 	fmt.Println("Helper socket:", ipc.DefaultSocketPath)
 	if st, err := os.Stat(ipc.DefaultSocketPath); err != nil {
@@ -415,6 +464,8 @@ Usage:
   wbr approve list                 (root)
   wbr approve <approval-id>        (root; console step-up)
   wbr recover totp                 (root; clear 2FA after lockout; SSH to VPS)
+  wbr panel listen -host 127.0.0.1|0.0.0.0
+                                   (root; lock or restore panel public bind)
 
 `)
 }

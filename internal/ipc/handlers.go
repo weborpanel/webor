@@ -93,6 +93,7 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpApplySiteLimits:        makeApplySiteLimits(ops),
 		OpCheckUpdate:            makeCheckUpdate(ops),
 		OpApplyUpdate:            makeApplyUpdate(ops, store, log),
+		OpSetPanelListenHost:     makeSetPanelListenHost(ops, log),
 	}
 	return h
 }
