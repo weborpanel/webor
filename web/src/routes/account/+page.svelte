@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import QRCode from 'qrcode';
 	import PageHeader from '#lib/components/PageHeader.svelte';
 	import Card from '#lib/components/Card.svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -20,6 +21,7 @@
 	let enrolling = $state(false);
 	let secret = $state('');
 	let otpauthUrl = $state('');
+	let qrDataUrl = $state('');
 	let code = $state('');
 	let confirming = $state(false);
 	let enrollError = $state('');
@@ -29,6 +31,14 @@
 		{ value: 'light', label: 'Light', icon: 'sun' },
 		{ value: 'dark', label: 'Dark', icon: 'moon' }
 	];
+
+	function clearEnroll() {
+		secret = '';
+		otpauthUrl = '';
+		qrDataUrl = '';
+		code = '';
+		enrollError = '';
+	}
 
 	async function load() {
 		loading = true;
@@ -51,6 +61,7 @@
 	async function beginTotp() {
 		enrolling = true;
 		enrollError = '';
+		qrDataUrl = '';
 		try {
 			const r = await request<{ secret?: string; otpauth_url?: string }>('/api/auth/totp/begin', { method: 'POST' });
 			if (!r.ok) {
@@ -59,6 +70,18 @@
 			}
 			secret = r.data.secret || '';
 			otpauthUrl = r.data.otpauth_url || '';
+			if (otpauthUrl) {
+				try {
+					qrDataUrl = await QRCode.toDataURL(otpauthUrl, {
+						errorCorrectionLevel: 'M',
+						margin: 2,
+						width: 220,
+						color: { dark: '#111111', light: '#ffffff' }
+					});
+				} catch {
+					qrDataUrl = '';
+				}
+			}
 		} catch (e) {
 			enrollError = errorMessage(e);
 		} finally {
@@ -82,22 +105,13 @@
 				return;
 			}
 			totpConfirmed = true;
-			secret = '';
-			otpauthUrl = '';
-			code = '';
+			clearEnroll();
 			toasts.success('Two-factor authentication is on');
 		} catch (err) {
 			enrollError = errorMessage(err);
 		} finally {
 			confirming = false;
 		}
-	}
-
-	function cancelEnroll() {
-		secret = '';
-		otpauthUrl = '';
-		code = '';
-		enrollError = '';
 	}
 
 	onMount(() => {
@@ -155,7 +169,13 @@
 			<ol class="enroll">
 				<li>
 					<strong>Add the account to your authenticator</strong>
-					<span class="wbr-muted">Enter this secret, or open the link on a device with an authenticator app.</span>
+					<span class="wbr-muted">Scan the QR code with Google Authenticator, 1Password, Bitwarden, …</span>
+					{#if qrDataUrl}
+						<div class="qr-wrap">
+							<img class="qr" src={qrDataUrl} alt="Authenticator QR code" width="220" height="220" />
+						</div>
+					{/if}
+					<span class="wbr-muted">Or enter this secret manually.</span>
 					<CopyField label="Secret" value={secret} />
 					{#if otpauthUrl}
 						<a class="otp-link" href={otpauthUrl}><Icon name="link" size={13} /> Open in authenticator app</a>
@@ -179,7 +199,7 @@
 						<button class="wbr-btn" type="submit" disabled={confirming}>
 							{confirming ? 'Verifying…' : 'Verify & enable'}
 						</button>
-						<button class="wbr-btn wbr-btn-ghost" type="button" disabled={confirming} onclick={cancelEnroll}>
+						<button class="wbr-btn wbr-btn-ghost" type="button" disabled={confirming} onclick={clearEnroll}>
 							Cancel
 						</button>
 					</form>
@@ -287,6 +307,21 @@
 
 	.enroll .wbr-muted {
 		font-size: 0.84rem;
+	}
+
+	.qr-wrap {
+		justify-self: start;
+		padding: 0.65rem;
+		border-radius: var(--radius-sm);
+		background: #fff;
+		border: 1px solid var(--border);
+	}
+
+	.qr {
+		display: block;
+		width: 11rem;
+		height: 11rem;
+		image-rendering: pixelated;
 	}
 
 	.otp-link {
