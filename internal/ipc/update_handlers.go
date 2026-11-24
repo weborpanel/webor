@@ -21,7 +21,7 @@ func makeCheckUpdate(_ *helper.Ops) HandlerFunc {
 		if err := ValidateCheckUpdateArgs(args); err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
-		cfg := update.LoadChannelConfig("")
+		cfg := update.LoadChannelConfig("") // infers beta from running version when unset
 		ch := strings.TrimSpace(args.Channel)
 		if ch == "" {
 			ch = cfg.Channel

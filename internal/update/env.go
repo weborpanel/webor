@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/weborpanel/webor/internal/version"
 )
 
 const (
@@ -23,42 +25,53 @@ type ChannelConfig struct {
 }
 
 // LoadChannelConfig reads WBR_CHANNEL / WBR_BASE_URL from panel.env (if present).
+// When WBR_CHANNEL is unset, the channel is inferred from the running binary
+// version (e.g. 0.1.0-beta.3 → beta) so UI checks do not fall back to stable.
 func LoadChannelConfig(envPath string) ChannelConfig {
+	return LoadChannelConfigFor(envPath, version.Version)
+}
+
+// LoadChannelConfigFor is like LoadChannelConfig but uses runningVersion for inference.
+func LoadChannelConfigFor(envPath, runningVersion string) ChannelConfig {
 	if envPath == "" {
 		envPath = DefaultPanelEnv
 	}
 	cfg := ChannelConfig{
-		Channel: "stable",
+		Channel: "",
 		BaseURL: DefaultBaseURL,
 		EnvPath: envPath,
 	}
+	explicit := false
 	f, err := os.Open(envPath)
-	if err != nil {
-		return cfg
+	if err == nil {
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
+			line := strings.TrimSpace(sc.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			key, val, ok := strings.Cut(line, "=")
+			if !ok {
+				continue
+			}
+			key = strings.TrimSpace(key)
+			val = strings.TrimSpace(val)
+			switch key {
+			case envChannelKey:
+				if val != "" {
+					cfg.Channel = strings.ToLower(val)
+					explicit = true
+				}
+			case envBaseURLKey:
+				if val != "" {
+					cfg.BaseURL = strings.TrimRight(val, "/")
+				}
+			}
+		}
+		_ = f.Close()
 	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		key, val, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		val = strings.TrimSpace(val)
-		switch key {
-		case envChannelKey:
-			if val != "" {
-				cfg.Channel = strings.ToLower(val)
-			}
-		case envBaseURLKey:
-			if val != "" {
-				cfg.BaseURL = strings.TrimRight(val, "/")
-			}
-		}
+	if !explicit || cfg.Channel == "" {
+		cfg.Channel = InferChannelFromVersion(runningVersion)
 	}
 	return cfg
 }

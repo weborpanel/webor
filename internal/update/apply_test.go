@@ -106,6 +106,17 @@ func TestSaveLoadChannelConfig(t *testing.T) {
 	}
 }
 
+func TestLoadChannelConfigInfersBeta(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "panel.env")
+	if err := os.WriteFile(path, []byte("WBR_PANEL_PORT=1\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	cfg := LoadChannelConfigFor(path, "0.1.0-beta.3")
+	if cfg.Channel != "beta" {
+		t.Fatalf("channel=%q want beta (inferred)", cfg.Channel)
+	}
+}
+
 func TestExtractAndFindRoot(t *testing.T) {
 	tmp := t.TempDir()
 	tarPath := filepath.Join(tmp, "rel.tar.gz")

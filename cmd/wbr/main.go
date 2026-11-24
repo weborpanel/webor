@@ -283,7 +283,7 @@ func runUpdate(args []string) int {
 	socket := fs.String("socket", ipc.DefaultSocketPath, "helper Unix socket (with -approval-id)")
 	_ = fs.Parse(rest)
 
-	cfg := update.LoadChannelConfig(*envPath)
+	cfg := update.LoadChannelConfigFor(*envPath, version.Version)
 	ch := strings.TrimSpace(*channel)
 	if ch == "" {
 		ch = cfg.Channel

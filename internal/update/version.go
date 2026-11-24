@@ -11,11 +11,21 @@ func Normalize(v string) string {
 	return strings.TrimPrefix(strings.TrimSpace(v), "v")
 }
 
+// InferChannelFromVersion picks a release channel from a build stamp.
+// Versions containing "beta" default to beta; everything else to stable.
+func InferChannelFromVersion(v string) string {
+	v = strings.ToLower(Normalize(v))
+	if strings.Contains(v, "beta") {
+		return "beta"
+	}
+	return "stable"
+}
+
 // Compare returns -1 if a < b, 0 if equal, 1 if a > b.
 // Supports dotted numeric cores with optional -prerelease (test/beta/rc/…).
 // A release without prerelease is newer than the same core with prerelease
-// (1.0.0 > 1.0.0-beta.1). Prerelease identifiers compare: numeric by number,
-// otherwise lexicographically; "beta" sorts before "test" for the same core.
+// (1.0.0 > 1.0.0-beta.1). Prerelease labels use Webor order:
+// dev < test < alpha < beta < rc < (unknown lex) so beta.N > test.N.
 func Compare(a, b string) int {
 	a = Normalize(a)
 	b = Normalize(b)
@@ -103,11 +113,8 @@ func comparePre(a, b string) int {
 		if bNum == nil {
 			return 1
 		}
-		if avar < bvar {
-			return -1
-		}
-		if avar > bvar {
-			return 1
+		if c := comparePreLabel(avar, bvar); c != 0 {
+			return c
 		}
 	}
 	switch {
@@ -118,6 +125,47 @@ func comparePre(a, b string) int {
 	default:
 		return 0
 	}
+}
+
+// preLabelRank: lower = older. Unknown labels sort after known ones, by name.
+func preLabelRank(s string) int {
+	switch strings.ToLower(s) {
+	case "dev", "dirty":
+		return 1
+	case "test":
+		return 2
+	case "alpha", "a":
+		return 3
+	case "beta", "b":
+		return 4
+	case "rc", "pre":
+		return 5
+	default:
+		return 100
+	}
+}
+
+func comparePreLabel(a, b string) int {
+	ar, br := preLabelRank(a), preLabelRank(b)
+	if ar != 100 || br != 100 {
+		if ar < br {
+			return -1
+		}
+		if ar > br {
+			return 1
+		}
+		// same known rank (shouldn't happen for distinct labels) → fall through
+		if ar != 100 {
+			return 0
+		}
+	}
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 // ValidateChannel returns an error unless channel is stable or beta.

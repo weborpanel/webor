@@ -20,7 +20,7 @@ func (s *Server) MountUpdate(mux *http.ServeMux) {
 }
 
 func (s *Server) updateChannelConfig() update.ChannelConfig {
-	return update.LoadChannelConfig("")
+	return update.LoadChannelConfigFor("", version.Version)
 }
 
 func (s *Server) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
