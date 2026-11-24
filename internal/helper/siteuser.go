@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/sites"
 )
 
@@ -49,11 +50,12 @@ func (o *Ops) CreateSiteUser(domain string) error {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", root, err)
 	}
-	for _, d := range []string{sites.Logs(domain), sites.Tmp(domain)} {
-		if err := os.MkdirAll(d, 0o750); err != nil {
-			return fmt.Errorf("mkdir %s: %w", d, err)
-		}
-		_ = os.Chmod(d, 0o750)
+	if err := os.MkdirAll(sites.Tmp(domain), 0o750); err != nil {
+		return fmt.Errorf("mkdir %s: %w", sites.Tmp(domain), err)
+	}
+	_ = os.Chmod(sites.Tmp(domain), 0o750)
+	if err := logging.EnsureSiteLogsDir(domain); err != nil {
+		return fmt.Errorf("logs dir: %w", err)
 	}
 	if err := sites.EnsurePublicDir(domain); err != nil {
 		return fmt.Errorf("public dir: %w", err)
@@ -79,6 +81,10 @@ func (o *Ops) CreateSiteUser(domain string) error {
 		return err
 	}
 	_ = os.Chmod(sites.Public(domain), 0o755)
+	// Re-apply logs dir group (caddy) after recursive chown.
+	if err := logging.EnsureSiteLogsDir(domain); err != nil {
+		return fmt.Errorf("logs dir: %w", err)
+	}
 	return nil
 }
 

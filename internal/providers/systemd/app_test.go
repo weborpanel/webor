@@ -38,6 +38,8 @@ func TestRenderAppUnitsSocketActivated(t *testing.T) {
 		"Requires=webor-app-app-example-com.socket",
 		"NoNewPrivileges=true",
 		"Restart=no",
+		"StandardOutput=append:" + sites.Logs("app.example.com") + "/app.log",
+		"StandardError=append:" + sites.Logs("app.example.com") + "/app.log",
 	} {
 		if !strings.Contains(units.Service, want) {
 			t.Fatalf("service missing %q:\n%s", want, units.Service)

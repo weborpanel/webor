@@ -35,6 +35,7 @@
 			{ id: 'nav:dash', label: 'Dashboard', group: 'Navigate', icon: 'dashboard', run: nav('/dashboard') },
 			{ id: 'nav:sites', label: 'All sites', group: 'Navigate', icon: 'globe', run: nav('/sites') },
 			{ id: 'nav:activity', label: 'Activity log', group: 'Navigate', icon: 'activity', run: nav('/activity') },
+			{ id: 'nav:logs', label: 'System logs', group: 'Navigate', icon: 'terminal', run: nav('/logs') },
 			{ id: 'nav:account', label: 'Account & security', group: 'Navigate', icon: 'user', run: nav('/account') },
 			{
 				id: 'nav:db',

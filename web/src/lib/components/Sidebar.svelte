@@ -24,6 +24,7 @@
 		{ href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
 		{ href: '/sites', label: 'Sites', icon: 'globe' },
 		{ href: '/backups', label: 'Backups', icon: 'server' },
+		{ href: '/logs', label: 'Logs', icon: 'terminal' },
 		{ href: '/activity', label: 'Activity', icon: 'activity' },
 		{ href: '/db/', label: 'Databases', icon: 'database', external: true }
 	];

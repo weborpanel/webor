@@ -33,7 +33,9 @@ func main() {
 
 	store := &auth.Store{DB: db}
 	log := &audit.Logger{DB: db}
-	srv := ipc.NewServer(*socket, ipc.Handlers(helper.DefaultOps(), store, log))
+	ops := helper.DefaultOps()
+	_ = ops.EnsureLogrotateSchedule()
+	srv := ipc.NewServer(*socket, ipc.Handlers(ops, store, log))
 	fmt.Fprintf(os.Stderr, "webor-helper %s (state=%s)\n", version.Version, *stateDir)
 	if err := srv.ListenAndServe(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

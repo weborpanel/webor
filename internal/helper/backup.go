@@ -13,6 +13,7 @@ import (
 	"github.com/weborpanel/webor/internal/backup"
 	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/distro"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/providers/restic"
 	"github.com/weborpanel/webor/internal/providers/systemd"
 	"github.com/weborpanel/webor/internal/sites"
@@ -547,17 +548,62 @@ func stagePanel(staging, cfgPath string) error {
 }
 
 func stageSites(staging string, cfg *config.Config) error {
+	includeLogs := cfg != nil && cfg.Backup != nil && cfg.Backup.IncludeLogs
 	for _, s := range cfg.Sites {
 		src := sites.Root(s.Name)
 		dst := filepath.Join(staging, backup.SiteTreeRel(s.Name))
 		if _, err := os.Stat(src); err != nil {
 			continue
 		}
-		if err := copyDir(src, dst); err != nil {
+		if err := copyDirSkip(src, dst, func(rel string) bool {
+			if includeLogs {
+				return false
+			}
+			// Skip site logs/ tree unless include_logs is set.
+			return rel == "logs" || strings.HasPrefix(rel, "logs"+string(os.PathSeparator))
+		}); err != nil {
 			return fmt.Errorf("stage site %s: %w", s.Name, err)
 		}
 	}
+	if includeLogs {
+		hostLogs := filepath.Join(staging, "logs", "host")
+		if err := copyDirSkip(logging.HostDir, hostLogs, nil); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("stage host logs: %w", err)
+		}
+	}
 	return nil
+}
+
+// copyDirSkip is copyDir with an optional relative-path skip predicate.
+func copyDirSkip(src, dst string, skip func(rel string) bool) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel != "." && skip != nil && skip(rel) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			_ = os.Remove(target)
+			return os.Symlink(link, target)
+		}
+		return copyFile(path, target)
+	})
 }
 
 func stageDumps(ctx context.Context, staging string, cfg *config.Config) error {

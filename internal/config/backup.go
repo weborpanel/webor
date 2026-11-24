@@ -9,11 +9,12 @@ import (
 // Backup holds whole-system restic → S3-compatible settings.
 // Secrets live in /etc/webor/backup.env, not in this file.
 type Backup struct {
-	Enabled    bool             `yaml:"enabled,omitempty"`
-	Schedule   string           `yaml:"schedule,omitempty"` // cron; empty = no timer
-	S3         BackupS3         `yaml:"s3,omitempty"`
-	Retention  BackupRetention  `yaml:"retention,omitempty"`
-	Repository string           `yaml:"repository,omitempty"` // optional override (tests / local restic path)
+	Enabled     bool            `yaml:"enabled,omitempty"`
+	Schedule    string          `yaml:"schedule,omitempty"` // cron; empty = no timer
+	S3          BackupS3        `yaml:"s3,omitempty"`
+	Retention   BackupRetention `yaml:"retention,omitempty"`
+	Repository  string          `yaml:"repository,omitempty"` // optional override (tests / local restic path)
+	IncludeLogs bool            `yaml:"include_logs,omitempty"` // when true, stage site logs + /var/log/webor
 }
 
 // BackupS3 is the BYO bucket settings (no credentials).

@@ -8,6 +8,9 @@ Quick fixes for common Webor install and runtime issues. Paths assume a producti
 sudo wbr doctor
 sudo systemctl status webor webor-helper webor-caddy --no-pager
 sudo journalctl -u webor -u webor-helper -u webor-caddy -n 80 --no-pager
+# Site app/cron/API/access logs (files): panel → site Logs, or:
+#   /srv/sites/<domain>/logs/
+# Backup runs: panel → Logs, or /var/log/webor/backup.log
 ```
 
 Confirm the panel listen port (sidebar or `systemctl show webor -p Environment`) and that the helper socket exists under `/var/lib/webor/`.

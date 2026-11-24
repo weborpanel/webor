@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 )
 
 const (
@@ -25,6 +26,7 @@ func RenderBackupUnits(cfg *config.Config) (unit, timer, bodyUnit, bodyTimer str
 		return "", "", "", "", fmt.Errorf("backup.schedule: %w", err)
 	}
 
+	logFile := logging.HostCurrentPath(logging.StreamBackup)
 	var svc strings.Builder
 	fmt.Fprintf(&svc, "[Unit]\n")
 	fmt.Fprintf(&svc, "Description=Webor full-system backup (restic)\n")
@@ -33,6 +35,8 @@ func RenderBackupUnits(cfg *config.Config) (unit, timer, bodyUnit, bodyTimer str
 	fmt.Fprintf(&svc, "\n[Service]\n")
 	fmt.Fprintf(&svc, "Type=oneshot\n")
 	fmt.Fprintf(&svc, "ExecStart=/usr/local/bin/wbr backup run\n")
+	fmt.Fprintf(&svc, "StandardOutput=append:%s\n", logFile)
+	fmt.Fprintf(&svc, "StandardError=append:%s\n", logFile)
 	fmt.Fprintf(&svc, "Nice=10\n")
 	fmt.Fprintf(&svc, "IOSchedulingClass=best-effort\n")
 	fmt.Fprintf(&svc, "IOSchedulingPriority=7\n")

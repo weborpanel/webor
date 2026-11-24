@@ -55,7 +55,8 @@ func makeBackupConfigure(ops *helper.Ops, store *auth.Store, log *audit.Logger) 
 				KeepDaily:  args.KeepDaily,
 				KeepWeekly: args.KeepWeekly,
 			},
-			Repository: args.Repository,
+			Repository:  args.Repository,
+			IncludeLogs: args.IncludeLogs,
 		}
 		res, err := ops.BackupConfigure(backupCfgPath(args.ConfigPath), b, args.AccessKey, args.SecretKey, args.ResticPassword, args.Region)
 		if err != nil {

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/panelenv"
 )
 
@@ -614,7 +615,7 @@ func ValidateJournalTailArgs(a JournalTailArgs) error {
 		sel = "app"
 	}
 	switch {
-	case sel == "app", sel == "backend":
+	case sel == "app", sel == "backend", sel == "access":
 	case sel == "apis":
 		if len(a.APIIds) == 0 {
 			return fmt.Errorf("api_ids required when unit is apis")
@@ -635,9 +636,49 @@ func ValidateJournalTailArgs(a JournalTailArgs) error {
 			return fmt.Errorf("invalid unit selector")
 		}
 	default:
-		return fmt.Errorf("unit must be app|backend|apis|api:<id>|cron:<name>|job:<name>")
+		return fmt.Errorf("unit must be app|backend|access|apis|api:<id>|cron:<name>|job:<name>")
 	}
-	if a.Lines < 0 || a.Lines > 500 {
+	if a.Lines < 0 || a.Lines > 2000 {
+		return fmt.Errorf("lines out of range")
+	}
+	return nil
+}
+
+// ValidateListSiteLogFilesArgs validates ListSiteLogFiles.
+func ValidateListSiteLogFilesArgs(a ListSiteLogFilesArgs) error {
+	return ValidateDomain(a.Domain)
+}
+
+// ValidateReadSiteLogFileArgs validates ReadSiteLogFile.
+func ValidateReadSiteLogFileArgs(a ReadSiteLogFileArgs) error {
+	if err := ValidateDomain(a.Domain); err != nil {
+		return err
+	}
+	if strings.TrimSpace(a.File) == "" {
+		return fmt.Errorf("file is required")
+	}
+	if _, _, _, _, err := logging.ParseLogBasename(a.File); err != nil {
+		return err
+	}
+	if a.Lines < 0 || a.Lines > 2000 {
+		return fmt.Errorf("lines out of range")
+	}
+	return nil
+}
+
+// ValidateReadHostLogFileArgs validates ReadHostLogFile.
+func ValidateReadHostLogFileArgs(a ReadHostLogFileArgs) error {
+	if strings.TrimSpace(a.File) == "" {
+		return fmt.Errorf("file is required")
+	}
+	stream, _, _, _, err := logging.ParseLogBasename(a.File)
+	if err != nil {
+		return err
+	}
+	if !logging.ValidHostStreamName(stream) {
+		return fmt.Errorf("host log file not allowed")
+	}
+	if a.Lines < 0 || a.Lines > 2000 {
 		return fmt.Errorf("lines out of range")
 	}
 	return nil

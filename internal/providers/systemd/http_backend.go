@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/sites"
 )
 
@@ -74,7 +75,7 @@ func RenderHTTPBackendUnitWithNode(site config.Site, backend config.SiteBackend,
 	fmt.Fprintf(&svc, "ExecStart=%s\n", appExec.ExecStart)
 	fmt.Fprintf(&svc, "Restart=on-failure\n")
 	fmt.Fprintf(&svc, "RestartSec=2s\n")
-	appendHardening(&svc, site, siteRoot)
+	appendHardening(&svc, site, siteRoot, logging.SiteCurrentPath(site.Name, logging.APIStream(backend.ID)))
 	fmt.Fprintf(&svc, "\n[Install]\n")
 	fmt.Fprintf(&svc, "WantedBy=multi-user.target\n")
 

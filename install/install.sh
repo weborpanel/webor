@@ -306,6 +306,7 @@ ensure_state_layout() {
   install -d -m 0755 -o root -g root "${STATE_DIR}/runtimes/node"
   install -d -m 0755 -o root -g root "$SITES_ROOT"
   install -d -m 0755 -o root -g root "$RUN_DIR" 2>/dev/null || true
+  install -d -m 0755 -o root -g root /var/log/webor
   label_node_runtimes_selinux
 }
 
@@ -545,6 +546,8 @@ enable_services() {
   if [[ -f /etc/systemd/system/webor-caddy.service ]] && command -v caddy >/dev/null 2>&1; then
     systemctl enable --now webor-caddy.service || warn "webor-caddy failed to start — check journalctl -u webor-caddy"
   fi
+  # Logrotate timer is installed by webor-helper on start; nudge once after install.
+  /usr/local/bin/wbr logs rotate >/dev/null 2>&1 || true
   log "enabled webor-helper + webor"
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/deploy"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/providers/systemd"
 	"github.com/weborpanel/webor/internal/sites"
 )
@@ -52,6 +53,7 @@ func (o *Ops) InstallCronJob(site config.Site, job config.CronJob) (*systemd.Cro
 	if err != nil {
 		return nil, err
 	}
+	_ = logging.EnsureSiteStreamFile(site.Name, logging.CronStream(job.Name))
 	if err := o.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
 		return nil, err
 	}

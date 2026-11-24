@@ -22,6 +22,7 @@
 		schedule?: string;
 		s3?: { endpoint?: string; region?: string; bucket?: string; prefix?: string };
 		retention?: { keep_daily?: number; keep_weekly?: number };
+		include_logs?: boolean;
 	};
 
 	type ManifestSite = { name: string; parent?: string; type?: string };
@@ -49,6 +50,7 @@
 	let schedule = $state('0 3 * * *');
 	let keepDaily = $state(7);
 	let keepWeekly = $state(4);
+	let includeLogs = $state(false);
 	let accessKey = $state('');
 	let secretKey = $state('');
 	let resticPassword = $state('');
@@ -103,6 +105,7 @@
 		schedule = s.schedule || '0 3 * * *';
 		keepDaily = s.retention?.keep_daily ?? 7;
 		keepWeekly = s.retention?.keep_weekly ?? 4;
+		includeLogs = !!s.include_logs;
 	}
 
 	async function loadSnapshots() {
@@ -174,6 +177,7 @@
 					schedule: trimmedSchedule,
 					keep_daily: keepDaily,
 					keep_weekly: keepWeekly,
+					include_logs: includeLogs,
 					access_key: accessKey,
 					secret_key: secretKey,
 					restic_password: resticPassword,
@@ -347,6 +351,13 @@
 							<input type="number" min="1" bind:value={keepWeekly} />
 						</label>
 					</div>
+					<label class="toggle-field">
+						<input type="checkbox" bind:checked={includeLogs} />
+						<span>
+							Include log files in backups
+							<small class="hint">Site logs under each site’s logs/ plus /var/log/webor. Off by default to keep snapshots smaller.</small>
+						</span>
+					</label>
 					<label class="wbr-field">
 						<span>Access key</span>
 						<input bind:value={accessKey} autocomplete="off" spellcheck="false" />
@@ -431,6 +442,10 @@
 							<dd>
 								{settings.retention?.keep_daily ?? 7} daily · {settings.retention?.keep_weekly ?? 4} weekly
 							</dd>
+						</div>
+						<div>
+							<dt>Include logs</dt>
+							<dd>{settings.include_logs ? 'Yes' : 'No'}</dd>
 						</div>
 						{#if settings.repository}
 							<div class="wide">
@@ -557,6 +572,21 @@
 		margin: 0.35rem 0 0;
 		font-size: 0.8rem;
 		color: var(--muted);
+	}
+	.toggle-field {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.65rem;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+	.toggle-field input {
+		margin-top: 0.2rem;
+	}
+	.toggle-field .hint {
+		display: block;
+		font-weight: 400;
 	}
 	.warn {
 		margin: 0 0 0.85rem;

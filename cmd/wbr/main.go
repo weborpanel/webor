@@ -36,6 +36,8 @@ func main() {
 		os.Exit(runDoctor(os.Args[2:]))
 	case "backup":
 		os.Exit(runBackup(os.Args[2:]))
+	case "logs":
+		os.Exit(runLogs(os.Args[2:]))
 	case "recover":
 		os.Exit(runRecover(os.Args[2:]))
 	case "panel":
@@ -62,6 +64,28 @@ func runBackup(args []string) int {
 	_ = fs.Parse(args[1:])
 	raw, _ := json.Marshal(ipc.BackupRunArgs{ConfigPath: *configPath})
 	resp, err := ipc.Call(*socket, ipc.Request{ID: "wbr", Operation: ipc.OpBackupRun, Args: raw})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	printResp(resp)
+	if !resp.OK {
+		return 1
+	}
+	return 0
+}
+
+func runLogs(args []string) int {
+	if len(args) < 1 || args[0] != "rotate" {
+		fmt.Fprintln(os.Stderr, "usage: wbr logs rotate [-socket PATH] [-config PATH]")
+		return 2
+	}
+	fs := flag.NewFlagSet("logs rotate", flag.ExitOnError)
+	socket := fs.String("socket", ipc.DefaultSocketPath, "helper Unix socket")
+	configPath := fs.String("config", "/etc/webor/config.yaml", "config.yaml path")
+	_ = fs.Parse(args[1:])
+	raw, _ := json.Marshal(ipc.RotateLogsArgs{ConfigPath: *configPath})
+	resp, err := ipc.Call(*socket, ipc.Request{ID: "wbr", Operation: ipc.OpRotateLogs, Args: raw})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -460,6 +484,7 @@ Usage:
   wbr update check                 (any user; reads S3 channel VERSION)
   wbr update apply                 (root; download, verify, install, restart)
   wbr backup run                   (via helper; used by webor-backup.timer)
+  wbr logs rotate                  (via helper; used by webor-logrotate.timer)
   wbr request-approval -domain example.com [-op DeleteSiteUser -delete-data]
   wbr approve list                 (root)
   wbr approve <approval-id>        (root; console step-up)

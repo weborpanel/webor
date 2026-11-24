@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/sites"
 )
 
@@ -86,7 +87,7 @@ func RenderCronUnitsWithNode(site config.Site, job config.CronJob, nodeBinOverri
 	}
 	fmt.Fprintf(&svc, "ExecStart=%s\n", appExec.ExecStart)
 	fmt.Fprintf(&svc, "Nice=10\n")
-	appendHardening(&svc, site, root)
+	appendHardening(&svc, site, root, logging.SiteCurrentPath(site.Name, logging.CronStream(job.Name)))
 
 	out := CronUnits{
 		ServiceName: svcName,

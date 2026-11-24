@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/sites"
 )
 
@@ -100,17 +101,18 @@ func IdleTimeoutToProxydFlag(raw string) (string, error) {
 	return fmt.Sprintf("%ds", sec), nil
 }
 
-func appendHardening(svc *strings.Builder, site config.Site, root string) {
+// appendHardening adds cgroup limits, filesystem hardening, and optional file logging.
+// When logFile is non-empty, stdout/stderr append to that path (file-based logs).
+func appendHardening(svc *strings.Builder, site config.Site, root, logFile string) {
 	if site.Limits.MemoryMax != "" {
 		fmt.Fprintf(svc, "MemoryMax=%s\n", site.Limits.MemoryMax)
 	}
 	if site.Limits.CPUQuota != "" {
 		fmt.Fprintf(svc, "CPUQuota=%s\n", site.Limits.CPUQuota)
 	}
-	if site.Limits.LogMax != "" {
-		// Best-effort per-unit journal size hint (journald also has SystemMaxUse).
-		fmt.Fprintf(svc, "LogRateLimitIntervalSec=30s\n")
-		fmt.Fprintf(svc, "LogRateLimitBurst=1000\n")
+	if logFile != "" {
+		fmt.Fprintf(svc, "StandardOutput=append:%s\n", logFile)
+		fmt.Fprintf(svc, "StandardError=append:%s\n", logFile)
 	}
 	// ProtectSystem=strict + ReadWritePaths needs this path before NAMESPACE setup.
 	// /run is tmpfs — RuntimeDirectory recreates it on every start (survives reboot).
@@ -207,7 +209,7 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 		}
 		fmt.Fprintf(&backend, "ExecStart=%s\n", appExec.ExecStart)
 		fmt.Fprintf(&backend, "Restart=on-failure\n")
-		appendHardening(&backend, site, root)
+		appendHardening(&backend, site, root, logging.SiteCurrentPath(site.Name, logging.StreamBackend))
 		fmt.Fprintf(&backend, "\n[Install]\n")
 		fmt.Fprintf(&backend, "WantedBy=multi-user.target\n")
 
@@ -254,7 +256,7 @@ func RenderAppUnits(site config.Site) (AppUnits, error) {
 		}
 	}
 	fmt.Fprintf(&svc, "Restart=no\n")
-	appendHardening(&svc, site, root)
+	appendHardening(&svc, site, root, logging.SiteCurrentPath(site.Name, logging.StreamApp))
 	fmt.Fprintf(&svc, "\n[Install]\n")
 	fmt.Fprintf(&svc, "WantedBy=multi-user.target\n")
 

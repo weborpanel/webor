@@ -9,6 +9,7 @@ import (
 
 	"github.com/weborpanel/webor/internal/audit"
 	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/helper"
 )
 
@@ -58,6 +59,12 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpDeployProcessZip:     makeDeployProcessZip(ops),
 		OpListProcessDir:       makeListProcessDir(ops),
 		OpJournalTail:          makeJournalTail(ops),
+		OpListSiteLogFiles:     makeListSiteLogFiles(ops),
+		OpReadSiteLogFile:      makeReadSiteLogFile(ops),
+		OpListHostLogFiles:     makeListHostLogFiles(ops),
+		OpReadHostLogFile:      makeReadHostLogFile(ops),
+		OpRotateLogs:           makeRotateLogs(ops),
+		OpEnsureLogrotate:      makeEnsureLogrotate(ops),
 		OpRequestApproval: makeRequestApproval(store, log),
 		OpApprove:         makeApprove(store, log),
 		OpListApprovals:   makeListApprovals(store),
@@ -423,22 +430,105 @@ func makeJournalTail(ops *helper.Ops) HandlerFunc {
 		if sel == "" {
 			sel = "app"
 		}
-		var (
-			unit string
-			text string
-			err  error
-		)
-		if sel == "apis" {
-			var units []string
-			units, text, err = ops.SiteJournalTailAPIs(args.Domain, args.APIIds, args.Lines)
-			unit = strings.Join(units, ",")
-		} else {
-			unit, text, err = ops.SiteJournalTail(args.Domain, sel, args.Lines)
-		}
+		unit, text, err := ops.SiteLogTail(args.Domain, sel, args.Lines, args.APIIds)
 		if err != nil {
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
 		}
 		raw, _ := json.Marshal(map[string]any{"unit": unit, "text": text})
 		return Response{ID: req.ID, OK: true, Message: string(raw)}
+	}
+}
+
+func makeListSiteLogFiles(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args ListSiteLogFilesArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateListSiteLogFilesArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		files, err := ops.ListSiteLogFiles(args.Domain)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{ID: req.ID, OK: true, Message: helper.LogFilesJSON(files)}
+	}
+}
+
+func makeReadSiteLogFile(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args ReadSiteLogFileArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateReadSiteLogFileArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		info, text, err := ops.ReadSiteLogFile(args.Domain, args.File, args.Lines)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{ID: req.ID, OK: true, Message: helper.LogFileReadJSON(info, text)}
+	}
+}
+
+func makeListHostLogFiles(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		files, err := ops.ListHostLogFiles()
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{ID: req.ID, OK: true, Message: helper.LogFilesJSON(files)}
+	}
+}
+
+func makeReadHostLogFile(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args ReadHostLogFileArgs
+		if err := json.Unmarshal(req.Args, &args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+		}
+		if err := ValidateReadHostLogFileArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		info, text, err := ops.ReadHostLogFile(args.File, args.Lines)
+		if err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{ID: req.ID, OK: true, Message: helper.LogFileReadJSON(info, text)}
+	}
+}
+
+func makeRotateLogs(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args RotateLogsArgs
+		if len(req.Args) > 0 && string(req.Args) != "null" {
+			if err := json.Unmarshal(req.Args, &args); err != nil {
+				return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+			}
+		}
+		cfgPath := strings.TrimSpace(args.ConfigPath)
+		if cfgPath == "" {
+			cfgPath = "/etc/webor/config.yaml"
+		}
+		cfg, err := config.Load(cfgPath)
+		if err != nil {
+			// Still rotate host logs even if config missing.
+			cfg = &config.Config{Version: 1}
+		}
+		if err := ops.RotateAllLogs(cfg); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{ID: req.ID, OK: true, Message: "ok"}
+	}
+}
+
+func makeEnsureLogrotate(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		if err := ops.EnsureLogrotateSchedule(); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{ID: req.ID, OK: true, Message: "ok"}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/providers/systemd"
 	"github.com/weborpanel/webor/internal/sites"
 )
@@ -42,6 +43,7 @@ func (o *Ops) InstallJob(site config.Site, job config.Job) (*systemd.JobUnits, e
 	if err != nil {
 		return nil, err
 	}
+	_ = logging.EnsureSiteStreamFile(site.Name, logging.JobStream(job.Name))
 	if err := o.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
 		return nil, err
 	}
@@ -72,6 +74,7 @@ func (o *Ops) InstallJobUnit(site config.Site, job config.Job, start bool) (*sys
 	if err != nil {
 		return nil, err
 	}
+	_ = logging.EnsureSiteStreamFile(site.Name, logging.JobStream(job.Name))
 	if err := o.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
 		return nil, err
 	}

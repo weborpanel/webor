@@ -44,6 +44,7 @@ func (s *Server) handleBackupGet(w http.ResponseWriter, r *http.Request) {
 		"schedule":         "",
 		"s3":               map[string]any{},
 		"retention":        map[string]any{"keep_daily": 7, "keep_weekly": 4},
+		"include_logs":     false,
 	}
 	if status != nil {
 		view["hint"] = status.Hint
@@ -64,6 +65,7 @@ func (s *Server) handleBackupGet(w http.ResponseWriter, r *http.Request) {
 			"keep_daily":  b.Retention.KeepDaily,
 			"keep_weekly": b.Retention.KeepWeekly,
 		}
+		view["include_logs"] = b.IncludeLogs
 		if b.Enabled {
 			view["repository"] = b.ResticRepositoryURL()
 		}
@@ -83,6 +85,7 @@ func (s *Server) handleBackupPut(w http.ResponseWriter, r *http.Request) {
 		Schedule       string `json:"schedule"`
 		KeepDaily      int    `json:"keep_daily"`
 		KeepWeekly     int    `json:"keep_weekly"`
+		IncludeLogs    bool   `json:"include_logs"`
 		AccessKey      string `json:"access_key"`
 		SecretKey      string `json:"secret_key"`
 		ResticPassword string `json:"restic_password"`
@@ -102,6 +105,7 @@ func (s *Server) handleBackupPut(w http.ResponseWriter, r *http.Request) {
 		Schedule:       body.Schedule,
 		KeepDaily:      body.KeepDaily,
 		KeepWeekly:     body.KeepWeekly,
+		IncludeLogs:    body.IncludeLogs,
 		AccessKey:      body.AccessKey,
 		SecretKey:      body.SecretKey,
 		ResticPassword: body.ResticPassword,
@@ -142,8 +146,9 @@ func (s *Server) handleBackupPut(w http.ResponseWriter, r *http.Request) {
 		S3: config.BackupS3{
 			Endpoint: body.Endpoint, Region: body.Region, Bucket: body.Bucket, Prefix: body.Prefix,
 		},
-		Retention:  config.BackupRetention{KeepDaily: body.KeepDaily, KeepWeekly: body.KeepWeekly},
-		Repository: body.Repository,
+		Retention:   config.BackupRetention{KeepDaily: body.KeepDaily, KeepWeekly: body.KeepWeekly},
+		Repository:  body.Repository,
+		IncludeLogs: body.IncludeLogs,
 	}
 	res, err := s.ops().BackupConfigure(s.configPath(), b, body.AccessKey, body.SecretKey, body.ResticPassword, body.Region)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/sites"
 )
 
@@ -62,6 +63,9 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 	}
 
 	var routes []map[string]any
+	loggerNames := map[string]string{}
+	accessLoggers := map[string]any{}
+
 	if domain := strings.TrimSpace(cfg.Panel.Domain); domain != "" {
 		upstream := strings.TrimSpace(opt.PanelUpstream)
 		if upstream == "" {
@@ -78,6 +82,21 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 	}
 	for _, site := range cfg.Sites {
 		hosts := append([]string{site.Name}, site.Aliases...)
+		if site.Type == config.SiteTypeStatic || site.Type == config.SiteTypeApp {
+			loggerID := accessLoggerID(site.Name)
+			accessPath := logging.SiteCurrentPath(site.Name, logging.StreamAccess)
+			accessLoggers[loggerID] = map[string]any{
+				"writer": map[string]any{
+					"output":   "file",
+					"filename": accessPath,
+				},
+				"encoder": map[string]any{"format": "json"},
+				"include": []string{"http.log.access." + loggerID},
+			}
+			for _, h := range hosts {
+				loggerNames[h] = loggerID
+			}
+		}
 		switch site.Type {
 		case config.SiteTypeStatic:
 			rootName := site.Root
@@ -153,6 +172,16 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 	if opt.DisableHTTPS {
 		server["automatic_https"] = map[string]any{"disable": true}
 	}
+	if len(loggerNames) > 0 {
+		server["logs"] = map[string]any{
+			"default_logger_name": "discard_access",
+			"logger_names":        loggerNames,
+		}
+		accessLoggers["discard_access"] = map[string]any{
+			"writer":  map[string]any{"output": "discard"},
+			"include": []string{"http.log.access.discard_access"},
+		}
+	}
 
 	doc := map[string]any{
 		"admin": map[string]any{"listen": admin},
@@ -164,11 +193,33 @@ func Render(cfg *config.Config, opt RenderOptions) ([]byte, error) {
 			},
 		},
 	}
+	if len(accessLoggers) > 0 {
+		doc["logging"] = map[string]any{
+			"logs": accessLoggers,
+		}
+	}
 	out, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+func accessLoggerID(domain string) string {
+	d := strings.ToLower(strings.TrimSpace(domain))
+	d = strings.ReplaceAll(d, ".", "_")
+	d = strings.ReplaceAll(d, "-", "_")
+	var b strings.Builder
+	for _, r := range d {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	out := strings.Trim(b.String(), "_")
+	if out == "" {
+		out = "site"
+	}
+	return "site_" + out
 }
 
 func reverseProxyHandler(dial string, websocket bool) map[string]any {

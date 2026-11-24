@@ -249,4 +249,13 @@ sites:
 	if !strings.Contains(s, "app.example.com") {
 		t.Fatal("missing app host")
 	}
+	if !strings.Contains(s, "/srv/sites/example.com/logs/access.log") {
+		t.Fatalf("missing static access log path: %s", s)
+	}
+	if !strings.Contains(s, "/srv/sites/app.example.com/logs/access.log") {
+		t.Fatalf("missing app access log path: %s", s)
+	}
+	if !strings.Contains(s, `"logging"`) {
+		t.Fatal("missing top-level logging block")
+	}
 }

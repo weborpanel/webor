@@ -25,8 +25,10 @@
 		const path = page.url.pathname.replace(/\/+$/, '');
 		if (path === '/dashboard') return [{ label: 'Dashboard' }];
 		if (path === '/activity') return [{ label: 'Activity' }];
+		if (path === '/logs') return [{ label: 'System logs' }];
 		if (path === '/account') return [{ label: 'Account' }];
 		if (path === '/sites') return [{ label: 'Sites' }];
+		if (path === '/backups') return [{ label: 'Backups' }];
 		const site = siteFromPath(path);
 		if (site) {
 			const type = overview.sites.find((s) => s.name.toLowerCase() === site.toLowerCase())?.type;

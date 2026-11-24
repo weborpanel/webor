@@ -47,6 +47,12 @@ const (
 	OpDeployProcessZip    = "DeployProcessZip"
 	OpListProcessDir      = "ListProcessDir"
 	OpJournalTail     = "JournalTail"
+	OpListSiteLogFiles = "ListSiteLogFiles"
+	OpReadSiteLogFile  = "ReadSiteLogFile"
+	OpListHostLogFiles = "ListHostLogFiles"
+	OpReadHostLogFile  = "ReadHostLogFile"
+	OpRotateLogs       = "RotateLogs"
+	OpEnsureLogrotate  = "EnsureLogrotate"
 	OpRequestApproval = "RequestApproval"
 	OpApprove         = "Approve" // console / root only
 	OpListApprovals   = "ListApprovals"
@@ -356,6 +362,35 @@ type JournalTailArgs struct {
 	APIIds []string `json:"api_ids,omitempty"` // required when Unit is "apis"
 }
 
+// ListSiteLogFilesArgs lists rotated/current log files for a site.
+type ListSiteLogFilesArgs struct {
+	Domain string `json:"domain"`
+}
+
+// ReadSiteLogFileArgs tails one site log file by basename.
+type ReadSiteLogFileArgs struct {
+	Domain string `json:"domain"`
+	File   string `json:"file"`
+	Lines  int    `json:"lines,omitempty"`
+}
+
+// ListHostLogFilesArgs lists host log files under /var/log/webor.
+type ListHostLogFilesArgs struct{}
+
+// ReadHostLogFileArgs tails one host log file by basename.
+type ReadHostLogFileArgs struct {
+	File  string `json:"file"`
+	Lines int    `json:"lines,omitempty"`
+}
+
+// RotateLogsArgs runs date/size log rotation for all sites + host.
+type RotateLogsArgs struct {
+	ConfigPath string `json:"config_path,omitempty"`
+}
+
+// EnsureLogrotateArgs installs the webor-logrotate timer.
+type EnsureLogrotateArgs struct{}
+
 // RequestApprovalArgs creates a pending step-up approval bound to an operation.
 type RequestApprovalArgs struct {
 	Operation string          `json:"operation"`
@@ -516,6 +551,7 @@ type BackupConfigureArgs struct {
 	Schedule       string `json:"schedule,omitempty"`
 	KeepDaily      int    `json:"keep_daily,omitempty"`
 	KeepWeekly     int    `json:"keep_weekly,omitempty"`
+	IncludeLogs    bool   `json:"include_logs,omitempty"`
 	Repository     string `json:"repository,omitempty"` // lab override
 	AccessKey      string `json:"access_key,omitempty"`
 	SecretKey      string `json:"secret_key,omitempty"`

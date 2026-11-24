@@ -23,7 +23,7 @@ sites:
       memory_max: 256M           # also caps builds (OOM → clear panel error)
       cpu_quota: 100%            # systemd CPUQuota; 100% = 1 core (panel: 1c, 2c, …)
       disk_quota: 10M            # default for new sites; panel presets 10M–10G
-      log_max: 200M
+      log_max: 200M            # max size of the active stream file before mid-day rotate
   - name: app.example.com
     parent: example.com          # subdomain: own public/, inherits DBs + cache
     type: static
@@ -61,7 +61,8 @@ sites:
 - Panel tabs **Crons** / **Processes** edit these via HTTP API (no step-up approval).
 - **Limits:** panel Settings only offers presets (memory/CPU/disk). Disk default for new sites is `10M`; presets run through `10G`. Changing limits rewrites site units (routine helper op, no approval).
 - **HTTPS:** `https: true` is set by the panel after a green DNS checklist, not by hand-editing on a live box unless you know you will reload Caddy.
-- **Backups:** repository credentials and schedule live in helper state / secrets, not as a full dump in this YAML sketch. Configure from Panel → Backups.
+- **Backups:** repository credentials and schedule live in helper state / secrets, not as a full dump in this YAML sketch. Configure from Panel → Backups. Optional `backup.include_logs: true` stages site `logs/` and `/var/log/webor` (default off).
+- **Logs:** site streams live under `/srv/sites/<domain>/logs/`; backup runs under `/var/log/webor/backup.log`. `limits.log_max` is the active-file size threshold for rotation (see site Logs UI and host Logs).
 - **HTTP API backends** (path `/api` or whole-host) are managed from the site **API** tab; units bind `PORT`/`HOST` injected by Webor.
 
 ## Related

@@ -12,6 +12,7 @@ import (
 
 	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/deploy"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/providers/systemd"
 	"github.com/weborpanel/webor/internal/sites"
 )
@@ -61,6 +62,7 @@ func (o *Ops) EnsureHTTPBackend(site config.Site, backend config.SiteBackend) (*
 	if err != nil {
 		return nil, err
 	}
+	_ = logging.EnsureSiteStreamFile(site.Name, logging.APIStream(backend.ID))
 	if err := o.WriteUnitFile(site.Name, unit, body); err != nil {
 		return nil, err
 	}

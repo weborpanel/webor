@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/sites"
 )
 
@@ -51,7 +52,7 @@ func RenderJobUnitsWithNode(site config.Site, job config.Job, nodeBinOverride st
 	}
 	fmt.Fprintf(&svc, "ExecStart=%s\n", appExec.ExecStart)
 	fmt.Fprintf(&svc, "Restart=on-failure\n")
-	appendHardening(&svc, site, root)
+	appendHardening(&svc, site, root, logging.SiteCurrentPath(site.Name, logging.JobStream(job.Name)))
 	fmt.Fprintf(&svc, "\n[Install]\n")
 	fmt.Fprintf(&svc, "WantedBy=multi-user.target\n")
 

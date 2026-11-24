@@ -27,6 +27,9 @@ func TestRenderBackupUnits(t *testing.T) {
 	if !strings.Contains(bodyU, "wbr backup run") {
 		t.Fatalf("%s", bodyU)
 	}
+	if !strings.Contains(bodyU, "StandardOutput=append:/var/log/webor/backup.log") {
+		t.Fatalf("missing backup log append: %s", bodyU)
+	}
 	if !strings.Contains(bodyT, "OnCalendar=") {
 		t.Fatalf("%s", bodyT)
 	}
