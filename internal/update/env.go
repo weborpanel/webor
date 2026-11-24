@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/user"
+	"strconv"
 	"strings"
 
 	"github.com/weborpanel/webor/internal/version"
@@ -32,6 +34,8 @@ func LoadChannelConfig(envPath string) ChannelConfig {
 }
 
 // LoadChannelConfigFor is like LoadChannelConfig but uses runningVersion for inference.
+// Preference: panel.env file → process env (systemd EnvironmentFile) → infer from version.
+// panel.env must be readable by the panel user (webor:webor 0640); older installs left it root:root.
 func LoadChannelConfigFor(envPath, runningVersion string) ChannelConfig {
 	if envPath == "" {
 		envPath = DefaultPanelEnv
@@ -69,6 +73,18 @@ func LoadChannelConfigFor(envPath, runningVersion string) ChannelConfig {
 			}
 		}
 		_ = f.Close()
+	}
+	// systemd EnvironmentFile injects vars even when the file is not readable by webor.
+	if !explicit {
+		if v := strings.TrimSpace(os.Getenv(envChannelKey)); v != "" {
+			cfg.Channel = strings.ToLower(v)
+			explicit = true
+		}
+	}
+	if strings.TrimSpace(cfg.BaseURL) == "" || cfg.BaseURL == DefaultBaseURL {
+		if v := strings.TrimSpace(os.Getenv(envBaseURLKey)); v != "" {
+			cfg.BaseURL = strings.TrimRight(v, "/")
+		}
 	}
 	if !explicit || cfg.Channel == "" {
 		cfg.Channel = InferChannelFromVersion(runningVersion)
@@ -138,5 +154,23 @@ func SaveChannelConfig(envPath, channel, baseURL string) error {
 		_ = os.Remove(tmp)
 		return err
 	}
+	_ = os.Chmod(envPath, 0o640)
+	// Best-effort: panel user must read this file for /api/update/status.
+	if uid, gid, err := lookupWeborUIDGID(); err == nil {
+		_ = os.Chown(envPath, uid, gid)
+	}
 	return nil
+}
+
+func lookupWeborUIDGID() (uid, gid int, err error) {
+	u, err := user.Lookup("webor")
+	if err != nil {
+		return 0, 0, err
+	}
+	uid, err1 := strconv.Atoi(u.Uid)
+	gid, err2 := strconv.Atoi(u.Gid)
+	if err1 != nil || err2 != nil {
+		return 0, 0, fmt.Errorf("parse webor uid/gid")
+	}
+	return uid, gid, nil
 }

@@ -117,6 +117,15 @@ func TestLoadChannelConfigInfersBeta(t *testing.T) {
 	}
 }
 
+func TestLoadChannelConfigFromProcessEnv(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing.env")
+	t.Setenv("WBR_CHANNEL", "beta")
+	cfg := LoadChannelConfigFor(path, "0.1.0")
+	if cfg.Channel != "beta" {
+		t.Fatalf("channel=%q want beta from process env", cfg.Channel)
+	}
+}
+
 func TestExtractAndFindRoot(t *testing.T) {
 	tmp := t.TempDir()
 	tarPath := filepath.Join(tmp, "rel.tar.gz")

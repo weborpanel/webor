@@ -467,6 +467,7 @@ EOF
       echo "WBR_BASE_URL=${BASE_URL}"
     fi
   } > "${ETC_DIR}/panel.env"
+  chown "${PANEL_USER}:${PANEL_USER}" "${ETC_DIR}/panel.env"
   chmod 0640 "${ETC_DIR}/panel.env"
   log "wrote ${ETC_DIR}/panel.env"
 }
@@ -497,6 +498,7 @@ persist_channel_env() {
       if (base != "" && !done_base) print "WBR_BASE_URL=" base
     }
   ' "$envf" > "$tmp" && mv "$tmp" "$envf"
+  chown "${PANEL_USER}:${PANEL_USER}" "$envf"
   chmod 0640 "$envf"
   [[ -n "$CHANNEL" ]] && log "persisted WBR_CHANNEL=${CHANNEL} in ${envf}"
   [[ -n "$BASE_URL" ]] && log "persisted WBR_BASE_URL in ${envf}"
