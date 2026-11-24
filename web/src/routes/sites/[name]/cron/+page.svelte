@@ -10,6 +10,7 @@
 	import { request, errorMessage } from '#lib/api.ts';
 	import { toasts } from '#lib/stores/toasts.svelte.ts';
 	import { confirmDialog } from '#lib/stores/confirm.svelte.ts';
+	import { describeCron } from '#lib/schedule.ts';
 
 	type CronInfo = {
 		name?: string;
@@ -194,7 +195,7 @@
 							<span class="name">{c.name}</span>
 							<span class="meta">
 								{#if c.schedule}
-									{c.schedule}
+									{describeCron(c.schedule)}
 									{#if c.timer_active}
 										· timer on
 									{:else}
@@ -231,6 +232,12 @@
 							<Icon name="trash" size={14} /> Delete
 						</button>
 					</div>
+					{#if selectedItem.schedule}
+						<p class="hint">
+							{describeCron(selectedItem.schedule)}
+							<code class="cron-raw">{selectedItem.schedule}</code>
+						</p>
+					{/if}
 					{#if selectedItem.next_elapse}
 						<p class="hint">Next: {selectedItem.next_elapse}</p>
 					{/if}
@@ -318,6 +325,11 @@
 		margin: 0 0 0.75rem;
 		font-size: 0.85rem;
 		opacity: 0.75;
+	}
+	.cron-raw {
+		margin-left: 0.35rem;
+		font-size: 0.78rem;
+		opacity: 0.85;
 	}
 	.logs {
 		margin-top: 0.5rem;

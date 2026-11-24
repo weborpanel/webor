@@ -3,9 +3,11 @@
 	import FileDrop from './FileDrop.svelte';
 	import EntryPicker from './EntryPicker.svelte';
 	import ApiLogPanel from './ApiLogPanel.svelte';
+	import ScheduleField from './ScheduleField.svelte';
 	import { getSite } from '#lib/site/context.svelte.ts';
 	import { request, errorMessage } from '#lib/api.ts';
 	import { toasts } from '#lib/stores/toasts.svelte.ts';
+	import { isValidCron } from '#lib/schedule.ts';
 
 	type RuntimeMode = 'binary' | 'node' | 'custom';
 	type ArtifactKind = 'zip' | 'binary';
@@ -48,7 +50,6 @@
 	let showPicker = $state(true);
 
 	let schedule = $state('');
-	let enableTimer = $state(false);
 
 	let ran = $state(false);
 	let logUnit = $state('');
@@ -149,9 +150,14 @@
 		}
 		busy = true;
 		try {
+			const trimmedSchedule = schedule.trim();
+			if (trimmedSchedule && !isValidCron(trimmedSchedule)) {
+				toasts.error('Enter a valid 5-field cron schedule');
+				return false;
+			}
 			const payload: Record<string, unknown> = {
 				exec: buildExec(),
-				schedule: enableTimer && schedule.trim() ? schedule.trim() : ''
+				schedule: trimmedSchedule
 			};
 			if (runtimeMode === 'binary') {
 				payload.runtime = { clear: true, kind: '' };
@@ -179,7 +185,7 @@
 	}
 
 	async function enableIfNeeded() {
-		if (!jobId || !enableTimer || !schedule.trim()) return true;
+		if (!jobId || !schedule.trim()) return true;
 		busy = true;
 		try {
 			const r = await request(site.path(`/cron/${encodeURIComponent(jobId)}/enable`), {
@@ -388,16 +394,7 @@
 		<div class="pane">
 			<h3>Schedule</h3>
 			<p class="hint">Optional. Leave off for seed/migrate (Run once only).</p>
-			<label class="toggle">
-				<input type="checkbox" bind:checked={enableTimer} disabled={busy} />
-				<span>Enable recurring timer</span>
-			</label>
-			{#if enableTimer}
-				<label class="wbr-field">
-					<span>Cron schedule (5 fields)</span>
-					<input bind:value={schedule} placeholder="0 3 * * *" disabled={busy} spellcheck="false" />
-				</label>
-			{/if}
+			<ScheduleField bind:value={schedule} optional disabled={busy} />
 		</div>
 	{:else}
 		<div class="pane">
@@ -510,11 +507,6 @@
 		background: var(--wbr-accent, #2563eb);
 		border-color: transparent;
 		color: #fff;
-	}
-	.toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
 	}
 	.exec-preview {
 		margin: 0;
