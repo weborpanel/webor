@@ -9,6 +9,8 @@ import (
 	"os/user"
 	"strings"
 
+	"github.com/weborpanel/webor/internal/auth"
+	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/ipc"
 	"github.com/weborpanel/webor/internal/version"
 )
@@ -29,6 +31,8 @@ func main() {
 		os.Exit(runDoctor(os.Args[2:]))
 	case "backup":
 		os.Exit(runBackup(os.Args[2:]))
+	case "recover":
+		os.Exit(runRecover(os.Args[2:]))
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -169,6 +173,44 @@ func runRequestApproval(args []string) int {
 	return 0
 }
 
+func runRecover(args []string) int {
+	if len(args) < 1 || args[0] != "totp" {
+		fmt.Fprintln(os.Stderr, "usage: wbr recover totp [-state-dir PATH]")
+		return 2
+	}
+	fs := flag.NewFlagSet("recover totp", flag.ExitOnError)
+	stateDir := fs.String("state-dir", config.DefaultStateDir, "panel state directory (state.db)")
+	_ = fs.Parse(args[1:])
+	if err := requireRoot(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	db, err := config.OpenDB(*stateDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	defer db.Close()
+	acct := &auth.Account{DB: db}
+	adm, err := acct.GetAdmin()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if !adm.TOTPConfirmed && adm.TOTPSecret == "" {
+		fmt.Println("TOTP is already disabled; password-only login is enough.")
+		return 0
+	}
+	if err := acct.ResetTOTP(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Printf("TOTP cleared for %s.\n", adm.Email)
+	fmt.Println("Sign in with email and password, then re-enrol 2FA from Account if desired.")
+	fmt.Println("All panel sessions were revoked.")
+	return 0
+}
+
 func runDoctor(args []string) int {
 	fs := flag.NewFlagSet("doctor", flag.ExitOnError)
 	_ = fs.Parse(args)
@@ -184,6 +226,9 @@ func runDoctor(args []string) int {
 	fmt.Println("Approvals:")
 	fmt.Println("  sudo wbr approve list")
 	fmt.Println("  sudo wbr approve <id>")
+	fmt.Println()
+	fmt.Println("Lost authenticator (TOTP lockout):")
+	fmt.Println("  sudo wbr recover totp")
 	fmt.Println()
 	fmt.Println("Helper socket:", ipc.DefaultSocketPath)
 	if st, err := os.Stat(ipc.DefaultSocketPath); err != nil {
@@ -215,7 +260,7 @@ func requireRoot() error {
 		return err
 	}
 	if u.Uid != "0" {
-		return fmt.Errorf("wbr approve must run as root (got uid %s)", u.Uid)
+		return fmt.Errorf("must run as root (got uid %s)", u.Uid)
 	}
 	return nil
 }
@@ -236,6 +281,7 @@ Usage:
   wbr request-approval -domain example.com [-op DeleteSiteUser -delete-data]
   wbr approve list                 (root)
   wbr approve <approval-id>        (root; console step-up)
+  wbr recover totp                 (root; clear 2FA after lockout; SSH to VPS)
 
 `)
 }

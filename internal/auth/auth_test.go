@@ -95,3 +95,122 @@ func TestHashPasswordMinLength(t *testing.T) {
 		t.Fatal("expected rejection")
 	}
 }
+
+func TestSteppedMFALogin(t *testing.T) {
+	dir := t.TempDir()
+	db, err := config.OpenDB(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	acct := &auth.Account{DB: db}
+	plain, _, err := acct.EnsureSetupToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := acct.CompleteSetup(plain, "admin@example.com", "correct-horse"); err != nil {
+		t.Fatal(err)
+	}
+	secret, _, err := acct.BeginTOTPEnrollment("Webor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := totp.GenerateCode(secret, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := acct.ConfirmTOTP(code); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := acct.BeginLogin("admin@example.com", "correct-horse", "", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.MFARequired() || out.MFAToken == "" || out.SessionToken != "" {
+		t.Fatalf("expected MFA challenge, got %+v", out)
+	}
+
+	if _, err := acct.CompleteMFA(out.MFAToken, "000000", "127.0.0.1", "test"); err == nil {
+		t.Fatal("expected bad TOTP to fail")
+	}
+	// Challenge must remain usable after a bad code.
+	tok, err := acct.CompleteMFA(out.MFAToken, code, "127.0.0.1", "test")
+	if err != nil || tok == "" {
+		t.Fatalf("complete mfa: %v tok=%q", err, tok)
+	}
+	if _, err := acct.LookupSession(tok); err != nil {
+		t.Fatal(err)
+	}
+	// Single-use: challenge consumed.
+	if _, err := acct.CompleteMFA(out.MFAToken, code, "127.0.0.1", "test"); err == nil {
+		t.Fatal("expected consumed challenge to fail")
+	}
+
+	// One-shot still works when totp is sent with the password step.
+	code2, err := totp.GenerateCode(secret, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	out2, err := acct.BeginLogin("admin@example.com", "correct-horse", code2, "127.0.0.1", "test")
+	if err != nil || out2.SessionToken == "" || out2.MFARequired() {
+		t.Fatalf("one-shot: %+v err=%v", out2, err)
+	}
+
+	// Expired / unknown token.
+	if _, err := acct.CompleteMFA("not-a-real-token", code2, "127.0.0.1", "test"); err == nil {
+		t.Fatal("expected bad mfa token failure")
+	}
+}
+
+func TestResetTOTP(t *testing.T) {
+	dir := t.TempDir()
+	db, err := config.OpenDB(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	acct := &auth.Account{DB: db}
+	plain, _, err := acct.EnsureSetupToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := acct.CompleteSetup(plain, "admin@example.com", "correct-horse"); err != nil {
+		t.Fatal(err)
+	}
+	secret, _, err := acct.BeginTOTPEnrollment("Webor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := totp.GenerateCode(secret, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := acct.ConfirmTOTP(code); err != nil {
+		t.Fatal(err)
+	}
+	tok, err := acct.Login("admin@example.com", "correct-horse", code, "127.0.0.1", "test")
+	if err != nil || tok == "" {
+		t.Fatalf("login with totp: %v", err)
+	}
+
+	if err := acct.ResetTOTP(); err != nil {
+		t.Fatal(err)
+	}
+	adm, err := acct.GetAdmin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if adm.TOTPConfirmed || adm.TOTPSecret != "" {
+		t.Fatalf("expected totp cleared, got confirmed=%v secret=%q", adm.TOTPConfirmed, adm.TOTPSecret)
+	}
+	if _, err := acct.LookupSession(tok); err == nil {
+		t.Fatal("expected sessions cleared")
+	}
+	tok2, err := acct.Login("admin@example.com", "correct-horse", "", "127.0.0.1", "test")
+	if err != nil || tok2 == "" {
+		t.Fatalf("password-only login after reset: %v", err)
+	}
+}

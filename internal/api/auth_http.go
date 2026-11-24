@@ -69,6 +69,7 @@ func (s *Server) MountAuth(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth/status", s.handleStatus)
 	mux.HandleFunc("POST /api/auth/setup", s.handleSetup)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	mux.HandleFunc("POST /api/auth/login/mfa", s.handleLoginMFA)
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/me", s.handleMe)
 	mux.HandleFunc("POST /api/auth/totp/begin", s.handleTOTPBegin)
@@ -115,11 +116,42 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 400, "invalid json")
 		return
 	}
-	tok, err := s.Account.Login(body.Email, body.Password, body.TOTP, clientIP(r), r.UserAgent())
+	out, err := s.Account.BeginLogin(body.Email, body.Password, body.TOTP, clientIP(r), r.UserAgent())
 	if err != nil {
 		s.writeErr(w, 401, err.Error())
 		return
 	}
+	if out.MFARequired() {
+		s.writeJSON(w, 200, map[string]any{
+			"ok":           true,
+			"mfa_required": true,
+			"mfa_token":    out.MFAToken,
+		})
+		return
+	}
+	s.setSessionCookie(w, out.SessionToken)
+	s.writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (s *Server) handleLoginMFA(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		MFAToken string `json:"mfa_token"`
+		TOTP     string `json:"totp"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.writeErr(w, 400, "invalid json")
+		return
+	}
+	tok, err := s.Account.CompleteMFA(body.MFAToken, body.TOTP, clientIP(r), r.UserAgent())
+	if err != nil {
+		s.writeErr(w, 401, err.Error())
+		return
+	}
+	s.setSessionCookie(w, tok)
+	s.writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, tok string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.SessionCookie,
 		Value:    tok,
@@ -128,7 +160,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().UTC().Add(auth.DefaultSessionTTL),
 	})
-	s.writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {

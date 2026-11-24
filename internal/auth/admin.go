@@ -202,6 +202,37 @@ func (a *Account) ConfirmTOTP(code string) error {
 	return err
 }
 
+// ResetTOTP clears two-factor enrollment so password-only login works again.
+// Intended for root break-glass recovery (wbr recover totp). Also drops all
+// sessions and login failure history so the admin can sign in immediately.
+func (a *Account) ResetTOTP() error {
+	has, err := a.HasAdmin()
+	if err != nil {
+		return err
+	}
+	if !has {
+		return fmt.Errorf("admin not configured")
+	}
+	tx, err := a.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`UPDATE admin_users SET totp_secret = '', totp_confirmed = 0 WHERE id = 1`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM sessions`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM login_attempts`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM mfa_challenges`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func normalizeEmail(email string) (string, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	if email == "" {

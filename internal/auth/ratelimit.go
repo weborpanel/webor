@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -9,6 +10,17 @@ const (
 	loginWindow   = 15 * time.Minute
 	loginMaxFails = 10
 )
+
+// LoginOutcome is the result of BeginLogin: either a session cookie value or an MFA challenge.
+type LoginOutcome struct {
+	SessionToken string
+	MFAToken     string
+}
+
+// MFARequired reports whether the client must complete TOTP via CompleteMFA.
+func (o LoginOutcome) MFARequired() bool {
+	return o.MFAToken != ""
+}
 
 // AllowLogin checks whether key (typically IP or email+IP) is under the failure budget.
 func (a *Account) AllowLogin(key string) error {
@@ -42,30 +54,74 @@ func (a *Account) RecordLoginAttempt(key string, ok bool) error {
 	return err
 }
 
-// Login authenticates email/password/TOTP and returns a new session cookie value.
-func (a *Account) Login(email, password, totpCode, ip, userAgent string) (sessionToken string, err error) {
+// BeginLogin authenticates email/password. When TOTP is confirmed and totpCode is
+// empty it returns an MFA challenge token (no session). When totpCode is provided
+// (one-shot / scripts) it validates TOTP and issues a session.
+func (a *Account) BeginLogin(email, password, totpCode, ip, userAgent string) (LoginOutcome, error) {
 	emailNorm, err := normalizeEmail(email)
 	if err != nil {
-		return "", err
+		return LoginOutcome{}, err
 	}
 	key := ip + "|" + emailNorm
 	if err := a.AllowLogin(key); err != nil {
-		return "", err
+		return LoginOutcome{}, err
 	}
 	adm, err := a.GetAdmin()
 	if err != nil {
 		_ = a.RecordLoginAttempt(key, false)
-		return "", fmt.Errorf("invalid credentials")
+		return LoginOutcome{}, fmt.Errorf("invalid credentials")
 	}
 	if adm.Email != emailNorm || !CheckPassword(adm.PasswordHash, password) {
 		_ = a.RecordLoginAttempt(key, false)
-		return "", fmt.Errorf("invalid credentials")
+		return LoginOutcome{}, fmt.Errorf("invalid credentials")
 	}
 	if adm.TOTPConfirmed {
+		totpCode = strings.TrimSpace(totpCode)
+		if totpCode == "" {
+			mfaToken, err := a.createMFAChallenge(ip, userAgent)
+			if err != nil {
+				return LoginOutcome{}, err
+			}
+			return LoginOutcome{MFAToken: mfaToken}, nil
+		}
 		if !ValidateTOTP(adm.TOTPSecret, totpCode) {
 			_ = a.RecordLoginAttempt(key, false)
-			return "", fmt.Errorf("invalid credentials")
+			return LoginOutcome{}, fmt.Errorf("invalid credentials")
 		}
+	}
+	plain, _, err := a.CreateSession(ip, userAgent)
+	if err != nil {
+		return LoginOutcome{}, err
+	}
+	_ = a.RecordLoginAttempt(key, true)
+	return LoginOutcome{SessionToken: plain}, nil
+}
+
+// CompleteMFA finishes a stepped login after BeginLogin returned an MFA challenge.
+// Wrong codes keep the challenge alive until it expires; rate limits still apply.
+func (a *Account) CompleteMFA(mfaToken, totpCode, ip, userAgent string) (sessionToken string, err error) {
+	if err := a.peekMFAChallenge(mfaToken); err != nil {
+		return "", err
+	}
+	adm, err := a.GetAdmin()
+	if err != nil {
+		return "", fmt.Errorf("invalid credentials")
+	}
+	if !adm.TOTPConfirmed {
+		_ = a.consumeMFAChallenge(mfaToken)
+		return "", fmt.Errorf("MFA is not enabled")
+	}
+	key := ip + "|" + adm.Email
+	if err := a.AllowLogin(key); err != nil {
+		return "", err
+	}
+	totpCode = strings.TrimSpace(totpCode)
+	if !ValidateTOTP(adm.TOTPSecret, totpCode) {
+		_ = a.RecordLoginAttempt(key, false)
+		return "", fmt.Errorf("invalid authenticator code")
+	}
+	if err := a.consumeMFAChallenge(mfaToken); err != nil {
+		return "", err
 	}
 	plain, _, err := a.CreateSession(ip, userAgent)
 	if err != nil {
@@ -73,4 +129,17 @@ func (a *Account) Login(email, password, totpCode, ip, userAgent string) (sessio
 	}
 	_ = a.RecordLoginAttempt(key, true)
 	return plain, nil
+}
+
+// Login authenticates email/password/TOTP in one shot and returns a session cookie value.
+// Prefer BeginLogin + CompleteMFA for interactive UIs.
+func (a *Account) Login(email, password, totpCode, ip, userAgent string) (sessionToken string, err error) {
+	out, err := a.BeginLogin(email, password, totpCode, ip, userAgent)
+	if err != nil {
+		return "", err
+	}
+	if out.MFARequired() {
+		return "", fmt.Errorf("invalid credentials")
+	}
+	return out.SessionToken, nil
 }

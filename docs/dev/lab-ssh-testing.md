@@ -140,6 +140,9 @@ curl -fsS -c /tmp/wbz-cookies -X POST http://127.0.0.1:28787/api/auth/setup \
 curl -fsS -c /tmp/wbz-cookies -b /tmp/wbz-cookies -X POST http://127.0.0.1:28787/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@example.com","password":"correct-horse-battery"}'
+# If 2FA is enabled, the login response is { ok, mfa_required, mfa_token } (no session
+# cookie). Complete with: POST /api/auth/login/mfa {"mfa_token":"…","totp":"123456"}
+# Scripts may still one-shot: include "totp" on the first /api/auth/login body.
 ```
 
 Lab admin password used in smokes: `correct-horse-battery` / `admin@example.com` (not a production secret).

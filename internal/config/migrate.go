@@ -133,6 +133,22 @@ CREATE INDEX deploy_tokens_site ON deploy_tokens (site);
 CREATE INDEX deploy_tokens_hash ON deploy_tokens (token_hash);
 `,
 	},
+	{
+		version: 5,
+		name:    "005_mfa_challenges",
+		sql: `
+CREATE TABLE mfa_challenges (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  expires_at TEXT NOT NULL,
+  ip TEXT NOT NULL DEFAULT '',
+  user_agent TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX mfa_challenges_hash ON mfa_challenges (token_hash);
+`,
+	},
 }
 
 // Migrate applies all pending schema migrations in order.
