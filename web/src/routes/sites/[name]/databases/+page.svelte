@@ -61,14 +61,15 @@
 
 	const flow = new ApprovalFlow<DbAction>({
 		operationFor: (a) => (a.kind === 'add' ? 'EnsureSiteDatabase' : 'DropSiteDatabase'),
-		argsFor: (op, a) =>
-			op === 'EnsureSiteDatabase' || op === 'DropSiteDatabase'
-				? {
-						domain: site.name,
-						engine: a?.engine || engine,
-						id: (a ? a.id : nextDbId(a?.engine || engine)) || defaultId
-					}
-				: {},
+		argsFor: (op, a) => {
+			if (op !== 'EnsureSiteDatabase' && op !== 'DropSiteDatabase') return {};
+			const eng = a?.engine || engine;
+			return {
+				domain: site.name,
+				engine: eng,
+				id: a?.id || nextDbId(eng) || defaultId
+			};
+		},
 		resume: (a, approvalId) => (a.kind === 'add' ? add(a, approvalId) : remove(a, approvalId)),
 		onError: (m) => toasts.error(m)
 	});

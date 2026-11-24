@@ -249,16 +249,18 @@
 	<div class="layout">
 		<Card title="Storage" description="BYO bucket (AWS, R2, MinIO). Credentials are stored on the host, not in config.yaml.">
 			{#if settings && !settings.restic_installed}
-				<p class="warn" role="status">
-					Install restic on the host:
+				<div class="warn" role="status">
+					<p>Install restic on the host:</p>
 					{#if settings.hint}
 						<pre class="cmd">{settings.hint}</pre>
 					{:else}
-						<code>sudo apt-get install -y restic</code>
-						or
-						<code>sudo dnf install -y epel-release restic</code>
+						<p>
+							<code>sudo apt-get install -y restic</code>
+							or
+							<code>sudo dnf install -y epel-release restic</code>
+						</p>
 					{/if}
-				</p>
+				</div>
 			{/if}
 
 			<form
@@ -417,6 +419,9 @@
 		background: var(--warn-soft, #fef3c7);
 		color: var(--text);
 		font-size: 0.9rem;
+	}
+	.warn p {
+		margin: 0;
 	}
 	.warn .cmd {
 		margin: 0.4rem 0 0;

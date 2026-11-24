@@ -1,6 +1,6 @@
 module github.com/weborpanel/webor
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/dbadminer/dbadminer v0.5.0

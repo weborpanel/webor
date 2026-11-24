@@ -455,7 +455,7 @@
 			<Card title="Panel access" description="Publish the control panel on a subdomain of this site">
 				{#if panelLoading && !panel}
 					<Skeleton lines={2} />
-				{:else if panelOwnedHere}
+				{:else if panelOwnedHere && panel}
 					<div class="panel-active">
 						<a class="panel-host" href={`${panelScheme}://${panel.domain}`} target="_blank" rel="noopener noreferrer">
 							{panel.domain}
