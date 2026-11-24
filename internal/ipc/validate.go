@@ -1001,3 +1001,31 @@ func ValidateEnsureNodeRuntimeArgs(a EnsureNodeRuntimeArgs) error {
 	}
 	return nil
 }
+
+// ValidateCheckUpdateArgs validates CheckUpdate.
+func ValidateCheckUpdateArgs(a CheckUpdateArgs) error {
+	ch := strings.TrimSpace(a.Channel)
+	if ch == "" {
+		return nil
+	}
+	switch strings.ToLower(ch) {
+	case "stable", "beta":
+		return nil
+	default:
+		return fmt.Errorf("unsupported channel %q", ch)
+	}
+}
+
+// ValidateApplyUpdateArgs validates ApplyUpdate.
+func ValidateApplyUpdateArgs(a ApplyUpdateArgs) error {
+	ch := strings.ToLower(strings.TrimSpace(a.Channel))
+	switch ch {
+	case "stable", "beta":
+	default:
+		return fmt.Errorf("unsupported channel %q", a.Channel)
+	}
+	if strings.TrimSpace(strings.TrimPrefix(a.Version, "v")) == "" {
+		return fmt.Errorf("version is required")
+	}
+	return nil
+}

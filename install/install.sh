@@ -21,6 +21,8 @@ PANEL_PORT=0
 LISTEN_HOST="0.0.0.0"
 DISABLE_HTTPS=1
 EXPECTED_A=""
+CHANNEL="${WEBOR_CHANNEL:-}"
+BASE_URL="${WEBOR_BASE_URL:-}"
 
 STATE_DIR="/var/lib/webor"
 ETC_DIR="/etc/webor"
@@ -46,6 +48,8 @@ Usage: sudo ./install/install.sh [options]
   --listen-host ADDR    Bind address (default: 0.0.0.0)
   --enable-https        Prefer HTTPS once DNS is ready (default: disabled for first-run)
   --expected-a IPS      Comma-separated public IPv4s for DNS checklist
+  --channel NAME        Release channel to persist (stable|beta); also WEBOR_CHANNEL
+  --base-url URL        Release base URL to persist; also WEBOR_BASE_URL
   --skip-ptr            Skip PTR / forward-confirmed reverse DNS check
   --skip-firewall-hint  Skip firewall detection output
   --uninstall           Stop services and remove units/binaries
@@ -106,6 +110,8 @@ while [[ $# -gt 0 ]]; do
     --listen-host) LISTEN_HOST="$2"; shift 2 ;;
     --enable-https) DISABLE_HTTPS=0; shift ;;
     --expected-a) EXPECTED_A="$2"; shift 2 ;;
+    --channel) CHANNEL="$2"; shift 2 ;;
+    --base-url) BASE_URL="$2"; shift 2 ;;
     --skip-ptr) SKIP_PTR=1; shift ;;
     --skip-firewall-hint) SKIP_FIREWALL=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
@@ -454,9 +460,46 @@ EOF
     echo "WBR_PANEL_ARGS=${args[*]}"
     echo "WBR_PANEL_PORT=${port}"
     echo "WBR_SETUP_TOKEN=${token}"
+    if [[ -n "$CHANNEL" ]]; then
+      echo "WBR_CHANNEL=${CHANNEL}"
+    fi
+    if [[ -n "$BASE_URL" ]]; then
+      echo "WBR_BASE_URL=${BASE_URL}"
+    fi
   } > "${ETC_DIR}/panel.env"
   chmod 0640 "${ETC_DIR}/panel.env"
   log "wrote ${ETC_DIR}/panel.env"
+}
+
+# Upsert WBR_CHANNEL / WBR_BASE_URL on idempotent re-runs (panel.env otherwise kept).
+persist_channel_env() {
+  local envf="${ETC_DIR}/panel.env"
+  [[ -f "$envf" ]] || return 0
+  [[ -n "$CHANNEL" || -n "$BASE_URL" ]] || return 0
+  if [[ -n "$CHANNEL" ]]; then
+    case "$CHANNEL" in
+      stable|beta) ;;
+      *) warn "ignoring invalid --channel ${CHANNEL}"; CHANNEL="" ;;
+    esac
+  fi
+  local tmp="${envf}.tmp"
+  awk -v ch="$CHANNEL" -v base="$BASE_URL" '
+    BEGIN { done_ch=0; done_base=0 }
+    /^[[:space:]]*WBR_CHANNEL=/ {
+      if (ch != "") { print "WBR_CHANNEL=" ch; done_ch=1; next }
+    }
+    /^[[:space:]]*WBR_BASE_URL=/ {
+      if (base != "") { print "WBR_BASE_URL=" base; done_base=1; next }
+    }
+    { print }
+    END {
+      if (ch != "" && !done_ch) print "WBR_CHANNEL=" ch
+      if (base != "" && !done_base) print "WBR_BASE_URL=" base
+    }
+  ' "$envf" > "$tmp" && mv "$tmp" "$envf"
+  chmod 0640 "$envf"
+  [[ -n "$CHANNEL" ]] && log "persisted WBR_CHANNEL=${CHANNEL} in ${envf}"
+  [[ -n "$BASE_URL" ]] && log "persisted WBR_BASE_URL in ${envf}"
 }
 
 write_bootstrap_caddy() {
@@ -584,6 +627,7 @@ do_install() {
     # shellcheck disable=SC1090
     token="$(grep '^WBR_SETUP_TOKEN=' "${ETC_DIR}/panel.env" | head -n1 | cut -d= -f2-)"
     PANEL_PORT="$(grep '^WBR_PANEL_PORT=' "${ETC_DIR}/panel.env" | head -n1 | cut -d= -f2- || echo "$PANEL_PORT")"
+    persist_channel_env
   else
     token="wbr-setup-$(openssl rand -hex 16)"
     write_panel_config "$PANEL_PORT" "$token"

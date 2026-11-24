@@ -26,6 +26,23 @@
 	let confirming = $state(false);
 	let enrollError = $state('');
 
+	type UpdateStatus = {
+		current?: string;
+		latest?: string;
+		channel?: string;
+		newer?: boolean;
+		same?: boolean;
+		base_url?: string;
+	};
+	let updateChannel = $state('stable');
+	let updateCurrent = $state('');
+	let updateStatus = $state<UpdateStatus | null>(null);
+	let updateError = $state('');
+	let updateBusy = $state(false);
+	let approvalId = $state('');
+	let updateNext = $state<string[]>([]);
+	let updateCli = $state('');
+
 	const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
 		{ value: 'system', label: 'System', icon: 'monitor' },
 		{ value: 'light', label: 'Light', icon: 'sun' },
@@ -89,6 +106,71 @@
 		}
 	}
 
+	async function loadUpdateStatus() {
+		try {
+			const r = await request<{ current?: string; channel?: string }>('/api/update/status');
+			if (!r.ok) return;
+			updateCurrent = r.data.current || '';
+			updateChannel = r.data.channel || 'stable';
+		} catch {
+			/* non-fatal */
+		}
+	}
+
+	async function checkUpdate() {
+		updateBusy = true;
+		updateError = '';
+		approvalId = '';
+		updateNext = [];
+		try {
+			const r = await request<{
+				status?: UpdateStatus;
+				cli?: string;
+				error?: string;
+			}>('/api/update/check', { method: 'POST', json: {} });
+			if (!r.ok) {
+				updateError = r.data.error || 'Check failed';
+				return;
+			}
+			updateStatus = r.data.status ?? null;
+			updateCli = r.data.cli || '';
+			if (updateStatus?.channel) updateChannel = updateStatus.channel;
+			if (updateStatus?.current) updateCurrent = updateStatus.current;
+			if (updateStatus?.newer) {
+				toasts.success(`Update available: ${updateStatus.latest}`);
+			} else {
+				toasts.success('Already up to date');
+			}
+		} catch (e) {
+			updateError = errorMessage(e);
+		} finally {
+			updateBusy = false;
+		}
+	}
+
+	async function requestUpdateApproval() {
+		updateBusy = true;
+		updateError = '';
+		try {
+			const r = await request<{
+				approval_id?: string;
+				next?: string[];
+				error?: string;
+			}>('/api/update/request', { method: 'POST', json: { channel: updateChannel } });
+			if (!r.ok) {
+				updateError = r.data.error || 'Could not request approval';
+				return;
+			}
+			approvalId = r.data.approval_id || '';
+			updateNext = r.data.next ?? [];
+			toasts.success('Approval requested — run the CLI steps on the VPS');
+		} catch (e) {
+			updateError = errorMessage(e);
+		} finally {
+			updateBusy = false;
+		}
+	}
+
 	async function confirmTotp(e: SubmitEvent) {
 		e.preventDefault();
 		const c = code.replace(/\s+/g, '');
@@ -116,6 +198,7 @@
 
 	onMount(() => {
 		void load();
+		void loadUpdateStatus();
 		void overview.ensure(60_000);
 	});
 </script>
@@ -225,6 +308,51 @@
 			{/each}
 		</div>
 		<p class="wbr-muted small">System follows your operating system setting. Saved in this browser.</p>
+	</Card>
+
+	<Card title="Updates" description="Check the release channel and apply from the VPS as root">
+		{#snippet actions()}
+			<StatusPill tone="neutral" label={updateChannel} />
+		{/snippet}
+		<p class="wbr-muted small">
+			Running
+			<strong>Webor {updateStatus?.current || updateCurrent || overview.data?.version || '…'}</strong>
+			on channel <code>{updateChannel}</code>.
+		</p>
+		{#if updateStatus}
+			{#if updateStatus.newer}
+				<div class="ok-row">
+					<Icon name="download" size={18} />
+					<p>
+						{updateStatus.latest} is available.
+						Apply as root on the VPS (panel never writes binaries itself).
+					</p>
+				</div>
+				<CopyField label="Apply update" value={updateCli || `sudo wbr update apply -channel ${updateChannel}`} />
+				<div class="update-actions">
+					<button type="button" class="wbr-btn" disabled={updateBusy} onclick={requestUpdateApproval}>
+						{updateBusy ? 'Working…' : 'Request update approval'}
+					</button>
+				</div>
+				{#if approvalId}
+					<p class="wbr-muted small">Approval <code>{approvalId}</code> — run these on the VPS:</p>
+					{#each updateNext as cmd (cmd)}
+						<CopyField label="CLI" value={cmd} />
+					{/each}
+				{/if}
+			{:else}
+				<div class="ok-row">
+					<Icon name="check" size={18} />
+					<p>Up to date with {updateStatus.latest} on {updateStatus.channel}.</p>
+				</div>
+			{/if}
+		{/if}
+		{#if updateError}<p class="wbr-error">{updateError}</p>{/if}
+		<div class="update-actions">
+			<button type="button" class="wbr-btn wbr-btn-ghost" disabled={updateBusy} onclick={checkUpdate}>
+				{updateBusy ? 'Checking…' : 'Check for updates'}
+			</button>
+		</div>
 	</Card>
 
 	<Card title="Keyboard shortcuts">
@@ -393,5 +521,12 @@
 		grid-template-columns: 6rem 1fr;
 		gap: 0.5rem;
 		align-items: center;
+	}
+
+	.update-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
 	}
 </style>

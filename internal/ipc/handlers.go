@@ -91,6 +91,8 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpEnsureBackupSchedule:   makeEnsureBackupSchedule(ops),
 		OpEnsureNodeRuntime:      makeEnsureNodeRuntime(ops),
 		OpApplySiteLimits:        makeApplySiteLimits(ops),
+		OpCheckUpdate:            makeCheckUpdate(ops),
+		OpApplyUpdate:            makeApplyUpdate(ops, store, log),
 	}
 	return h
 }

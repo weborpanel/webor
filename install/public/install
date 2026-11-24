@@ -121,4 +121,6 @@ if ! command -v caddy >/dev/null 2>&1; then
 fi
 
 echo "[webor] running install.sh"
-exec "${ROOT}/install/install.sh" --yes --bin-dir "${ROOT}/bin" "${PASS[@]+"${PASS[@]}"}"
+INSTALL_ARGS=(--yes --bin-dir "${ROOT}/bin" --channel "${CHANNEL}")
+[[ -n "${BASE_URL}" && "${BASE_URL}" != "https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor" ]] && INSTALL_ARGS+=(--base-url "${BASE_URL}")
+exec "${ROOT}/install/install.sh" "${INSTALL_ARGS[@]}" "${PASS[@]+"${PASS[@]}"}"

@@ -79,6 +79,7 @@ jobs:
             GOOS=linux GOARCH="$arch" CGO_ENABLED=0 \
               go build -trimpath -ldflags="$LDFLAGS" -o "bin/wbr" ./cmd/wbr
             WEBOR_CHANNEL="${{ steps.meta.outputs.channel }}" WEBOR_ARCH="$arch" \
+              WEBOR_VERSION="$VER" \
               ./scripts/pack-public.sh
             echo "::endgroup::"
           done
@@ -109,3 +110,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- amd64: \`${WEBOR_BASE_URL}/downloads/${ch}/webor-linux-amd64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- arm64: \`${WEBOR_BASE_URL}/downloads/${ch}/webor-linux-arm64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- VERSION: \`${WEBOR_BASE_URL}/downloads/${ch}/VERSION\`" >> "$GITHUB_STEP_SUMMARY"

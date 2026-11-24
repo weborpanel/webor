@@ -68,6 +68,7 @@ Date: 2026-11-24. Scope: public beta of the native VPS panel (`webor`, `webor-he
 | Site user breakout | Contained by user + unit sandbox | Kernel / container-escape class bugs; Podman path not in beta |
 | Delete site + data without console | Blocked pending `wbr approve` | Social engineering of the operator at the console |
 | Restore backup / forget snapshots | Approval required | Stolen restic password + S3 access restores elsewhere |
+| Self-update (`ApplyUpdate` / replace `/usr/local/bin/webor*`) | UI only requests approval; root `wbr update` / helper consume applies | Compromised panel cannot replace binaries without console approve |
 | Install Postgres via helper | Approval required | After approve, packaging trust is distro + network |
 | Change site memory/CPU/disk | Routine (no approval) — intentional for Settings UX | Compromised panel can OOM-kill site builds/units within presets |
 | Shared SQLite between panel and helper | Convenient for v1 | Panel compromise can rewrite non-approval state; split DBs later |

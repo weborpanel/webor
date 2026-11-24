@@ -82,6 +82,15 @@ sudo systemctl restart webor-helper webor
 
 `WEBOR_CHANNEL=beta curl … | sudo bash` still downloads **stable** — the env var is only set for `curl`, not for `sudo bash`. Use `--channel beta` after `bash -s --`.
 
+Prefer in-place updates:
+
+```bash
+wbr update check
+sudo wbr update apply
+```
+
+Channel is read from `WBR_CHANNEL` in `/etc/webor/panel.env` (set by bootstrap `--channel`). Account → Updates can check and request approval; apply stays root CLI.
+
 If the UI looks stale, hard-refresh the browser. Version appears in the panel sidebar (`Webor <version>`).
 
 ## Recovery

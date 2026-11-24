@@ -128,6 +128,7 @@ func main() {
 	srv.MountApprovals(mux)
 	srv.MountMetrics(mux)
 	srv.MountBackup(mux)
+	srv.MountUpdate(mux)
 	mux.Handle("/", ui.Handler())
 
 	log.Printf("webor %s listening on %s (state=%s config=%s helper=%s)", version.Version, *listen, *stateDir, *configPath, srv.HelperSocket)

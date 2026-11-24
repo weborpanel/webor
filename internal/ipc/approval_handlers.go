@@ -178,6 +178,17 @@ func canonicalizeApprovalArgs(operation string, bound any) any {
 		engine = strings.ToLower(strings.TrimSpace(engine))
 		id = dbengine.NormalizeID(domain, id)
 		return map[string]any{"domain": domain, "engine": engine, "id": id}
+	case OpApplyUpdate:
+		ch, _ := m["channel"].(string)
+		ver, _ := m["version"].(string)
+		base, _ := m["base_url"].(string)
+		ch = strings.ToLower(strings.TrimSpace(ch))
+		ver = strings.TrimPrefix(strings.TrimSpace(ver), "v")
+		base = strings.TrimRight(strings.TrimSpace(base), "/")
+		if base == "" {
+			base = "https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor"
+		}
+		return map[string]any{"channel": ch, "version": ver, "base_url": base}
 	default:
 		return bound
 	}

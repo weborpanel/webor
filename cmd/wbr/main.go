@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,10 +9,12 @@ import (
 	"os/exec"
 	"os/user"
 	"strings"
+	"time"
 
 	"github.com/weborpanel/webor/internal/auth"
 	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/ipc"
+	"github.com/weborpanel/webor/internal/update"
 	"github.com/weborpanel/webor/internal/version"
 )
 
@@ -33,6 +36,8 @@ func main() {
 		os.Exit(runBackup(os.Args[2:]))
 	case "recover":
 		os.Exit(runRecover(os.Args[2:]))
+	case "update":
+		os.Exit(runUpdate(os.Args[2:]))
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -250,6 +255,132 @@ func runDoctor(args []string) int {
 	return 0
 }
 
+func runUpdate(args []string) int {
+	sub := "apply"
+	rest := args
+	if len(args) > 0 {
+		switch args[0] {
+		case "check", "apply":
+			sub = args[0]
+			rest = args[1:]
+		case "help", "-h", "--help":
+			fmt.Fprintln(os.Stderr, `usage:
+  wbr update check  [-channel beta] [-base-url URL] [-env PATH]
+  wbr update apply  [-channel beta] [-base-url URL] [-env PATH] [-dry-run] [-force] [-save-channel] [-approval-id ID] [-socket PATH]
+  wbr update        (same as apply)`)
+			return 2
+		}
+	}
+
+	fs := flag.NewFlagSet("update "+sub, flag.ExitOnError)
+	channel := fs.String("channel", "", "stable or beta (default: WBR_CHANNEL from panel.env)")
+	baseURL := fs.String("base-url", "", "release base URL (default from panel.env)")
+	envPath := fs.String("env", update.DefaultPanelEnv, "panel.env path")
+	dryRun := fs.Bool("dry-run", false, "show plan only (apply)")
+	force := fs.Bool("force", false, "allow reinstall / non-newer version (apply)")
+	saveChannel := fs.Bool("save-channel", false, "persist -channel/-base-url into panel.env")
+	approvalID := fs.String("approval-id", "", "consume a pending ApplyUpdate approval via helper (apply)")
+	socket := fs.String("socket", ipc.DefaultSocketPath, "helper Unix socket (with -approval-id)")
+	_ = fs.Parse(rest)
+
+	cfg := update.LoadChannelConfig(*envPath)
+	ch := strings.TrimSpace(*channel)
+	if ch == "" {
+		ch = cfg.Channel
+	}
+	base := strings.TrimSpace(*baseURL)
+	if base == "" {
+		base = cfg.BaseURL
+	}
+	if err := update.ValidateChannel(ch); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	if sub == "check" {
+		st, err := update.Check(ctx, update.CheckOptions{Channel: ch, BaseURL: base})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(st)
+		if st.Newer {
+			fmt.Fprintf(os.Stderr, "update available: %s → %s (%s)\n", st.Current, st.Latest, st.Channel)
+			fmt.Fprintln(os.Stderr, "apply with: sudo wbr update apply -channel "+st.Channel)
+		} else {
+			fmt.Fprintf(os.Stderr, "up to date on %s (%s)\n", st.Current, st.Channel)
+		}
+		return 0
+	}
+
+	// apply
+	if err := requireRoot(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	if *approvalID != "" {
+		st, err := update.Check(ctx, update.CheckOptions{Channel: ch, BaseURL: base})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		raw, _ := json.Marshal(ipc.ApplyUpdateArgs{
+			Channel:     ch,
+			BaseURL:     base,
+			Version:     st.Latest,
+			Force:       *force || *dryRun,
+			SaveChannel: *saveChannel || strings.TrimSpace(*channel) != "",
+			ApprovalID:  *approvalID,
+		})
+		if *dryRun {
+			fmt.Printf("dry-run: would ApplyUpdate %s → %s (%s) approval=%s\n", st.Current, st.Latest, ch, *approvalID)
+			return 0
+		}
+		resp, err := ipc.Call(*socket, ipc.Request{ID: "wbr", Operation: ipc.OpApplyUpdate, Args: raw})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		printResp(resp)
+		if !resp.OK {
+			return 1
+		}
+		return 0
+	}
+
+	if *saveChannel || strings.TrimSpace(*channel) != "" {
+		_ = update.SaveChannelConfig(*envPath, ch, base)
+	}
+
+	res, err := update.Apply(ctx, update.ApplyOptions{
+		Channel:     ch,
+		BaseURL:     base,
+		DryRun:      *dryRun,
+		Force:       *force,
+		SaveChannel: *saveChannel || strings.TrimSpace(*channel) != "",
+		PanelEnvPath: *envPath,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(res)
+	if res.DryRun {
+		fmt.Fprintf(os.Stderr, "dry-run: would update %s → %s (%s)\n", res.From, res.To, res.Channel)
+	} else {
+		fmt.Fprintf(os.Stderr, "updated %s → %s (%s); helper+panel restarted\n", res.From, res.To, res.Channel)
+	}
+	return 0
+}
+
 func printPort(port string) {
 	fmt.Printf("Port %s: check with `ss -ltn 'sport = :%s'` on the host\n", port, port)
 }
@@ -277,6 +408,8 @@ func usage() {
 Usage:
   wbr version
   wbr doctor
+  wbr update check                 (any user; reads S3 channel VERSION)
+  wbr update apply                 (root; download, verify, install, restart)
   wbr backup run                   (via helper; used by webor-backup.timer)
   wbr request-approval -domain example.com [-op DeleteSiteUser -delete-data]
   wbr approve list                 (root)

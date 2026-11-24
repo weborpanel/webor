@@ -49,7 +49,15 @@ Panel: `http://127.0.0.1:8787/` (NAT forward). Lab keeps HTTPS disabled; use Hos
 
 ## Upgrade / restart
 
-Re-run the public bootstrap to pull the current channel binaries, or install from a git checkout:
+Preferred (version-aware, checksummed):
+
+```bash
+wbr update check                 # any user
+sudo wbr update apply            # root; uses WBR_CHANNEL from /etc/webor/panel.env
+sudo wbr update apply -channel beta -save-channel
+```
+
+Or re-run the public bootstrap:
 
 ```bash
 curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
@@ -65,7 +73,7 @@ sudo systemctl restart webor-caddy
 make lab-restart
 ```
 
-Sites keep serving while the panel restarts; Caddy and site units are independent. Version string is in the panel sidebar.
+Sites keep serving while the panel restarts; Caddy and site units are independent. Version string is in the panel sidebar / Account → Updates.
 
 ## More docs
 

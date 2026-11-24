@@ -10,6 +10,7 @@ Tag builds publish linux **amd64** and **arm64** tarballs + the bootstrap instal
 | Stable amd64 | `…/webor/downloads/stable/webor-linux-amd64.tar.gz` |
 | Stable arm64 | `…/webor/downloads/stable/webor-linux-arm64.tar.gz` |
 | Checksums | `…/webor/downloads/stable/SHA256SUMS` |
+| Version | `…/webor/downloads/stable/VERSION` (plain text; used by `wbr update`) |
 
 Bucket: `webor-releases-360386317256` (ap-south-1). Objects under `webor/*` are world-readable via bucket policy.
 

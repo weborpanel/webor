@@ -69,8 +69,19 @@ else
     || echo "$line" >> "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS"
 fi
 
+# Plain-text version for wbr update / panel check (prefer stamped binary, else env, else git describe).
+VER="${WEBOR_VERSION:-}"
+if [[ -z "$VER" ]]; then
+  VER="$("${ROOT}/bin/wbr" version 2>/dev/null || true)"
+fi
+if [[ -z "$VER" ]]; then
+  VER="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)"
+  VER="${VER#v}"
+fi
+printf '%s\n' "$VER" > "${ROOT}/dist/upload/downloads/${CHANNEL}/VERSION"
+
 cat <<EOF
-Packed OK (${ARCH} → ${CHANNEL}).
+Packed OK (${ARCH} → ${CHANNEL}, version ${VER}).
 
 Upload kit:
   ${ROOT}/dist/upload/
@@ -79,6 +90,7 @@ Public URLs (after sync):
   ${BASE_URL}/install
   ${BASE_URL}/downloads/${CHANNEL}/${TAR_NAME}
   ${BASE_URL}/downloads/${CHANNEL}/SHA256SUMS
+  ${BASE_URL}/downloads/${CHANNEL}/VERSION
 
 Sync with:
   ./scripts/upload-public.sh
@@ -90,4 +102,5 @@ Files:
 EOF
 ls -lh "${ROOT}/dist/upload/install" \
   "${ROOT}/dist/upload/downloads/${CHANNEL}/${TAR_NAME}" \
-  "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS"
+  "${ROOT}/dist/upload/downloads/${CHANNEL}/SHA256SUMS" \
+  "${ROOT}/dist/upload/downloads/${CHANNEL}/VERSION"

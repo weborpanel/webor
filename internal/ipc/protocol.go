@@ -80,6 +80,8 @@ const (
 	OpEnsureBackupSchedule   = "EnsureBackupSchedule"
 	OpEnsureNodeRuntime      = "EnsureNodeRuntime"
 	OpApplySiteLimits        = "ApplySiteLimits"
+	OpCheckUpdate            = "CheckUpdate"
+	OpApplyUpdate            = "ApplyUpdate" // approval-gated when called from panel path
 )
 
 // Request is a single typed helper operation. Arguments are never shell strings.
@@ -564,4 +566,20 @@ type EnsureNodeRuntimeArgs struct {
 // ApplySiteLimitsArgs rewrites site units after limits change in config.yaml.
 type ApplySiteLimitsArgs struct {
 	Site config.Site `json:"site"`
+}
+
+// CheckUpdateArgs fetches the channel VERSION and compares to the running build.
+type CheckUpdateArgs struct {
+	Channel string `json:"channel,omitempty"`
+	BaseURL string `json:"base_url,omitempty"`
+}
+
+// ApplyUpdateArgs installs a release tarball (approval-gated for non-root panel).
+type ApplyUpdateArgs struct {
+	Channel         string `json:"channel"`
+	BaseURL         string `json:"base_url,omitempty"`
+	Version         string `json:"version"` // expected VERSION from check (bound)
+	Force           bool   `json:"force,omitempty"`
+	SaveChannel     bool   `json:"save_channel,omitempty"`
+	ApprovalID      string `json:"approval_id,omitempty"`
 }
