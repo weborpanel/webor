@@ -68,7 +68,7 @@ func Check(ctx context.Context, opt CheckOptions) (*Status, error) {
 	verURL := fmt.Sprintf("%s/downloads/%s/VERSION", base, ch)
 	latest, err := fetchText(ctx, client, verURL)
 	if err != nil {
-		return nil, fmt.Errorf("fetch VERSION: %w", err)
+		return nil, fmt.Errorf("fetch VERSION: %w (channel %q — missing object often shows as HTTP 403; publish VERSION or use -channel beta)", err, ch)
 	}
 	latest = Normalize(latest)
 	if latest == "" {
