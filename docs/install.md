@@ -47,10 +47,30 @@ Panel: `http://127.0.0.1:8787/` (NAT forward). Lab keeps HTTPS disabled; use Hos
 
 ## Upgrade / restart
 
+Re-run the public bootstrap to pull the current channel binaries, or install from a git checkout:
+
 ```bash
-sudo systemctl restart webor-helper webor webor-caddy
-# or lab:
+curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
+# beta channel:
+WEBOR_CHANNEL=beta curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
+```
+
+```bash
+sudo systemctl restart webor-helper webor
+# Caddy only if needed:
+sudo systemctl restart webor-caddy
+# lab:
 make lab-restart
 ```
 
-Sites keep serving while the panel restarts; Caddy and site units are independent.
+Sites keep serving while the panel restarts; Caddy and site units are independent. Version string is in the panel sidebar.
+
+## More docs
+
+| Guide | Topic |
+| --- | --- |
+| [dns-https.md](dns-https.md) | DNS checklist, Let's Encrypt, panel hostname |
+| [config-reference.md](config-reference.md) | `/etc/webor/config.yaml` |
+| [troubleshooting.md](troubleshooting.md) | Common failures |
+| [threat-model.md](threat-model.md) | Helper trust boundaries (beta) |
+| [guides/release-s3.md](guides/release-s3.md) | Public release URLs and publish |

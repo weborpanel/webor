@@ -1,6 +1,6 @@
-# Config reference (sketch)
+# Config reference
 
-File: `/etc/webor/config.yaml` (lab: `/tmp/webor-lab/etc/config.yaml`).
+File: `/etc/webor/config.yaml` (lab: `/tmp/webor-lab/etc/config.yaml`). Prefer the panel UI for day-to-day edits; this file is the declarative twin.
 
 ```yaml
 version: 1
@@ -50,7 +50,7 @@ sites:
           version: "22"
 ```
 
-Rules:
+## Rules
 
 - `panel.domain` must not collide with a site name or alias. Set it from the apex site’s Domains → **Panel access** UI (not as a child site).
 - Children (`parent:`) cannot declare `databases` or `cache`.
@@ -58,3 +58,13 @@ Rules:
 - Passwords are not stored in this file; they live under `state/secrets/`.
 - `cron:` oneshots live under `crons/<name>/`; `jobs:` (Processes UI) under `processes/<name>/`. Both need systemd; timers need `timers.target` (`wbr doctor` checks it).
 - Panel tabs **Crons** / **Processes** edit these via HTTP API (no step-up approval).
+- **Limits:** panel Settings only offers presets (memory/CPU/disk). Disk default for new sites is `10M`; presets run through `10G`. Changing limits rewrites site units (routine helper op, no approval).
+- **HTTPS:** `https: true` is set by the panel after a green DNS checklist, not by hand-editing on a live box unless you know you will reload Caddy.
+- **Backups:** repository credentials and schedule live in helper state / secrets, not as a full dump in this YAML sketch. Configure from Panel → Backups.
+- **HTTP API backends** (path `/api` or whole-host) are managed from the site **API** tab; units bind `PORT`/`HOST` injected by Webor.
+
+## Related
+
+- [install.md](install.md) — first boot and day-2 ops
+- [dns-https.md](dns-https.md) — when to flip `https`
+- [troubleshooting.md](troubleshooting.md) — when reconcile or units misbehave

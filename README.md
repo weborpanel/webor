@@ -8,8 +8,8 @@ cron.
 The panel being down must never mean the sites are down. Caddy and site units
 run independently of the panel process.
 
-**Status:** Milestone 2 lab-complete; Milestone 3 installer/hardening in progress.
-Not production-ready.
+**Status:** Public beta. Milestone 0–5 lab-complete; Milestone 6 release gate
+(docs + threat model + beta tag). Podman containers deferred. Not a stable 1.0.
 
 ## Binaries
 
@@ -52,7 +52,12 @@ make lab-start           # helper + caddy + panel on :8787 / :8080
 sudo ./install/install.sh --yes --bin-dir ./bin
 ```
 
-See [docs/plan.md](docs/plan.md), [docs/spikes/m3-install.md](docs/spikes/m3-install.md), [docs/dev/virtualbox-debian13.md](docs/dev/virtualbox-debian13.md), and [docs/dev/lab-ssh-testing.md](docs/dev/lab-ssh-testing.md) (agent SSH/rsync smoke playbook).
+Operator docs: [docs/install.md](docs/install.md), [docs/dns-https.md](docs/dns-https.md),
+[docs/config-reference.md](docs/config-reference.md), [docs/troubleshooting.md](docs/troubleshooting.md),
+[docs/threat-model.md](docs/threat-model.md). Index: [docs/README.md](docs/README.md).
+
+Dev: [docs/plan.md](docs/plan.md), [docs/dev/virtualbox-debian13.md](docs/dev/virtualbox-debian13.md),
+[docs/dev/lab-ssh-testing.md](docs/dev/lab-ssh-testing.md).
 
 ## License
 

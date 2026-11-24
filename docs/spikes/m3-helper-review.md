@@ -26,7 +26,7 @@ Typed ops only (no shell strings): site user create/delete, public file write, s
 - Panel still opens the same SQLite as the helper (shared state). Acceptable for v1; consider split DBs later
 - Helper TOTP step-up not implemented (console `wbr approve` is the break-glass path per decision 0003)
 - Package install / firewall changes not yet approval-class ops (M4+)
-- Formal threat-model pass still owed at Milestone 6
+- Formal threat-model pass: see [threat-model.md](../threat-model.md) (Milestone 6)
 
 ## Lab exit check
 

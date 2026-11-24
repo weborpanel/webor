@@ -2,7 +2,7 @@
 
 *Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
 
-*Progress note (2026-11-23): Milestone 0–5 lab-complete (including restic S3 backups, decision 0006). Live HTTPS verified on Debian and Alma across two VPS providers and EC2. Podman remains deferred (M5b). Active track: Milestone 6 release gate (footprint, upgrade-while-serving, docs, beta tag).*
+*Progress note (2026-11-24): Milestone 0–5 lab-complete (including restic S3 backups, decision 0006). Live HTTPS verified on Debian and Alma across two VPS providers and EC2. Footprint / OOM / upgrade-while-serving checked. Operator docs + threat model written; public beta tag on the release gate. Podman remains deferred (M5b).*
 
 ## 1. Product scope
 
@@ -252,15 +252,15 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 
 ### Milestone 6: Release gate (weeks 15 to 16)
 
-**Status:** in progress (first-pass multi-provider HTTPS rehearsal done)
+**Status:** complete for public beta (Podman still deferred as M5b)
 
 **Deliverables**
 
 - [x] VPS rehearsal on two providers with real Let's Encrypt issuance (Debian + Alma; two VPS providers + EC2) — repeat before each release
 - [x] Footprint benchmarks against the targets in section 12 — idle ~65 MB on 1 GB Debian t3.micro (2026-11-23); see `docs/vps-checklist.md`
 - [x] Upgrade and config-migration tests, including upgrading the panel while sites keep serving — panel restart under load on Alma: 0 dropped HTTPS requests (2026-11-23)
-- [ ] Documentation: install guide, DNS guide, config reference, troubleshooting
-- [ ] Threat-model review and a public beta tag
+- [x] Documentation: install guide, DNS guide, config reference, troubleshooting (`docs/install.md`, `dns-https.md`, `config-reference.md`, `troubleshooting.md`)
+- [x] Threat-model review and a public beta tag (`docs/threat-model.md`, tag `v0.1.0-beta.1`)
 
 ## 8. After v1
 

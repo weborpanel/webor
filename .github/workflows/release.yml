@@ -47,7 +47,13 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
           else
-            echo "channel=stable" >> "$GITHUB_OUTPUT"
+            # Tag pushes: v*-beta* → beta channel; otherwise stable.
+            REF="${GITHUB_REF_NAME}"
+            if [[ "$REF" == *beta* ]]; then
+              echo "channel=beta" >> "$GITHUB_OUTPUT"
+            else
+              echo "channel=stable" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 

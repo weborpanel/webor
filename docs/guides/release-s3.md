@@ -50,14 +50,18 @@ Access key belongs to `webor-releases-ci` only (not account root). Rotate by cre
 ### Tag and push
 
 ```bash
+# Public beta → S3 channel "beta"
+git tag v0.1.0-beta.1
+git push origin v0.1.0-beta.1
+
+# Stable → S3 channel "stable"
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Workflow [`.github/workflows/release.yml`](../../.github/workflows/release.yml) builds UI + both arches, packs, and syncs to S3 under channel **stable**. The tag (leading `v` stripped) is stamped into binaries via `-ldflags -X …/internal/version.Version=…`, which the panel sidebar shows as `Webor <version>`.
+Workflow [`.github/workflows/release.yml`](../../.github/workflows/release.yml) builds UI + both arches, packs, and syncs to S3. Tag pushes whose name contains `beta` publish to channel **beta**; other `v*` tags publish to **stable**. The tag (leading `v` stripped) is stamped into binaries via `-ldflags -X …/internal/version.Version=…`, which the panel sidebar shows as `Webor <version>`.
 
-Manual / beta: Actions → **Release** → Run workflow → channel `beta`.
-
+Manual override: Actions → **Release** → Run workflow → choose channel.
 ## Local pack + upload
 
 ```bash
