@@ -44,7 +44,7 @@ func RepairStateDB(stateDir string) (string, error) {
 	walPath := dbPath + "-wal"
 	shmPath := dbPath + "-shm"
 
-	if err := os.MkdirAll(stateDir, 0o750); err != nil {
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return "", err
 	}
 

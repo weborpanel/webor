@@ -48,6 +48,7 @@ See [dns-https.md](dns-https.md).
 | Build OOM / “killed” | `memory_max` too low for the build | Settings → raise Memory; rebuild. Other sites should keep serving |
 | App / API never listens | Binary not binding `PORT`/`HOST`, or unit failed | Check site journal in the panel; for API backends ensure the process uses the injected `PORT` |
 | Cron timer missing | `timers.target` unavailable | `sudo wbr doctor`; enable systemd timers |
+| Cron / Node app `status=203/EXEC` or `Permission denied` on `/var/lib/webor/runtimes/node/…` | State dir not traversable (`0750`/`0770`), or SELinux `var_lib_t` on the binary | `sudo chmod 755 /var/lib/webor`; on Enforcing also `sudo chcon -R -t bin_t /var/lib/webor/runtimes/node/*/bin`. Fixed in ≥0.1.0-beta.2 (helper no longer re-locks the state dir on restart) |
 | Delete site with data stuck pending | Approval not consumed | On the VPS: `sudo wbr approvals` then `sudo wbr approve <id>` |
 
 ## Databases and cache

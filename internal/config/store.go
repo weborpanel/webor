@@ -20,9 +20,14 @@ func OpenDB(stateDir string) (*sql.DB, error) {
 	if stateDir == "" {
 		stateDir = DefaultStateDir
 	}
-	if err := os.MkdirAll(stateDir, 0o750); err != nil {
+	// 0755: site users must traverse /var/lib/webor to exec shared Node under
+	// runtimes/. Secrets and state.db stay mode-restricted on the files/dirs
+	// themselves — never rely on locking down the state root.
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create state dir: %w", err)
 	}
+	// MkdirAll does not change the mode of an existing directory — re-assert.
+	_ = os.Chmod(stateDir, 0o755)
 	dbPath := filepath.Join(stateDir, "state.db")
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -62,7 +67,11 @@ func shareStateWithPanel(stateDir, dbPath string) {
 	if err1 != nil || err2 != nil {
 		return
 	}
-	_ = os.Chmod(stateDir, 0o770)
+	// Must stay other-executable: cron/app units run as wbr_* and exec
+	// /var/lib/webor/runtimes/node/... . 0770 here caused systemd 203/EXEC
+	// after every helper restart (recreate-cron temporarily fixed it via
+	// prepareNodeRuntimeAccess).
+	_ = os.Chmod(stateDir, 0o755)
 	_ = os.Chown(stateDir, uid, gid)
 	for _, p := range []string{dbPath, dbPath + "-wal", dbPath + "-shm"} {
 		if _, err := os.Stat(p); err != nil {

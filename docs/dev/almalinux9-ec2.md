@@ -60,7 +60,7 @@ Installer links `/usr/bin/wbr` so Alma `sudo secure_path` can find `wbr`.
 
 ### Node backends + SELinux
 
-`install.sh` sets `/var/lib/webor` to **0755** (site users must traverse to `/var/lib/webor/runtimes/node/…`) and, when Enforcing, labels existing Node bins `bin_t` / libs `lib_t`. The helper reapplies the same after every `EnsureNodeRuntime` download so new versions do not stay `var_lib_t` (which yields systemd `status=203/EXEC`).
+`install.sh` sets `/var/lib/webor` to **0755** (site users must traverse to `/var/lib/webor/runtimes/node/…`) and, when Enforcing, labels existing Node bins `bin_t` / libs `lib_t`. The helper reapplies the same after every `EnsureNodeRuntime` download so new versions do not stay `var_lib_t` (which yields systemd `status=203/EXEC`). Helper `OpenDB` must also keep the state dir at **0755** (not `0770`) — otherwise every `systemctl restart webor-helper` locks site users out until a cron recreate runs `prepareNodeRuntimeAccess` again.
 
 ## Smoke checklist
 
