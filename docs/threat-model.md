@@ -74,6 +74,7 @@ Date: 2026-11-24. Scope: public beta of the native VPS panel (`webor`, `webor-he
 | Shared SQLite between panel and helper | Convenient for v1 | Panel compromise can rewrite non-approval state; split DBs later |
 | Firewall / panel port changes | Not fully approval-class yet | Operator should lock high port after panel domain is live |
 | Helper TOTP step-up (in-panel) | Not implemented | Console approve remains the only step-up |
+| Stolen panel session opens Adminer Edit | Session-gated `/db/{slug}/edit/` can mutate SQL data (decision 0012) | Same class as other authenticated panel mutations; Browse stays RO |
 
 ## Explicit non-goals for this beta
 

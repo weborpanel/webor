@@ -36,3 +36,24 @@ func TestNames(t *testing.T) {
 		t.Fatalf("extra app role %q", extra)
 	}
 }
+
+func TestROSecretDSNAs(t *testing.T) {
+	sec := postgres.ROSecret{
+		User:     "webor_ro_wbr_app",
+		Password: "secret",
+		Database: "wbr_app",
+		Host:     "127.0.0.1",
+		Port:     5432,
+	}
+	ro := sec.DSN()
+	if !strings.Contains(ro, "user=webor_ro_wbr_app") {
+		t.Fatalf("RO DSN: %q", ro)
+	}
+	app := sec.DSNAs("wbr_app")
+	if !strings.Contains(app, "user=wbr_app") {
+		t.Fatalf("App DSN: %q", app)
+	}
+	if !strings.Contains(app, "password=secret") || !strings.Contains(app, "dbname=wbr_app") {
+		t.Fatalf("App DSN missing fields: %q", app)
+	}
+}

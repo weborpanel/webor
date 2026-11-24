@@ -22,3 +22,37 @@ func TestNormalizeAndSlug(t *testing.T) {
 		t.Fatal(dbengine.Slug("app.example.com"))
 	}
 }
+
+func TestAdminerPathsAndSQLiteDSN(t *testing.T) {
+	domain := "app.example.com"
+	def := dbengine.DefaultID(domain)
+	if got := dbengine.AdminerSlug(domain, ""); got != def {
+		t.Fatalf("default slug: got %q want %q", got, def)
+	}
+	if got := dbengine.AdminerBrowsePath(domain, ""); got != "/db/"+def+"/" {
+		t.Fatalf("browse default: %q", got)
+	}
+	if got := dbengine.AdminerEditPath(domain, ""); got != "/db/"+def+"/edit/" {
+		t.Fatalf("edit default: %q", got)
+	}
+	if got := dbengine.AdminerSlug(domain, "analytics"); got != "app_example_com_analytics" {
+		t.Fatalf("secondary slug: %q", got)
+	}
+	if got := dbengine.AdminerBrowsePath(domain, "analytics"); got != "/db/app_example_com_analytics/" {
+		t.Fatalf("browse secondary: %q", got)
+	}
+	if got := dbengine.AdminerEditPath(domain, "analytics"); got != "/db/app_example_com_analytics/edit/" {
+		t.Fatalf("edit secondary: %q", got)
+	}
+	ro := dbengine.SQLiteDSN(domain, def)
+	rw := dbengine.SQLiteRWDSN(domain, def)
+	if !strings.Contains(ro, "mode=ro") {
+		t.Fatalf("RO DSN missing mode=ro: %q", ro)
+	}
+	if strings.Contains(rw, "mode=ro") {
+		t.Fatalf("RW DSN should not be mode=ro: %q", rw)
+	}
+	if !strings.HasPrefix(rw, "file:") {
+		t.Fatalf("RW DSN: %q", rw)
+	}
+}

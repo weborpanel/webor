@@ -101,8 +101,10 @@ func (s *Server) handleListDatabases(w http.ResponseWriter, r *http.Request) {
 func (s *Server) databaseView(domain, id, engine string, withSecrets bool) map[string]any {
 	id = dbengine.NormalizeID(domain, id)
 	out := map[string]any{
-		"id":     id,
-		"engine": engine,
+		"id":          id,
+		"engine":      engine,
+		"browse_path": dbengine.AdminerBrowsePath(domain, id),
+		"edit_path":   dbengine.AdminerEditPath(domain, id),
 	}
 	switch engine {
 	case dbengine.Postgres:
@@ -243,7 +245,6 @@ func (s *Server) handleAddDatabase(w http.ResponseWriter, r *http.Request) {
 	s.rebuildDBAdminer()
 	out := s.databaseView(name, id, engine, true)
 	out["ok"] = true
-	out["browse_path"] = "/db/"
 	if res != nil {
 		out["database"] = res.Database
 		out["peer_role"] = res.PeerRole

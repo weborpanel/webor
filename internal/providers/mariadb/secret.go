@@ -19,6 +19,11 @@ type ROSecret struct {
 }
 
 func (s ROSecret) DSN() string {
+	return s.DSNAs(s.User)
+}
+
+// DSNAs returns a MySQL DSN using user (e.g. AppRole) and this secret's password.
+func (s ROSecret) DSNAs(user string) string {
 	host := s.Host
 	if host == "" {
 		host = DefaultTCPHost
@@ -27,7 +32,10 @@ func (s ROSecret) DSN() string {
 	if port == 0 {
 		port = DefaultPort
 	}
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", s.User, s.Password, host, port, s.Database)
+	if user == "" {
+		user = s.User
+	}
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", user, s.Password, host, port, s.Database)
 }
 
 func (s ROSecret) PasswordURL() string {

@@ -1,6 +1,7 @@
 # Spike M4: Global DBAdminer + multi-engine site DBs
 
-**Status:** accepted (supersedes per-site Adminer mount)
+**Status:** accepted (supersedes per-site Adminer mount; Adminer mount shape
+superseded by [0012](0012-per-db-adminer.md))
 
 ## Context
 
@@ -34,7 +35,14 @@ docroots.
 
 ## Consequences
 
-- Per-site `/sites/{name}/db/` mounts are removed; Browse links to `/db/`.
+- Per-site `/sites/{name}/db/` mounts are removed; Browse links to `/db/`
+  (later per-DB paths — see 0012).
 - Legacy singular `database:` migrates to `databases: [{id: slug, engine}]`.
 - Valkey/cache: see decision 0005 (shared ACL; no Valkey Adminer).
 - Runbook: [`docs/spikes/m4-databases.md`](../spikes/m4-databases.md).
+
+## Supersession
+
+Decision [0012](0012-per-db-adminer.md) replaces the single global always-read-only
+multi-DB mount (decision items 1–2 above) with `/db/{slug}/` (RO) and
+`/db/{slug}/edit/` (full).

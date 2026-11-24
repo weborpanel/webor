@@ -218,7 +218,7 @@ The milestones add up to about 16 weeks of focused work. For one developer, add 
 - [x] Parent multi-DB + roles, Unix-socket peer auth, password rotate, subdomain inherit
 - [x] Valkey **shared** instance with per-site ACL users restricted to a key prefix (dedicated instance deferred)
 - [x] UI to attach and detach a database; cache UI with Valkey
-- [x] Embedded read-only [DBAdminer](https://github.com/dbadminer/dbadminer) for SQL browse (decision 0004)
+- [x] Embedded [DBAdminer](https://github.com/dbadminer/dbadminer): per-DB Browse `/db/{slug}/` + Edit `/db/{slug}/edit/` (decisions 0004, 0012)
 
 **Exit criteria:** cross-site database and cache isolation tests pass.
 

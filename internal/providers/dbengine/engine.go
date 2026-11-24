@@ -86,13 +86,23 @@ func AppUser(domain, id string) string {
 // DBName is the postgres/mariadb database name (same as AppUser).
 func DBName(domain, id string) string { return AppUser(domain, id) }
 
-// AdminerSlug is the multi-DB switcher name.
+// AdminerSlug is the path segment for per-DB Adminer mounts.
 func AdminerSlug(domain, id string) string {
 	id = NormalizeID(domain, id)
 	if IsDefaultID(domain, id) {
 		return id
 	}
 	return Slug(domain) + "_" + id
+}
+
+// AdminerBrowsePath is the session-gated read-only explorer URL for a DB.
+func AdminerBrowsePath(domain, id string) string {
+	return "/db/" + AdminerSlug(domain, id) + "/"
+}
+
+// AdminerEditPath is the session-gated full-access explorer URL for a DB.
+func AdminerEditPath(domain, id string) string {
+	return "/db/" + AdminerSlug(domain, id) + "/edit/"
 }
 
 // SQLitePath is the on-disk SQLite file for a site database id.
@@ -104,9 +114,14 @@ func SQLitePath(domain, id string) string {
 	return filepath.Join(sites.Root(domain), "data", id+".db")
 }
 
-// SQLiteDSN is a read-only modernc/sqlite DSN for Adminer.
+// SQLiteDSN is a read-only modernc/sqlite DSN for Adminer browse.
 func SQLiteDSN(domain, id string) string {
 	return fmt.Sprintf("file:%s?mode=ro", SQLitePath(domain, id))
+}
+
+// SQLiteRWDSN is a read-write modernc/sqlite DSN for Adminer edit.
+func SQLiteRWDSN(domain, id string) string {
+	return fmt.Sprintf("file:%s", SQLitePath(domain, id))
 }
 
 // SecretFileName returns secrets/<parent>.<id>.<engine>.ro.json basename.

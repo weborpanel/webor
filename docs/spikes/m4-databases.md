@@ -1,4 +1,4 @@
-# Milestone 4 — databases + global DBAdminer
+# Milestone 4 — databases + per-DB DBAdminer
 
 ## What landed
 
@@ -10,7 +10,8 @@
   `RotateDatabasePassword`; `InstallPostgres` / `InstallMariaDB` (approval)
 - Postgres/MariaDB add/remove consume step-up approvals bound to
   `{domain, engine, id}`; SQLite does not; rotate is immediate after panel auth
-- Global read-only DBAdminer at `/db/` with one switcher entry per parent DB
+- Per-DB DBAdminer: `/db/{slug}/` (read-only) and `/db/{slug}/edit/` (full);
+  `/db/` index lists links (decision 0012)
 - UI: top app bar; parent Subdomains + Databases (optional id, rotate);
   child inherited-DB panel
 - **Valkey (shared):** `InstallValkey` (approval), `EnsureSiteCache` /
@@ -31,7 +32,8 @@ EOF
 Panel smoke:
 
 1. Onboard parent → Add subdomain → both serve distinct default HTML.
-2. Add two DBs on parent (sqlite + postgres with approval); `/db/` lists both.
+2. Add two DBs on parent (sqlite + postgres with approval); `/db/` index lists
+   both with Browse + Edit; RO rejects writes, Edit can mutate.
 3. Rotate password; username unchanged; new secret works.
 4. Child site page shows inherited DBs only; parent Remove DB does not delete
    child site trees.

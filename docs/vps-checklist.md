@@ -10,7 +10,7 @@ Live HTTPS and public DNS have been verified on real VPS/EC2 hosts (Debian + Alm
 3. [x] **lab** Add static site; upload / Files tab; HTTP works via IP/`Host` (`:8080`)
 4. [x] DNS A → VPS IP; checklist green; **Enable HTTPS**; cert issues (Debian + Alma; two VPS providers + EC2)
 5. [ ] Add app site; deploy sample; socket wake works *(lab: site create OK; full deploy smoke still via `make lab-deploy`)*
-6. [x] **lab** Attach sqlite + postgres (approve Ensure); `/db/` lists both
+6. [x] **lab** Attach sqlite + postgres (approve Ensure); `/db/` index + per-DB Browse/Edit
 7. [x] **lab** Cache: Redis or Valkey running; Attach in panel (install as root if missing — no approval install)
 8. [x] **lab** Add subdomain; inherits DB/cache UI
 9. [x] Delete parent with confirm + approve; children + DBs + files gone

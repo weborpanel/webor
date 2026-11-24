@@ -20,6 +20,11 @@ type ROSecret struct {
 
 // DSN returns a libpq keyword DSN for the read-only role.
 func (s ROSecret) DSN() string {
+	return s.DSNAs(s.User)
+}
+
+// DSNAs returns a libpq keyword DSN using user (e.g. AppRole) and this secret's password.
+func (s ROSecret) DSNAs(user string) string {
 	host := s.Host
 	if host == "" {
 		host = DefaultTCPHost
@@ -28,8 +33,11 @@ func (s ROSecret) DSN() string {
 	if port == 0 {
 		port = DefaultPort
 	}
+	if user == "" {
+		user = s.User
+	}
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, port, s.User, s.Password, s.Database)
+		host, port, user, s.Password, s.Database)
 }
 
 // PasswordURL returns a postgresql URL with the secret password.

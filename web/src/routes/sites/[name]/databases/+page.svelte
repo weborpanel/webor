@@ -26,6 +26,8 @@
 		path?: string;
 		peer_url?: string;
 		peer_dsn?: string;
+		browse_path?: string;
+		edit_path?: string;
 	};
 	type DbAction = { kind: 'add' | 'remove'; id: string; engine: string };
 
@@ -103,15 +105,40 @@
 		return db.id || defaultId || 'default';
 	}
 
-	/** First DB: domain default id. Extra DBs: unused engine-based slug. */
+	function browseHref(db: DbEntry) {
+		return db.browse_path || `/db/${encodeURIComponent(dbKey(db))}/`;
+	}
+
+	function editHref(db: DbEntry) {
+		return db.edit_path || `/db/${encodeURIComponent(dbKey(db))}/edit/`;
+	}
+
+	/** First DB: domain default id. Extra DBs: {hostname}_{engine}_{n} (max 32, [a-z0-9_]). */
 	function nextDbId(eng: string): string {
 		if (databases.length === 0) return defaultId;
 		const taken = new Set(databases.map((db) => dbKey(db).toLowerCase()));
-		const base = eng.trim().toLowerCase() || 'db';
-		if (!taken.has(base)) return base;
-		let n = 2;
-		while (taken.has(`${base}-${n}`)) n += 1;
-		return `${base}-${n}`;
+		const engine = eng.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'db';
+		const host = (defaultId || 'site').toLowerCase().replace(/[^a-z0-9_]/g, '') || 'site';
+		let n = 1;
+		while (n < 1000) {
+			const suffix = `_${engine}_${n}`;
+			const room = Math.max(1, 32 - suffix.length);
+			let prefix = host.slice(0, room);
+			// Drop a partial trailing word so a long hostname is not cut mid-token.
+			if (prefix.length < host.length && !prefix.endsWith('_')) {
+				const cut = prefix.lastIndexOf('_');
+				if (cut > 0) prefix = prefix.slice(0, cut);
+			}
+			prefix = prefix.replace(/_+$/, '');
+			if (!prefix || !/^[a-z]/.test(prefix)) prefix = 's';
+			if (prefix.length + suffix.length > 32) {
+				prefix = prefix.slice(0, 32 - suffix.length).replace(/_+$/, '') || 's';
+			}
+			const id = `${prefix}${suffix}`;
+			if (!taken.has(id)) return id;
+			n += 1;
+		}
+		return `${host.slice(0, 20)}_${engine}_x`;
 	}
 
 	function engineState(e: string): { tone: 'ok' | 'warn' | 'neutral'; text: string } | null {
@@ -321,7 +348,7 @@
 	<Card title="Databases" description={site.isChild ? `Shared from ${site.parent}` : 'Credentials are scoped to this site user'} flush>
 		{#snippet actions()}
 			<a class="wbr-btn wbr-btn-ghost sm" href={browsePath || '/db/'} target="_blank" rel="noopener noreferrer">
-				<Icon name="external" size={14} /> Adminer
+				<Icon name="external" size={14} /> All databases
 			</a>
 			<button type="button" class="wbr-btn wbr-btn-ghost sm" disabled={loading || busy} onclick={load} aria-label="Refresh databases">
 				<Icon name="refresh" size={14} />
@@ -354,8 +381,24 @@
 								<span class="wbr-badge neutral">{db.engine || 'sqlite'}</span>
 								{#if es}<span class={['wbr-badge', es.tone]}>{es.text}</span>{/if}
 							</div>
-							{#if !site.isChild}
-								<div class="db-actions">
+							<div class="db-actions">
+								<a
+									class="wbr-btn wbr-btn-ghost sm"
+									href={browseHref(db)}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									<Icon name="external" size={13} /> Browse
+								</a>
+								<a
+									class="wbr-btn wbr-btn-ghost sm"
+									href={editHref(db)}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									<Icon name="external" size={13} /> Edit
+								</a>
+								{#if !site.isChild}
 									{#if db.engine === 'postgres' || db.engine === 'mariadb'}
 										<button
 											class="wbr-btn wbr-btn-ghost sm"
@@ -376,8 +419,8 @@
 									>
 										<Icon name="trash" size={13} />
 									</button>
-								</div>
-							{/if}
+								{/if}
+							</div>
 						</div>
 						<div class="db-fields">
 							{#if db.database}<CopyField label="Database" value={db.database} />{/if}
