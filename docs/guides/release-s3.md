@@ -19,12 +19,16 @@ Bucket: `webor-releases-360386317256` (ap-south-1). Objects under `webor/*` are 
 curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
 # lab / no PTR:
 curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --skip-ptr
+# beta channel (flag must be after bash -s — WEBOR_CHANNEL=… before curl does not reach sudo):
+curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
 ```
 
-Override mirror or channel:
+Override mirror (env must be on the sudo side):
 
 ```bash
-WEBOR_BASE_URL=… WEBOR_CHANNEL=beta curl -fsSL "$WEBOR_BASE_URL/install" | sudo bash
+curl -fsSL "$WEBOR_BASE_URL/install" | sudo env WEBOR_BASE_URL=… WEBOR_CHANNEL=beta bash
+# or:
+curl -fsSL …/install | sudo bash -s -- --channel beta --base-url …
 ```
 
 ## Publish a release

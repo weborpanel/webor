@@ -73,10 +73,14 @@ Re-run the public bootstrap (or `install.sh` from a checkout). Units and sites k
 
 ```bash
 curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
+# beta:
+curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
 # or from git:
 make web build && sudo ./install/install.sh --yes --skip-ptr --bin-dir ./bin
 sudo systemctl restart webor-helper webor
 ```
+
+`WEBOR_CHANNEL=beta curl … | sudo bash` still downloads **stable** — the env var is only set for `curl`, not for `sudo bash`. Use `--channel beta` after `bash -s --`.
 
 If the UI looks stale, hard-refresh the browser. Version appears in the panel sidebar (`Webor <version>`).
 

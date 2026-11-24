@@ -8,6 +8,8 @@ AlmaLinux 9 notes: install Caddy to `/usr/bin/caddy` (or use the public bootstra
 
 ```bash
 curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
+# beta channel (pass --channel after bash -s — env vars before curl do not reach sudo):
+curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
 # no PTR / lab:
 curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --skip-ptr
 ```
@@ -52,7 +54,7 @@ Re-run the public bootstrap to pull the current channel binaries, or install fro
 ```bash
 curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
 # beta channel:
-WEBOR_CHANNEL=beta curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
+curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
 ```
 
 ```bash

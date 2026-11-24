@@ -2,12 +2,53 @@
 # Public bootstrap installer (S3 releases).
 # Usage:
 #   curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
-# Optional:
-#   WEBOR_BASE_URL=... WEBOR_CHANNEL=stable curl -fsSL ... | sudo bash -s -- --skip-ptr
+# Beta (flag survives the pipe; env vars before curl do NOT reach sudo bash):
+#   curl -fsSL …/install | sudo bash -s -- --channel beta
+#   curl -fsSL …/install | sudo env WEBOR_CHANNEL=beta bash
+# Optional install.sh flags after --:
+#   curl -fsSL …/install | sudo bash -s -- --channel beta --skip-ptr
 set -euo pipefail
 
 BASE_URL="${WEBOR_BASE_URL:-https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor}"
 CHANNEL="${WEBOR_CHANNEL:-stable}"
+
+# Parse bootstrap-only flags; remaining args go to install.sh.
+PASS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --channel)
+      [[ $# -ge 2 ]] || { echo "missing value for --channel" >&2; exit 1; }
+      CHANNEL="$2"
+      shift 2
+      ;;
+    --channel=*)
+      CHANNEL="${1#--channel=}"
+      shift
+      ;;
+    --base-url)
+      [[ $# -ge 2 ]] || { echo "missing value for --base-url" >&2; exit 1; }
+      BASE_URL="$2"
+      shift 2
+      ;;
+    --base-url=*)
+      BASE_URL="${1#--base-url=}"
+      shift
+      ;;
+    *)
+      PASS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+case "$CHANNEL" in
+  stable|beta) ;;
+  *)
+    echo "unsupported channel: $CHANNEL (want stable or beta)" >&2
+    exit 1
+    ;;
+esac
+
 ARCH="$(uname -m)"
 case "$ARCH" in
   x86_64|amd64) ARCH=amd64 ;;
@@ -36,6 +77,7 @@ SUMS="SHA256SUMS"
 URL_TAR="${BASE_URL}/downloads/${CHANNEL}/${TAR}"
 URL_SUMS="${BASE_URL}/downloads/${CHANNEL}/${SUMS}"
 
+echo "[webor] channel=${CHANNEL}"
 echo "[webor] downloading ${URL_TAR}"
 curl -fsSL "$URL_TAR" -o "${TMP}/${TAR}"
 echo "[webor] downloading ${URL_SUMS}"
@@ -64,7 +106,7 @@ if ! command -v caddy >/dev/null 2>&1; then
     apt-get install -y caddy || echo "[webor] WARN: apt install caddy failed — continue; install Caddy manually then re-run"
   else
     echo "[webor] installing Caddy official binary to /usr/bin/caddy"
-    ver="$(curl -fsSL https://api.github.com/repos/caddyserver/caddy/releases/latest | grep -oE '"tag_name":[[:space:]]*"[^"]+"' | head -1 | sed 's/.*"v/v/;s/"$//')"
+    ver="$(curl -fsSL https://api.github.com/repos/caddyserver/caddy/releases/latest | grep -oE '"tag_name":[[:space:]]*"[^"]+"' | head -1 | sed 's/.*"v/v/;s/"$//' )"
     if [[ -z "$ver" ]]; then
       echo "[webor] WARN: could not resolve Caddy release — install Caddy manually then re-run"
     else
@@ -79,4 +121,4 @@ if ! command -v caddy >/dev/null 2>&1; then
 fi
 
 echo "[webor] running install.sh"
-exec "${ROOT}/install/install.sh" --yes --bin-dir "${ROOT}/bin" "$@"
+exec "${ROOT}/install/install.sh" --yes --bin-dir "${ROOT}/bin" "${PASS[@]+"${PASS[@]}"}"
