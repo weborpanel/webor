@@ -41,7 +41,7 @@ func makeCheckUpdate(_ *helper.Ops) HandlerFunc {
 	}
 }
 
-func makeApplyUpdate(_ *helper.Ops, store *auth.Store, log *audit.Logger) HandlerFunc {
+func makeApplyUpdate(ops *helper.Ops, store *auth.Store, log *audit.Logger) HandlerFunc {
 	return func(req Request, cred PeerCred) Response {
 		var args ApplyUpdateArgs
 		if err := json.Unmarshal(req.Args, &args); err != nil {
@@ -103,6 +103,13 @@ func makeApplyUpdate(_ *helper.Ops, store *auth.Store, log *audit.Logger) Handle
 				_ = log.Append(actor, OpApplyUpdate, bound, err.Error())
 			}
 			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		// Best-effort: may not run if systemctl restart already replaced this process.
+		// webor-helper startup also runs PostUpdateMigrate for the beta.8→.9 hop.
+		if ops != nil {
+			if migErr := ops.PostUpdateMigrate(""); migErr != nil && log != nil {
+				_ = log.Append(actor, OpApplyUpdate, bound, "migrate: "+migErr.Error())
+			}
 		}
 		if log != nil {
 			_ = log.Append(actor, OpApplyUpdate, bound, "ok")

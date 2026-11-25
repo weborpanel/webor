@@ -1,0 +1,47 @@
+[Unit]
+Description=Webor panel daemon
+Documentation=https://github.com/weborpanel/webor
+After=network-online.target webor-helper.service
+Wants=network-online.target
+Requires=webor-helper.service
+
+[Service]
+Type=simple
+User=webor
+Group=webor
+EnvironmentFile=-/etc/webor/panel.env
+# Word-split panel args via bash (systemd does not split env vars in ExecStart).
+ExecStart=/bin/bash -c 'exec /usr/local/bin/webor $WBR_PANEL_ARGS'
+Restart=on-failure
+RestartSec=2
+# State and config directories
+StateDirectory=webor
+ConfigurationDirectory=webor
+ConfigurationDirectoryMode=0751
+LogsDirectory=webor
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/webor /etc/webor
+# Helper socket lives under /run/webor (helper RuntimeDirectory + group webor).
+BindReadOnlyPaths=/usr/local/bin/webor
+
+[Install]
+WantedBy=multi-user.target

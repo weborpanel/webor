@@ -501,8 +501,12 @@ persist_channel_env() {
   ' "$envf" > "$tmp" && mv "$tmp" "$envf"
   chown "${PANEL_USER}:${PANEL_USER}" "$envf"
   chmod 0640 "$envf"
-  [[ -n "$CHANNEL" ]] && log "persisted WBR_CHANNEL=${CHANNEL} in ${envf}"
-  [[ -n "$BASE_URL" ]] && log "persisted WBR_BASE_URL in ${envf}"
+  if [[ -n "$CHANNEL" ]]; then
+    log "persisted WBR_CHANNEL=${CHANNEL} in ${envf}"
+  fi
+  if [[ -n "$BASE_URL" ]]; then
+    log "persisted WBR_BASE_URL in ${envf}"
+  fi
 }
 
 write_bootstrap_caddy() {

@@ -1,19 +1,21 @@
 package update
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"archive/tar"
-	"compress/gzip"
-	"io"
+
+	"github.com/weborpanel/webor/internal/unitfiles"
 )
 
 func TestApplyDryRunNoWrite(t *testing.T) {
@@ -145,6 +147,44 @@ func TestExtractAndFindRoot(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "bin", "webor")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInstallUnitsFromReleaseRoot(t *testing.T) {
+	tmp := t.TempDir()
+	root := filepath.Join(tmp, "webor-linux-amd64")
+	installDir := filepath.Join(root, "install")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("[Unit]\nDescription=webor-caddy test\n[Service]\nReadWritePaths=/var/lib/caddy /srv/sites\n")
+	if err := os.WriteFile(filepath.Join(installDir, "webor-caddy.service"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "webor.service"), []byte("[Unit]\nDescription=webor\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "webor-helper.service"), []byte("[Unit]\nDescription=helper\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join(tmp, "systemd")
+	changed, err := unitfiles.InstallFromDir(installDir, unitfiles.InstallOptions{
+		DestDir:          dest,
+		ForceCaddy:       true,
+		SkipDaemonReload: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("expected units to install")
+	}
+	got, err := os.ReadFile(filepath.Join(dest, "webor-caddy.service"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "/srv/sites") {
+		t.Fatalf("missing /srv/sites: %s", got)
 	}
 }
 

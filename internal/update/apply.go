@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/weborpanel/webor/internal/unitfiles"
 )
 
 // ApplyOptions controls Apply.
@@ -24,21 +26,27 @@ type ApplyOptions struct {
 	Force        bool // allow same or older version
 	DryRun       bool
 	BinDir       string // default /usr/local/bin
+	UnitDir      string // default /etc/systemd/system; tests override
 	SaveChannel  bool
 	PanelEnvPath string
 	Client       *http.Client
 	// ExpectedVersion, if set, must match the channel VERSION (approval binding).
 	ExpectedVersion string
+	// SkipRestart skips systemctl restart (unit install still runs unless SkipUnits).
+	SkipRestart bool
+	// SkipUnits skips installing systemd units from the tarball.
+	SkipUnits bool
 }
 
 // ApplyResult summarizes a successful (or dry-run) apply.
 type ApplyResult struct {
-	From     string `json:"from"`
-	To       string `json:"to"`
-	Channel  string `json:"channel"`
-	DryRun   bool   `json:"dry_run"`
-	Restarted bool  `json:"restarted"`
-	BinDir   string `json:"bin_dir"`
+	From           string `json:"from"`
+	To             string `json:"to"`
+	Channel        string `json:"channel"`
+	DryRun         bool   `json:"dry_run"`
+	Restarted      bool   `json:"restarted"`
+	UnitsUpdated   bool   `json:"units_updated"`
+	BinDir         string `json:"bin_dir"`
 }
 
 // Apply downloads, verifies, and installs the channel tarball.
@@ -118,6 +126,31 @@ func Apply(ctx context.Context, opt ApplyOptions) (*ApplyResult, error) {
 		return nil, err
 	}
 
+	if !opt.SkipUnits {
+		unitDir := opt.UnitDir
+		if unitDir == "" {
+			unitDir = unitfiles.DefaultUnitDir
+		}
+		uopt := unitfiles.InstallOptions{
+			DestDir:          unitDir,
+			SkipDaemonReload: opt.SkipRestart, // tests: no systemctl
+			RestartCaddy:     false,           // restartUnits handles caddy after bins
+		}
+		installDir := filepath.Join(root, "install")
+		var changed bool
+		var unitErr error
+		if _, err := os.Stat(filepath.Join(installDir, "webor-caddy.service")); err == nil {
+			changed, unitErr = unitfiles.InstallFromDir(installDir, uopt)
+		} else {
+			// Older / incomplete tarball: refresh from binaries embedded at build time.
+			changed, unitErr = unitfiles.Install(uopt)
+		}
+		if unitErr != nil {
+			return nil, fmt.Errorf("install units: %w", unitErr)
+		}
+		res.UnitsUpdated = changed
+	}
+
 	if opt.SaveChannel {
 		envPath := opt.PanelEnvPath
 		if envPath == "" {
@@ -126,6 +159,9 @@ func Apply(ctx context.Context, opt ApplyOptions) (*ApplyResult, error) {
 		_ = SaveChannelConfig(envPath, st.Channel, st.BaseURL)
 	}
 
+	if opt.SkipRestart {
+		return res, nil
+	}
 	if err := restartUnits(); err != nil {
 		return nil, fmt.Errorf("bins installed but restart failed: %w", err)
 	}
@@ -316,6 +352,10 @@ func restartUnits() error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("systemctl restart: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	// Apply new ReadWritePaths (e.g. /srv/sites for access.log) when Caddy is active.
+	if _, err := os.Stat(filepath.Join(unitfiles.DefaultUnitDir, "webor-caddy.service")); err == nil {
+		_ = exec.Command("systemctl", "try-restart", "webor-caddy").Run()
 	}
 	return nil
 }

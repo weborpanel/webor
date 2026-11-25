@@ -432,16 +432,24 @@ func runUpdate(args []string) int {
 	}
 
 	res, err := update.Apply(ctx, update.ApplyOptions{
-		Channel:     ch,
-		BaseURL:     base,
-		DryRun:      *dryRun,
-		Force:       *force,
-		SaveChannel: *saveChannel || strings.TrimSpace(*channel) != "",
+		Channel:      ch,
+		BaseURL:      base,
+		DryRun:       *dryRun,
+		Force:        *force,
+		SaveChannel:  *saveChannel || strings.TrimSpace(*channel) != "",
 		PanelEnvPath: *envPath,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
+	}
+	if !res.DryRun {
+		// New wbr binary is on disk; this process is already the applied build when
+		// invoked again — for same-process apply, helper startup also migrates.
+		ops := helper.DefaultOps()
+		if migErr := ops.PostUpdateMigrate(""); migErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: post-update migrate: %v\n", migErr)
+		}
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -449,7 +457,7 @@ func runUpdate(args []string) int {
 	if res.DryRun {
 		fmt.Fprintf(os.Stderr, "dry-run: would update %s → %s (%s)\n", res.From, res.To, res.Channel)
 	} else {
-		fmt.Fprintf(os.Stderr, "updated %s → %s (%s); helper+panel restarted\n", res.From, res.To, res.Channel)
+		fmt.Fprintf(os.Stderr, "updated %s → %s (%s); helper+panel restarted; units/caddy migrated\n", res.From, res.To, res.Channel)
 	}
 	return 0
 }

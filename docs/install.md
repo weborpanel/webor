@@ -57,6 +57,11 @@ sudo wbr update apply            # root; uses WBR_CHANNEL from /etc/webor/panel.
 sudo wbr update apply -channel beta -save-channel
 ```
 
+`wbr update apply` installs release binaries **and** refreshes host systemd units
+(from the tarball / embedded copies), restarts `webor-helper` / `webor` /
+`webor-caddy` when needed, then re-renders site units and `caddy.json` (access
+logs). From beta.9 onward you should not need a manual unit edit after apply.
+
 Or re-run the public bootstrap:
 
 ```bash

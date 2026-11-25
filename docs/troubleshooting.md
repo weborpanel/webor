@@ -96,6 +96,17 @@ sudo wbr update apply
 
 Channel is read from `WBR_CHANNEL` in `/etc/webor/panel.env` (set by bootstrap `--channel`). Account → Updates can check and request approval; apply stays root CLI.
 
+After apply, helper refreshes `webor-caddy.service` (`ReadWritePaths` includes
+`/srv/sites`) and re-renders Caddy with per-site `access.log`. If Logs → Access
+is still empty on a host that applied an older beta that only replaced binaries:
+
+```bash
+sudo wbr update apply -channel beta -force   # re-run once on beta.9+
+# or: sudo systemctl restart webor-helper      # runs post-update migrate
+sudo grep -E 'ReadWritePaths|/srv/sites' /etc/systemd/system/webor-caddy.service
+sudo test -f /srv/sites/<domain>/logs/access.log && echo ok
+```
+
 If the UI looks stale, hard-refresh the browser. Version appears in the panel sidebar (`Webor <version>`).
 
 ## Recovery

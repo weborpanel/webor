@@ -35,6 +35,10 @@ func main() {
 	log := &audit.Logger{DB: db}
 	ops := helper.DefaultOps()
 	_ = ops.EnsureLogrotateSchedule()
+	// Refresh host units + (once per version) site units / Caddy access.loggers.
+	if err := ops.PostUpdateMigrateIfNeeded("", *stateDir); err != nil {
+		fmt.Fprintf(os.Stderr, "post-update migrate: %v\n", err)
+	}
 	srv := ipc.NewServer(*socket, ipc.Handlers(ops, store, log))
 	fmt.Fprintf(os.Stderr, "webor-helper %s (state=%s)\n", version.Version, *stateDir)
 	if err := srv.ListenAndServe(); err != nil {
