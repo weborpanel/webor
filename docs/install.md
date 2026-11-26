@@ -16,7 +16,7 @@ curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
 curl -fsSL https://webor.dev/install | sudo bash -s -- --channel stable
 ```
 
-Releases: [guides/release-s3.md](guides/release-s3.md).
+Releases: [guides/release-github.md](guides/release-github.md).
 
 ## From a git checkout
 
@@ -88,4 +88,4 @@ Sites keep serving while the panel restarts; Caddy and site units are independen
 | [config-reference.md](config-reference.md) | `/etc/webor/config.yaml` |
 | [troubleshooting.md](troubleshooting.md) | Common failures |
 | [threat-model.md](threat-model.md) | Helper trust boundaries (beta) |
-| [guides/release-s3.md](guides/release-s3.md) | Public release URLs and publish |
+| [guides/release-github.md](guides/release-github.md) | Public release URLs and publish |

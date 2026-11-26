@@ -9,7 +9,7 @@
 | [config-reference.md](config-reference.md) | `/etc/webor/config.yaml` |
 | [troubleshooting.md](troubleshooting.md) | Common failures |
 | [threat-model.md](threat-model.md) | Security boundaries for public beta |
-| [guides/release-s3.md](guides/release-s3.md) | Release bucket and publish |
+| [guides/release-github.md](guides/release-github.md) | GitHub Releases publish |
 | [guides/github-actions-deploy.md](guides/github-actions-deploy.md) | CI deploy with a token |
 | [guides/node-ci-deploy.md](guides/node-ci-deploy.md) | Node app CI notes |
 

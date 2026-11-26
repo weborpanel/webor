@@ -151,12 +151,19 @@ func Apply(ctx context.Context, opt ApplyOptions) (*ApplyResult, error) {
 		res.UnitsUpdated = changed
 	}
 
+	envPath := opt.PanelEnvPath
+	if envPath == "" {
+		envPath = DefaultPanelEnv
+	}
 	if opt.SaveChannel {
-		envPath := opt.PanelEnvPath
-		if envPath == "" {
-			envPath = DefaultPanelEnv
+		base := st.BaseURL
+		if IsLegacyBaseURL(base) {
+			base = DefaultBaseURL
 		}
-		_ = SaveChannelConfig(envPath, st.Channel, st.BaseURL)
+		_ = SaveChannelConfig(envPath, st.Channel, base)
+	} else {
+		// Always leave S3-era hosts pointing at GitHub after a successful apply.
+		_ = MigrateLegacyBaseURL(envPath, st.Channel)
 	}
 
 	if opt.SkipRestart {

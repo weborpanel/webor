@@ -19,7 +19,7 @@ Confirm the panel listen port (sidebar or `systemctl show webor -p Environment`)
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Bootstrap curl fails | Network, DNS, or S3 unreachable | Retry; or download the tarball from [guides/release-s3.md](guides/release-s3.md) and `sudo ./install/install.sh --yes --bin-dir .` |
+| Bootstrap curl fails | Network, DNS, or GitHub unreachable | Retry; or download the tarball from [guides/release-github.md](guides/release-github.md) and `sudo ./install/install.sh --yes --bin-dir .` |
 | Install aborts on PTR | Lab / dynamic IP without reverse DNS | Re-run with `--skip-ptr` |
 | No setup token printed | Panel already initialized, or journal scrolled away | `sudo journalctl -u webor -b --no-pager \| grep -i token`; if already set up, use login or `sudo wbr recover` |
 | Setup URL refuses connection | Firewall or wrong port | Open the high panel port; check `systemctl status webor` |

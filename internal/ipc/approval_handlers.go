@@ -9,6 +9,7 @@ import (
 	"github.com/weborpanel/webor/internal/audit"
 	"github.com/weborpanel/webor/internal/auth"
 	"github.com/weborpanel/webor/internal/providers/dbengine"
+	"github.com/weborpanel/webor/internal/update"
 )
 
 func makeRequestApproval(store *auth.Store, log *audit.Logger) HandlerFunc {
@@ -186,7 +187,7 @@ func canonicalizeApprovalArgs(operation string, bound any) any {
 		ver = strings.TrimPrefix(strings.TrimSpace(ver), "v")
 		base = strings.TrimRight(strings.TrimSpace(base), "/")
 		if base == "" {
-			base = "https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor"
+			base = update.DefaultBaseURL
 		}
 		return map[string]any{"channel": ch, "version": ver, "base_url": base}
 	default:

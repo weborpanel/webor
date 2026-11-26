@@ -1,87 +1,22 @@
-# Webor releases (public S3)
+# Webor releases (legacy S3) — retired
 
-Tag builds publish linux **amd64** and **arm64** tarballs + the bootstrap installer to a public S3 bucket. Installers no longer use `2bts.in`.
+**Status:** Historical. Distribution moved to [GitHub Releases](./release-github.md) after `v0.1.0-beta.10` (bridge) / `v0.1.0-beta.11` (GH-only).
 
-## Public URLs
+Former public mirror:
 
 | What | URL |
 |------|-----|
-| Bootstrap (canonical) | `https://webor.dev/install` (defaults to **beta** until stable `v0.1.0`) |
-| Bootstrap (S3 mirror) | `https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install` |
-| Beta amd64 | `…/webor/downloads/beta/webor-linux-amd64.tar.gz` |
-| Stable amd64 | `…/webor/downloads/stable/webor-linux-amd64.tar.gz` |
-| Checksums | `…/webor/downloads/<channel>/SHA256SUMS` |
-| Version | `…/webor/downloads/<channel>/VERSION` (plain text; used by `wbr update`) |
+| Bootstrap | `https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install` |
+| Channel assets | `…/webor/downloads/<beta\|stable>/VERSION` (+ tarballs, `SHA256SUMS`) |
 
-Bucket: `webor-releases-360386317256` (ap-south-1). Objects under `webor/*` are world-readable via bucket policy. Keep `landing/public/install` and `install/public/install` in sync (default channel).
+Bucket `webor-releases-360386317256` (ap-south-1) was used only for CI publish via `scripts/upload-public.sh`. After soak, empty/delete the bucket and remove repo secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
 
-## Install on a VPS
+Hosts still on the S3 `WBR_BASE_URL` should run:
 
 ```bash
-curl -fsSL https://webor.dev/install | sudo bash
-# lab / no PTR:
-curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
-# stable after v0.1.0 (flag must be after bash -s — WEBOR_CHANNEL=… before curl does not reach sudo):
-curl -fsSL https://webor.dev/install | sudo bash -s -- --channel stable
+sudo wbr update apply -channel beta -force
+# or manually:
+sudo wbr update apply -channel beta \
+  -base-url https://github.com/weborpanel/webor/releases/download \
+  -save-channel -force
 ```
-
-Override mirror (env must be on the sudo side):
-
-```bash
-curl -fsSL "$WEBOR_BASE_URL/install" | sudo env WEBOR_BASE_URL=… WEBOR_CHANNEL=beta bash
-# or:
-curl -fsSL …/install | sudo bash -s -- --channel beta --base-url …
-```
-
-After cutting stable `v0.1.0`, change the bootstrap default in `install/public/install` and `landing/public/install` back to `stable`.
-
-## Publish a release
-
-### AWS (already set up)
-
-| Piece | Value |
-|-------|--------|
-| Bucket | `webor-releases-360386317256` (ap-south-1) |
-| Public read | bucket policy on `webor/*` |
-| CI IAM user | `webor-releases-ci` |
-| CI policy | inline `webor-releases-s3-publish` — ListBucket on the bucket; Get/Put/Delete on `webor/*` |
-
-### GitHub Actions secrets (until OIDC)
-
-Repo secrets (used by [`.github/workflows/release.yml`](../../.github/workflows/release.yml)):
-
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-
-Access key belongs to `webor-releases-ci` only (not account root). Rotate by creating a new key on that user and updating the secrets.
-
-### Tag and push
-
-```bash
-# Public beta → S3 channel "beta"
-git tag v0.1.0-beta.1
-git push origin v0.1.0-beta.1
-
-# Stable → S3 channel "stable"
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-Workflow [`.github/workflows/release.yml`](../../.github/workflows/release.yml) builds UI + both arches, packs, and syncs to S3. Tag pushes whose name contains `beta` publish to channel **beta**; other `v*` tags publish to **stable**. The tag (leading `v` stripped) is stamped into binaries via `-ldflags -X …/internal/version.Version=…`, which the panel sidebar shows as `Webor <version>`.
-
-Manual override: Actions → **Release** → Run workflow → choose channel.
-## Local pack + upload
-
-```bash
-make web
-# native arch (embeds VERSION from git describe, or VERSION=0.1.0 make build):
-make build && WEBOR_CHANNEL=beta ./scripts/pack-public.sh
-# or cross with the same ldflags Makefile uses:
-VERSION=0.1.0-test.7 make build
-WEBOR_ARCH=arm64 WEBOR_CHANNEL=beta ./scripts/pack-public.sh
-./scripts/upload-public.sh
-```
-
-## OIDC (later)
-
-Replace the access-key step in `release.yml` with `role-to-assume` via `aws-actions/configure-aws-credentials` and a GitHub OIDC provider trust on the IAM role. Secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` can then be removed.

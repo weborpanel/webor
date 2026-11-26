@@ -489,7 +489,7 @@ func usage() {
 Usage:
   wbr version
   wbr doctor
-  wbr update check                 (any user; reads S3 channel VERSION)
+  wbr update check                 (any user; reads channel VERSION)
   wbr update apply                 (root; download, verify, install, restart)
   wbr backup run                   (via helper; used by webor-backup.timer)
   wbr logs rotate                  (via helper; used by webor-logrotate.timer)

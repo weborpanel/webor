@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Public bootstrap installer (S3 releases). Prefer https://webor.dev/install.
+# Public bootstrap installer (GitHub Releases). Prefer https://webor.dev/install.
 # Usage (defaults to beta until a real stable v0.1.0 ships):
 #   curl -fsSL https://webor.dev/install | sudo bash
 # Stable (when ready) or override channel (flag after bash -s — env before curl does NOT reach sudo):
@@ -9,7 +9,9 @@
 #   curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
 set -euo pipefail
 
-BASE_URL="${WEBOR_BASE_URL:-https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor}"
+DEFAULT_BASE_URL="https://github.com/weborpanel/webor/releases/download"
+LEGACY_S3_BASE_URL="https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor"
+BASE_URL="${WEBOR_BASE_URL:-$DEFAULT_BASE_URL}"
 # Public beta: default to beta. Switch back to stable after cutting v0.1.0.
 CHANNEL="${WEBOR_CHANNEL:-beta}"
 
@@ -75,8 +77,15 @@ trap 'rm -rf "$TMP"' EXIT
 
 TAR="webor-linux-${ARCH}.tar.gz"
 SUMS="SHA256SUMS"
-URL_TAR="${BASE_URL}/downloads/${CHANNEL}/${TAR}"
-URL_SUMS="${BASE_URL}/downloads/${CHANNEL}/${SUMS}"
+BASE_URL="${BASE_URL%/}"
+# Legacy S3 used …/downloads/<channel>/…; GitHub channel releases use …/<channel>/…
+if [[ "$BASE_URL" == *webor-releases-360386317256* || "$BASE_URL" == "$LEGACY_S3_BASE_URL" ]]; then
+  URL_TAR="${BASE_URL}/downloads/${CHANNEL}/${TAR}"
+  URL_SUMS="${BASE_URL}/downloads/${CHANNEL}/${SUMS}"
+else
+  URL_TAR="${BASE_URL}/${CHANNEL}/${TAR}"
+  URL_SUMS="${BASE_URL}/${CHANNEL}/${SUMS}"
+fi
 
 echo "[webor] channel=${CHANNEL}"
 echo "[webor] downloading ${URL_TAR}"
@@ -122,6 +131,10 @@ if ! command -v caddy >/dev/null 2>&1; then
 fi
 
 echo "[webor] running install.sh"
-INSTALL_ARGS=(--yes --bin-dir "${ROOT}/bin" --channel "${CHANNEL}")
-[[ -n "${BASE_URL}" && "${BASE_URL}" != "https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor" ]] && INSTALL_ARGS+=(--base-url "${BASE_URL}")
+# Persist the resolved base (migrate off S3 when using the default GH root).
+PERSIST_BASE="$BASE_URL"
+if [[ "$PERSIST_BASE" == *webor-releases-360386317256* ]]; then
+  PERSIST_BASE="$DEFAULT_BASE_URL"
+fi
+INSTALL_ARGS=(--yes --bin-dir "${ROOT}/bin" --channel "${CHANNEL}" --base-url "${PERSIST_BASE}")
 exec "${ROOT}/install/install.sh" "${INSTALL_ARGS[@]}" "${PASS[@]+"${PASS[@]}"}"

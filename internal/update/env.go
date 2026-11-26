@@ -12,12 +12,46 @@ import (
 )
 
 const (
-	DefaultBaseURL   = "https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor"
-	DefaultPanelEnv  = "/etc/webor/panel.env"
-	DefaultBinDir    = "/usr/local/bin"
-	envChannelKey    = "WBR_CHANNEL"
-	envBaseURLKey    = "WBR_BASE_URL"
+	// DefaultBaseURL is the GitHub Releases download root (channel assets under /{channel}/).
+	DefaultBaseURL = "https://github.com/weborpanel/webor/releases/download"
+	// LegacyS3BaseURL was the public S3 mirror before the GitHub Releases cutover.
+	LegacyS3BaseURL = "https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor"
+	DefaultPanelEnv = "/etc/webor/panel.env"
+	DefaultBinDir   = "/usr/local/bin"
+	envChannelKey   = "WBR_CHANNEL"
+	envBaseURLKey   = "WBR_BASE_URL"
 )
+
+// IsLegacyBaseURL reports whether base still points at the retired S3 mirror (or empty).
+func IsLegacyBaseURL(base string) bool {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if base == "" {
+		return true
+	}
+	if base == LegacyS3BaseURL {
+		return true
+	}
+	return strings.Contains(base, "webor-releases-360386317256")
+}
+
+// MigrateLegacyBaseURL rewrites WBR_BASE_URL from S3 to DefaultBaseURL when needed.
+func MigrateLegacyBaseURL(envPath, channel string) error {
+	if envPath == "" {
+		envPath = DefaultPanelEnv
+	}
+	cfg := LoadChannelConfig(envPath)
+	if !IsLegacyBaseURL(cfg.BaseURL) {
+		return nil
+	}
+	ch := strings.ToLower(strings.TrimSpace(channel))
+	if ch == "" {
+		ch = cfg.Channel
+	}
+	if ch == "" {
+		ch = InferChannelFromVersion(version.Version)
+	}
+	return SaveChannelConfig(envPath, ch, DefaultBaseURL)
+}
 
 // ChannelConfig is the persisted release channel preference.
 type ChannelConfig struct {

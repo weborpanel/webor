@@ -13,7 +13,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHANNEL="${WEBOR_CHANNEL:-stable}"
 ARCH="${WEBOR_ARCH:-amd64}"
-BASE_URL="${WEBOR_BASE_URL:-https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor}"
+BASE_URL="${WEBOR_BASE_URL:-https://github.com/weborpanel/webor/releases/download}"
 OUT_DIR="${ROOT}/dist/${CHANNEL}"
 STAGE="${OUT_DIR}/webor-linux-${ARCH}"
 TAR_NAME="webor-linux-${ARCH}.tar.gz"
@@ -86,14 +86,14 @@ Packed OK (${ARCH} → ${CHANNEL}, version ${VER}).
 Upload kit:
   ${ROOT}/dist/upload/
 
-Public URLs (after sync):
-  ${BASE_URL}/install
-  ${BASE_URL}/downloads/${CHANNEL}/${TAR_NAME}
-  ${BASE_URL}/downloads/${CHANNEL}/SHA256SUMS
-  ${BASE_URL}/downloads/${CHANNEL}/VERSION
+Public URLs (after GitHub publish):
+  ${BASE_URL}/${CHANNEL}/${TAR_NAME}
+  ${BASE_URL}/${CHANNEL}/SHA256SUMS
+  ${BASE_URL}/${CHANNEL}/VERSION
 
-Sync with:
-  ./scripts/upload-public.sh
+Publish with:
+  ./scripts/publish-github.sh
+  # optional legacy S3: ./scripts/upload-public.sh
 
 Install (bootstrap defaults to beta):
   curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr

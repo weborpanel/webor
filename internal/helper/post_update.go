@@ -12,6 +12,7 @@ import (
 	"github.com/weborpanel/webor/internal/logging"
 	"github.com/weborpanel/webor/internal/providers/caddy"
 	"github.com/weborpanel/webor/internal/unitfiles"
+	"github.com/weborpanel/webor/internal/update"
 	"github.com/weborpanel/webor/internal/version"
 )
 
@@ -61,6 +62,7 @@ func (o *Ops) PostUpdateMigrate(cfgPath string) error {
 	_ = o.EnsureSystemUnits()
 	_ = logging.EnsureHostDir()
 	_ = o.EnsureLogrotateSchedule()
+	_ = update.MigrateLegacyBaseURL(update.DefaultPanelEnv, "")
 
 	cfgPath = strings.TrimSpace(cfgPath)
 	if cfgPath == "" {

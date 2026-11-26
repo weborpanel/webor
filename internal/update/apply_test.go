@@ -119,6 +119,37 @@ func TestLoadChannelConfigInfersBeta(t *testing.T) {
 	}
 }
 
+func TestChannelAssetURL(t *testing.T) {
+	gh := DefaultBaseURL
+	got := ChannelAssetURL(gh, "beta", "VERSION")
+	want := gh + "/beta/VERSION"
+	if got != want {
+		t.Fatalf("gh: got %q want %q", got, want)
+	}
+	got = ChannelAssetURL(LegacyS3BaseURL, "beta", "VERSION")
+	want = LegacyS3BaseURL + "/downloads/beta/VERSION"
+	if got != want {
+		t.Fatalf("s3: got %q want %q", got, want)
+	}
+}
+
+func TestMigrateLegacyBaseURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "panel.env")
+	if err := os.WriteFile(path, []byte("WBR_CHANNEL=beta\nWBR_BASE_URL="+LegacyS3BaseURL+"\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateLegacyBaseURL(path, "beta"); err != nil {
+		t.Fatal(err)
+	}
+	cfg := LoadChannelConfig(path)
+	if cfg.BaseURL != DefaultBaseURL {
+		t.Fatalf("base=%q", cfg.BaseURL)
+	}
+	if err := MigrateLegacyBaseURL(path, "beta"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLoadChannelConfigFromProcessEnv(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "missing.env")
 	t.Setenv("WBR_CHANNEL", "beta")

@@ -65,7 +65,7 @@ func Check(ctx context.Context, opt CheckOptions) (*Status, error) {
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
 
-	verURL := fmt.Sprintf("%s/downloads/%s/VERSION", base, ch)
+	verURL := ChannelAssetURL(base, ch, "VERSION")
 	latest, err := fetchText(ctx, client, verURL)
 	if err != nil {
 		return nil, fmt.Errorf("fetch VERSION: %w (channel %q — missing object often shows as HTTP 403; publish VERSION or use -channel beta)", err, ch)
@@ -83,12 +83,24 @@ func Check(ctx context.Context, opt CheckOptions) (*Status, error) {
 		BaseURL: base,
 		Newer:   Compare(latest, cur) > 0,
 		Same:    Compare(latest, cur) == 0,
-		TarURL:  fmt.Sprintf("%s/downloads/%s/%s", base, ch, tarName),
-		SumsURL: fmt.Sprintf("%s/downloads/%s/SHA256SUMS", base, ch),
+		TarURL:  ChannelAssetURL(base, ch, tarName),
+		SumsURL: ChannelAssetURL(base, ch, "SHA256SUMS"),
 		VerURL:  verURL,
 		Arch:    arch,
 	}
 	return st, nil
+}
+
+// ChannelAssetURL builds {base}/{channel}/{name}, or the legacy S3
+// {base}/downloads/{channel}/{name} layout when base is the old mirror.
+func ChannelAssetURL(base, channel, name string) string {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	channel = strings.Trim(strings.TrimSpace(channel), "/")
+	name = strings.TrimSpace(name)
+	if base == LegacyS3BaseURL || strings.Contains(base, "webor-releases-360386317256") {
+		return fmt.Sprintf("%s/downloads/%s/%s", base, channel, name)
+	}
+	return fmt.Sprintf("%s/%s/%s", base, channel, name)
 }
 
 func releaseArch() (string, error) {
