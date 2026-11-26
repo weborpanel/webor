@@ -30,13 +30,14 @@ type InstallOptions struct {
 	// DestDir defaults to DefaultUnitDir.
 	DestDir string
 	// SkipCaddy skips webor-caddy.service when true, or when caddy is not on PATH
-	// and SkipCaddy is left false (auto-detect).
+	// and no existing unit file is present (auto-detect).
 	SkipCaddy bool
 	// ForceCaddy installs webor-caddy.service even if caddy is missing (tests).
 	ForceCaddy bool
 	// SkipDaemonReload skips systemctl daemon-reload (tests / non-root).
 	SkipDaemonReload bool
-	// RestartCaddy runs systemctl try-restart webor-caddy when the unit changed.
+	// RestartCaddy restarts webor-caddy when the unit changed, or when the
+	// unit is already failed (try-restart is a no-op for failed units).
 	RestartCaddy bool
 }
 
@@ -50,12 +51,7 @@ func Install(opt InstallOptions) (changed bool, err error) {
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return false, err
 	}
-	skipCaddy := opt.SkipCaddy
-	if !skipCaddy && !opt.ForceCaddy {
-		if _, err := exec.LookPath("caddy"); err != nil {
-			skipCaddy = true
-		}
-	}
+	skipCaddy := shouldSkipCaddy(opt, dest)
 	for _, name := range Names {
 		if name == "webor-caddy.service" && skipCaddy {
 			continue
@@ -78,19 +74,16 @@ func Install(opt InstallOptions) (changed bool, err error) {
 		}
 		changed = true
 	}
-	if !changed {
-		return false, nil
-	}
-	if !opt.SkipDaemonReload {
+	if changed && !opt.SkipDaemonReload {
 		out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput()
 		if err != nil {
 			return true, fmt.Errorf("daemon-reload: %w (%s)", err, strings.TrimSpace(string(out)))
 		}
 	}
 	if opt.RestartCaddy && !skipCaddy {
-		_ = exec.Command("systemctl", "try-restart", "webor-caddy").Run()
+		RestartCaddy(changed)
 	}
-	return true, nil
+	return changed, nil
 }
 
 // InstallFromDir copies unit files from a release install/ directory (tarball).
@@ -103,12 +96,7 @@ func InstallFromDir(srcDir string, opt InstallOptions) (changed bool, err error)
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return false, err
 	}
-	skipCaddy := opt.SkipCaddy
-	if !skipCaddy && !opt.ForceCaddy {
-		if _, err := exec.LookPath("caddy"); err != nil {
-			skipCaddy = true
-		}
-	}
+	skipCaddy := shouldSkipCaddy(opt, dest)
 	for _, name := range Names {
 		if name == "webor-caddy.service" && skipCaddy {
 			continue
@@ -135,17 +123,55 @@ func InstallFromDir(srcDir string, opt InstallOptions) (changed bool, err error)
 		}
 		changed = true
 	}
-	if !changed {
-		return false, nil
-	}
-	if !opt.SkipDaemonReload {
+	if changed && !opt.SkipDaemonReload {
 		out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput()
 		if err != nil {
 			return true, fmt.Errorf("daemon-reload: %w (%s)", err, strings.TrimSpace(string(out)))
 		}
 	}
 	if opt.RestartCaddy && !skipCaddy {
-		_ = exec.Command("systemctl", "try-restart", "webor-caddy").Run()
+		RestartCaddy(changed)
 	}
-	return true, nil
+	return changed, nil
+}
+
+func shouldSkipCaddy(opt InstallOptions, destDir string) bool {
+	if opt.SkipCaddy {
+		return true
+	}
+	if opt.ForceCaddy {
+		return false
+	}
+	if _, err := exec.LookPath("caddy"); err == nil {
+		return false
+	}
+	// Keep refreshing an existing unit even if caddy is briefly off PATH.
+	if _, err := os.Stat(filepath.Join(destDir, "webor-caddy.service")); err == nil {
+		return false
+	}
+	return true
+}
+
+// CaddyFailed reports whether webor-caddy is in the systemd "failed" state.
+func CaddyFailed() bool {
+	out, err := exec.Command("systemctl", "is-failed", "webor-caddy").CombinedOutput()
+	if err == nil && strings.TrimSpace(string(out)) == "failed" {
+		return true
+	}
+	// is-failed exits non-zero for "active" etc.; still parse stdout.
+	return strings.TrimSpace(string(out)) == "failed"
+}
+
+// RestartCaddy restarts webor-caddy when forceOrChanged is true or the unit is
+// failed. Otherwise try-restart (no-op if inactive). try-restart alone never
+// recovers a failed unit after ReadWritePaths fixes.
+func RestartCaddy(forceOrChanged bool) {
+	if _, err := os.Stat(filepath.Join(DefaultUnitDir, "webor-caddy.service")); err != nil {
+		return
+	}
+	if forceOrChanged || CaddyFailed() {
+		_ = exec.Command("systemctl", "restart", "webor-caddy").Run()
+		return
+	}
+	_ = exec.Command("systemctl", "try-restart", "webor-caddy").Run()
 }

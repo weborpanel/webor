@@ -35,7 +35,10 @@ func main() {
 	log := &audit.Logger{DB: db}
 	ops := helper.DefaultOps()
 	_ = ops.EnsureLogrotateSchedule()
-	// Refresh host units + (once per version) site units / Caddy access.loggers.
+	// Refresh host units every start; full site/Caddy migrate once per version.
+	if err := ops.EnsureSystemUnits(); err != nil {
+		fmt.Fprintf(os.Stderr, "ensure system units: %v\n", err)
+	}
 	if err := ops.PostUpdateMigrateIfNeeded("", *stateDir); err != nil {
 		fmt.Fprintf(os.Stderr, "post-update migrate: %v\n", err)
 	}

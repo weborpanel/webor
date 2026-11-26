@@ -95,15 +95,25 @@ sudo wbr update apply
 Channel is read from `WBR_CHANNEL` in `/etc/webor/panel.env` (set by bootstrap `--channel`). Account → Updates can check and request approval; apply stays root CLI.
 
 After apply, helper refreshes `webor-caddy.service` (`ReadWritePaths` includes
-`/srv/sites`) and re-renders Caddy with per-site `access.log`. If Logs → Access
-is still empty on a host that applied an older beta that only replaced binaries:
+`/srv/sites`) and re-renders Caddy with per-site `access.log`.
+
+**Caddy failed: cannot open `/srv/sites/…/logs/access.log`** — unit missing
+`/srv/sites` in `ReadWritePaths`, or Caddy stayed **failed** after a unit fix
+(`try-restart` does not recover failed units). Immediate recovery:
 
 ```bash
-sudo wbr update apply -channel beta -force   # re-run once on beta.9+
-# or: sudo systemctl restart webor-helper      # runs post-update migrate
-sudo grep -E 'ReadWritePaths|/srv/sites' /etc/systemd/system/webor-caddy.service
-sudo test -f /srv/sites/<domain>/logs/access.log && echo ok
+sudo grep ReadWritePaths /etc/systemd/system/webor-caddy.service
+# expect: … /srv/sites
+curl -fsSL https://raw.githubusercontent.com/weborpanel/webor/main/install/webor-caddy.service \
+  | sudo tee /etc/systemd/system/webor-caddy.service >/dev/null
+sudo mkdir -p /srv/sites/tbts.in/logs
+sudo systemctl daemon-reload
+sudo systemctl restart webor-helper webor-caddy
+sudo systemctl is-active webor-caddy
+sudo journalctl -u webor-caddy -n 30 --no-pager
 ```
+
+Then refresh binaries if needed: `curl -fsSL https://webor.dev/install | sudo bash -s -- --channel beta`
 
 If the UI looks stale, hard-refresh the browser. Version appears in the panel sidebar (`Webor <version>`).
 

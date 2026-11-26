@@ -360,9 +360,8 @@ func restartUnits() error {
 	if err != nil {
 		return fmt.Errorf("systemctl restart: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-	// Apply new ReadWritePaths (e.g. /srv/sites for access.log) when Caddy is active.
-	if _, err := os.Stat(filepath.Join(unitfiles.DefaultUnitDir, "webor-caddy.service")); err == nil {
-		_ = exec.Command("systemctl", "try-restart", "webor-caddy").Run()
-	}
+	// Force restart so a previously failed caddy (missing ReadWritePaths=/srv/sites)
+	// comes back; try-restart is a no-op when the unit is failed.
+	unitfiles.RestartCaddy(true)
 	return nil
 }
