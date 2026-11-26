@@ -70,8 +70,9 @@ jobs:
               echo "channel=stable" >> "$GITHUB_OUTPUT"
             fi
             echo "version=${REF}" >> "$GITHUB_OUTPUT"
-            # Last S3 bridge: v0.1.0-beta.10 dual-publishes automatically.
-            if [[ "$REF" == "v0.1.0-beta.10" ]]; then
+            # Last S3 bridge: v0.1.0-beta.11 dual-publishes automatically
+            # (v0.1.0-beta.10 already shipped without the GH client cutover).
+            if [[ "$REF" == "v0.1.0-beta.11" ]]; then
               echo "dual_s3=true" >> "$GITHUB_OUTPUT"
             else
               echo "dual_s3=false" >> "$GITHUB_OUTPUT"

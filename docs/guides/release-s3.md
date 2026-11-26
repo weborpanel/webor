@@ -1,6 +1,6 @@
 # Webor releases (legacy S3) — retired
 
-**Status:** Historical. Distribution moved to [GitHub Releases](./release-github.md) after `v0.1.0-beta.10` (bridge) / `v0.1.0-beta.11` (GH-only).
+**Status:** Historical. Distribution moved to [GitHub Releases](./release-github.md) after `v0.1.0-beta.11` (bridge) / `v0.1.0-beta.12` (GH-only).
 
 Former public mirror:
 

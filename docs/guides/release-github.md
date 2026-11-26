@@ -30,8 +30,8 @@ curl -fsSL https://webor.dev/install | sudo bash -s -- --channel stable
 
 ```bash
 # Public beta → rolling channel "beta" + immutable v0.1.0-beta.N
-git tag v0.1.0-beta.11
-git push origin v0.1.0-beta.11
+git tag v0.1.0-beta.12
+git push origin v0.1.0-beta.12
 
 # Stable → rolling channel "stable"
 git tag v0.1.0
@@ -44,4 +44,4 @@ Workflow [`.github/workflows/release.yml`](../../.github/workflows/release.yml) 
 
 ### Legacy S3
 
-The friend-account S3 bucket was retired after the `v0.1.0-beta.10` bridge. See [release-s3.md](./release-s3.md) for historical URLs. Do not dual-publish new cuts.
+The friend-account S3 bucket was retired after the `v0.1.0-beta.11` bridge / `v0.1.0-beta.12` GH-only cut. See [release-s3.md](./release-s3.md) for historical URLs. Do not dual-publish new cuts.
