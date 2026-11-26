@@ -24,5 +24,6 @@ aws s3 cp "${SRC}/install" "s3://${BUCKET}/${PREFIX}/install" \
   --content-type 'text/x-shellscript'
 
 BASE_URL="${WEBOR_BASE_URL:-https://${BUCKET}.s3.${REGION}.amazonaws.com/${PREFIX}}"
-echo "Done. Bootstrap:"
-echo "  curl -fsSL ${BASE_URL}/install | sudo bash"
+echo "Done. Bootstrap (defaults to beta; canonical URL is webor.dev):"
+echo "  curl -fsSL https://webor.dev/install | sudo bash"
+echo "  curl -fsSL ${BASE_URL}/install | sudo bash   # S3 mirror"

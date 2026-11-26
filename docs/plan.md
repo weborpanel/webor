@@ -1,8 +1,8 @@
 # Webor: Development Plan (v2)
 
-*Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. The name, binary names and paths below are provisional until the domain and trademark checks are done.*
+*Revised v2, November 2026. For a single senior developer building a production-grade, zero-Docker, systemd-native VPS management panel. Brand is Webor (`webor.dev`); binary and path names below are locked.*
 
-*Progress note (2026-11-24): Milestone 0–5 lab-complete (including restic S3 backups, decision 0006). Live HTTPS verified on Debian and Alma across two VPS providers and EC2. Footprint / OOM / upgrade-while-serving checked. Operator docs + threat model written; public beta tag on the release gate. Podman remains deferred (M5b).*
+*Progress note (2026-11-26): Milestone 0–5 lab-complete (including restic S3 backups, decision 0006). Live HTTPS verified on Debian and Alma across two VPS providers and EC2. Footprint / OOM / upgrade-while-serving checked. Operator docs + threat model written; public beta on the release gate (bootstrap defaults to beta until stable `v0.1.0`). Podman remains deferred (M5b).*
 
 ## 1. Product scope
 
@@ -43,11 +43,11 @@ The GitHub organization is already secured. Names below follow the Webor brand a
 
 **Setup tasks before the first commit**
 
-1. Register the domain (installer URL and docs site depend on it). — open
+1. Register the domain (installer URL and docs site depend on it). — **done: webor.dev**
 2. Reserve the same name on npm, PyPI, crates.io and GHCR, using placeholder packages. — open
 3. Choose the license. — **done: Apache-2.0**
-4. Add `SECURITY.md` with a private vulnerability reporting route, since the project ships a root helper. — **done**
-5. Run a trademark search, paying attention to similar-sounding names such as Wowza. — open
+4. Add `SECURITY.md` with a private vulnerability reporting route, since the project ships a root helper. — **done** (`security@webor.dev`)
+5. Run a trademark search, paying attention to similar-sounding names such as Wowza. — **done** (name locked)
 6. Enable branch protection, required CI and enforced 2FA for the organization. — open (CI workflow exists in-repo; org protection still pending)
 
 ## 3. Key technical decisions
@@ -389,5 +389,5 @@ These are targets to validate in Milestone 6, not measured results.
 2. Run Caddy as a separate process (planned) or embed it later to ship one binary. — separate process for v1 (Spike A)
 3. How far git-based builds go in v1: build command only, or language presets. — open
 4. Final supported OS list. — Debian 12+, Ubuntu 22.04+, AlmaLinux 9 (lab: Debian 13 + Alma 9 EC2)
-5. Domain, package-name and trademark checks for Webor. — open
+5. Domain, package-name and trademark checks for Webor. — **resolved for domain/name** (`webor.dev`); package-name placeholders still open
 6. Confirm what "PQPM" refers to. — **resolved:** PQPM is a PM2-style user process manager; Webor uses **systemd** as the site supervisor (PQPM not integrated for v1)

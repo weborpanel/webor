@@ -95,8 +95,8 @@ Public URLs (after sync):
 Sync with:
   ./scripts/upload-public.sh
 
-Install:
-  curl -fsSL ${BASE_URL}/install | sudo bash -s -- --skip-ptr
+Install (bootstrap defaults to beta):
+  curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
 
 Files:
 EOF

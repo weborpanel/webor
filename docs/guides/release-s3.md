@@ -6,22 +6,23 @@ Tag builds publish linux **amd64** and **arm64** tarballs + the bootstrap instal
 
 | What | URL |
 |------|-----|
-| Bootstrap | `https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install` |
+| Bootstrap (canonical) | `https://webor.dev/install` (defaults to **beta** until stable `v0.1.0`) |
+| Bootstrap (S3 mirror) | `https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install` |
+| Beta amd64 | `…/webor/downloads/beta/webor-linux-amd64.tar.gz` |
 | Stable amd64 | `…/webor/downloads/stable/webor-linux-amd64.tar.gz` |
-| Stable arm64 | `…/webor/downloads/stable/webor-linux-arm64.tar.gz` |
-| Checksums | `…/webor/downloads/stable/SHA256SUMS` |
-| Version | `…/webor/downloads/stable/VERSION` (plain text; used by `wbr update`) |
+| Checksums | `…/webor/downloads/<channel>/SHA256SUMS` |
+| Version | `…/webor/downloads/<channel>/VERSION` (plain text; used by `wbr update`) |
 
-Bucket: `webor-releases-360386317256` (ap-south-1). Objects under `webor/*` are world-readable via bucket policy.
+Bucket: `webor-releases-360386317256` (ap-south-1). Objects under `webor/*` are world-readable via bucket policy. Keep `landing/public/install` and `install/public/install` in sync (default channel).
 
 ## Install on a VPS
 
 ```bash
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
+curl -fsSL https://webor.dev/install | sudo bash
 # lab / no PTR:
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --skip-ptr
-# beta channel (flag must be after bash -s — WEBOR_CHANNEL=… before curl does not reach sudo):
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
+curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
+# stable after v0.1.0 (flag must be after bash -s — WEBOR_CHANNEL=… before curl does not reach sudo):
+curl -fsSL https://webor.dev/install | sudo bash -s -- --channel stable
 ```
 
 Override mirror (env must be on the sudo side):
@@ -31,6 +32,8 @@ curl -fsSL "$WEBOR_BASE_URL/install" | sudo env WEBOR_BASE_URL=… WEBOR_CHANNEL
 # or:
 curl -fsSL …/install | sudo bash -s -- --channel beta --base-url …
 ```
+
+After cutting stable `v0.1.0`, change the bootstrap default in `install/public/install` and `landing/public/install` back to `stable`.
 
 ## Publish a release
 

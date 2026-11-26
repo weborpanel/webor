@@ -8,8 +8,9 @@ cron.
 The panel being down must never mean the sites are down. Caddy and site units
 run independently of the panel process.
 
-**Status:** Public beta. Milestone 0–5 lab-complete; Milestone 6 release gate
-(docs + threat model + beta tag). Podman containers deferred. Not a stable 1.0.
+**Status:** Public beta. Install via `https://webor.dev/install` (defaults to the
+beta channel). Milestone 0–5 lab-complete; Milestone 6 release gate done.
+Podman containers deferred. Not a stable 1.0.
 
 ## Binaries
 
@@ -59,10 +60,14 @@ Operator docs: [docs/install.md](docs/install.md), [docs/dns-https.md](docs/dns-
 Dev: [docs/plan.md](docs/plan.md), [docs/dev/virtualbox-debian13.md](docs/dev/virtualbox-debian13.md),
 [docs/dev/lab-ssh-testing.md](docs/dev/lab-ssh-testing.md).
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) for private vulnerability reporting.
+See [SECURITY.md](SECURITY.md) for private vulnerability reporting (`security@webor.dev`).

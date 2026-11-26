@@ -77,15 +77,13 @@ See [dns-https.md](dns-https.md).
 Re-run the public bootstrap (or `install.sh` from a checkout). Units and sites keep serving while `webor` restarts; Caddy is independent.
 
 ```bash
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
-# beta:
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
+curl -fsSL https://webor.dev/install | sudo bash
 # or from git:
 make web build && sudo ./install/install.sh --yes --skip-ptr --bin-dir ./bin
 sudo systemctl restart webor-helper webor
 ```
 
-`WEBOR_CHANNEL=beta curl … | sudo bash` still downloads **stable** — the env var is only set for `curl`, not for `sudo bash`. Use `--channel beta` after `bash -s --`.
+Bootstrap defaults to **beta**. `WEBOR_CHANNEL=… curl … | sudo bash` does **not** set the channel for `sudo bash` — put `--channel` after `bash -s --`, or `sudo env WEBOR_CHANNEL=… bash`.
 
 Prefer in-place updates:
 

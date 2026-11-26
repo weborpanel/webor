@@ -6,12 +6,14 @@ AlmaLinux 9 notes: install Caddy to `/usr/bin/caddy` (or use the public bootstra
 
 ## Quick path (public bootstrap)
 
+Bootstrap defaults to the **beta** channel until a real stable `v0.1.0` ships.
+
 ```bash
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
-# beta channel (pass --channel after bash -s — env vars before curl do not reach sudo):
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
+curl -fsSL https://webor.dev/install | sudo bash
 # no PTR / lab:
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --skip-ptr
+curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
+# explicit stable (only after v0.1.0 — pass --channel after bash -s):
+curl -fsSL https://webor.dev/install | sudo bash -s -- --channel stable
 ```
 
 Releases: [guides/release-s3.md](guides/release-s3.md).
@@ -65,9 +67,7 @@ logs). From beta.9 onward you should not need a manual unit edit after apply.
 Or re-run the public bootstrap:
 
 ```bash
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
-# beta channel:
-curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash -s -- --channel beta
+curl -fsSL https://webor.dev/install | sudo bash
 ```
 
 ```bash

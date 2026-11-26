@@ -17,8 +17,6 @@ for security-sensitive findings.
 
 Email: **security@webor.dev**
 
-(This address is provisional until the project domain is finalized.)
-
 Include:
 
 - A description of the issue and its impact

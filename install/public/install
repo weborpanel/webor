@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Public bootstrap installer (S3 releases).
-# Usage:
-#   curl -fsSL https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor/install | sudo bash
-# Beta (flag survives the pipe; env vars before curl do NOT reach sudo bash):
-#   curl -fsSL …/install | sudo bash -s -- --channel beta
-#   curl -fsSL …/install | sudo env WEBOR_CHANNEL=beta bash
+# Public bootstrap installer (S3 releases). Prefer https://webor.dev/install.
+# Usage (defaults to beta until a real stable v0.1.0 ships):
+#   curl -fsSL https://webor.dev/install | sudo bash
+# Stable (when ready) or override channel (flag after bash -s — env before curl does NOT reach sudo):
+#   curl -fsSL https://webor.dev/install | sudo bash -s -- --channel stable
+#   curl -fsSL …/install | sudo env WEBOR_CHANNEL=stable bash
 # Optional install.sh flags after --:
-#   curl -fsSL …/install | sudo bash -s -- --channel beta --skip-ptr
+#   curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
 set -euo pipefail
 
 BASE_URL="${WEBOR_BASE_URL:-https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor}"
-CHANNEL="${WEBOR_CHANNEL:-stable}"
+# Public beta: default to beta. Switch back to stable after cutting v0.1.0.
+CHANNEL="${WEBOR_CHANNEL:-beta}"
 
 # Parse bootstrap-only flags; remaining args go to install.sh.
 PASS=()
