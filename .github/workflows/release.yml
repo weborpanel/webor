@@ -14,21 +14,12 @@ on:
         options:
           - stable
           - beta
-      dual_s3:
-        description: "Also upload to legacy S3 (bridge releases only)"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
 
 env:
-  WEBOR_RELEASE_BUCKET: webor-releases-360386317256
-  WEBOR_RELEASE_REGION: ap-south-1
   WEBOR_BASE_URL: https://github.com/weborpanel/webor/releases/download
-  # Legacy S3 mirror (bridge uploads only)
-  WEBOR_S3_BASE_URL: https://webor-releases-360386317256.s3.ap-south-1.amazonaws.com/webor
 
 jobs:
   release:
@@ -53,8 +44,6 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "channel=${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
-            echo "dual_s3=${{ inputs.dual_s3 }}" >> "$GITHUB_OUTPUT"
-            # workflow_dispatch on a branch: use run id as version unless ref is a tag
             REF="${GITHUB_REF_NAME}"
             if [[ "$REF" == v* ]]; then
               echo "version=${REF}" >> "$GITHUB_OUTPUT"
@@ -70,13 +59,6 @@ jobs:
               echo "channel=stable" >> "$GITHUB_OUTPUT"
             fi
             echo "version=${REF}" >> "$GITHUB_OUTPUT"
-            # Last S3 bridge: v0.1.0-beta.11 dual-publishes automatically
-            # (v0.1.0-beta.10 already shipped without the GH client cutover).
-            if [[ "$REF" == "v0.1.0-beta.11" ]]; then
-              echo "dual_s3=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "dual_s3=false" >> "$GITHUB_OUTPUT"
-            fi
           fi
 
       - name: Embed panel UI
@@ -117,22 +99,6 @@ jobs:
           VER="${WEBOR_VERSION#v}"
           WEBOR_VERSION="$VER" ./scripts/publish-github.sh
 
-      - name: Configure AWS credentials (S3 bridge)
-        if: steps.meta.outputs.dual_s3 == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.WEBOR_RELEASE_REGION }}
-
-      - name: Upload to S3 (bridge only)
-        if: steps.meta.outputs.dual_s3 == 'true'
-        env:
-          WEBOR_RELEASE_BUCKET: ${{ env.WEBOR_RELEASE_BUCKET }}
-          WEBOR_RELEASE_REGION: ${{ env.WEBOR_RELEASE_REGION }}
-          WEBOR_BASE_URL: ${{ env.WEBOR_S3_BASE_URL }}
-        run: ./scripts/upload-public.sh
-
       - name: Summary
         run: |
           ch="${{ steps.meta.outputs.channel }}"
@@ -146,7 +112,3 @@ jobs:
           echo "- amd64: \`${WEBOR_BASE_URL}/${ch}/webor-linux-amd64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- arm64: \`${WEBOR_BASE_URL}/${ch}/webor-linux-arm64.tar.gz\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- VERSION: \`${WEBOR_BASE_URL}/${ch}/VERSION\`" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "${{ steps.meta.outputs.dual_s3 }}" == "true" ]]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Also published to legacy S3 (bridge): \`${WEBOR_S3_BASE_URL}/downloads/${ch}/\`" >> "$GITHUB_STEP_SUMMARY"
-          fi

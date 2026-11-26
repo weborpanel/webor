@@ -16,15 +16,27 @@ Tag builds publish linux **amd64** and **arm64** tarballs to GitHub Releases. Ro
 
 Keep `landing/public/install` and `install/public/install` in sync (default channel + base URL).
 
-## Install on a VPS
+## Install / refresh a VPS
+
+Idempotent — re-run to pick up the latest channel build (no S3 hop required):
 
 ```bash
 curl -fsSL https://webor.dev/install | sudo bash
 # lab / no PTR:
 curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
-# stable after v0.1.0:
-curl -fsSL https://webor.dev/install | sudo bash -s -- --channel stable
+# or force channel + persist base:
+curl -fsSL https://webor.dev/install | sudo bash -s -- --channel beta
 ```
+
+Already installed with an old S3 `WBR_BASE_URL`:
+
+```bash
+sudo wbr update apply -channel beta \
+  -base-url https://github.com/weborpanel/webor/releases/download \
+  -save-channel -force
+```
+
+(Or just re-run the bootstrap above; it persists the GitHub base.)
 
 ## Publish a release
 
@@ -40,8 +52,8 @@ git push origin v0.1.0
 
 Workflow [`.github/workflows/release.yml`](../../.github/workflows/release.yml) builds UI + both arches, packs, and runs `scripts/publish-github.sh`. Tag names containing `beta` publish to channel **beta** (prerelease); other `v*` tags → **stable**.
 
-`GITHUB_TOKEN` with `contents: write` is enough (public repo). No PAT needed for downloads.
+`GITHUB_TOKEN` with `contents: write` is enough (public repo). No PAT needed for downloads. AWS secrets are not used.
 
 ### Legacy S3
 
-The friend-account S3 bucket was retired after the `v0.1.0-beta.11` bridge / `v0.1.0-beta.12` GH-only cut. See [release-s3.md](./release-s3.md) for historical URLs. Do not dual-publish new cuts.
+Retired. Historical notes: [release-s3.md](./release-s3.md).

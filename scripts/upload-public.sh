@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Sync dist/upload → public S3 prefix (webor/).
+# LEGACY — S3 publish retired. Prefer scripts/publish-github.sh.
+# Sync dist/upload → public S3 prefix (webor/). Kept only for emergency rollback.
 # Requires AWS credentials with s3:PutObject on the bucket.
 set -euo pipefail
 

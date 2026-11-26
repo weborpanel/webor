@@ -93,7 +93,6 @@ Public URLs (after GitHub publish):
 
 Publish with:
   ./scripts/publish-github.sh
-  # optional legacy S3: ./scripts/upload-public.sh
 
 Install (bootstrap defaults to beta):
   curl -fsSL https://webor.dev/install | sudo bash -s -- --skip-ptr
