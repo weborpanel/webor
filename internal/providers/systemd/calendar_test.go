@@ -51,6 +51,17 @@ func TestCronToOnCalendarDOMAndDOW(t *testing.T) {
 	}
 }
 
+func TestWithTimezone(t *testing.T) {
+	got := systemd.WithTimezone([]string{"*-*-* 03:00:00"}, "Asia/Kolkata")
+	if len(got) != 1 || got[0] != "*-*-* 03:00:00 Asia/Kolkata" {
+		t.Fatalf("%v", got)
+	}
+	got = systemd.WithTimezone(got, "Asia/Kolkata")
+	if got[0] != "*-*-* 03:00:00 Asia/Kolkata" {
+		t.Fatalf("doubled: %v", got)
+	}
+}
+
 func TestCronToOnCalendarRejectsBad(t *testing.T) {
 	if _, err := systemd.CronToOnCalendar("0 3 * *"); err == nil {
 		t.Fatal("expected error")

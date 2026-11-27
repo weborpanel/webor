@@ -51,8 +51,9 @@ func (o *Ops) ApplySiteLimits(site config.Site) error {
 		}
 	}
 
+	tz := o.ScheduleTimezone()
 	for _, job := range site.Cron {
-		units, err := systemd.RenderCronUnits(site, job)
+		units, err := systemd.RenderCronUnits(site, job, tz)
 		if err != nil {
 			return fmt.Errorf("cron %q: %w", job.Name, err)
 		}

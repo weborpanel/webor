@@ -15,13 +15,16 @@
 		optional?: boolean;
 		disabled?: boolean;
 		label?: string;
+		/** IANA timezone shown in the hint (panel schedule zone). */
+		timezone?: string;
 	};
 
 	let {
 		value = $bindable(''),
 		optional = false,
 		disabled = false,
-		label = 'Schedule'
+		label = 'Schedule',
+		timezone = ''
 	}: Props = $props();
 
 	let enabled = $state(true);
@@ -109,7 +112,7 @@
 		emitCron(cronFromPreset(next, { hour, minute, weekday }));
 	}
 
-	let summary = $derived(describeCron(value));
+	let summary = $derived(describeCron(value, timezone || undefined));
 	let customInvalid = $derived(
 		enabled && preset === 'custom' && customExpr.trim() !== '' && !isValidCron(customExpr)
 	);
@@ -117,6 +120,9 @@
 
 <div class="schedule" class:disabled>
 	<span class="label">{label}</span>
+	{#if timezone}
+		<p class="tz-hint">Times are in <strong>{timezone}</strong> (set under Account).</p>
+	{/if}
 
 	{#if optional}
 		<label class="toggle">
@@ -250,6 +256,15 @@
 		font-size: 0.82rem;
 		font-weight: 600;
 		color: var(--text);
+	}
+	.tz-hint {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--muted);
+	}
+	.tz-hint strong {
+		color: var(--text);
+		font-weight: 600;
 	}
 	.toggle {
 		display: flex;

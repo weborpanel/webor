@@ -43,6 +43,22 @@
 	let updateNext = $state<string[]>([]);
 	let updateCli = $state('');
 
+	let timezone = $state('');
+	let timezoneHost = $state('');
+	let timezoneDraft = $state('');
+	let timezoneBusy = $state(false);
+
+	const TZ_PRESETS = [
+		'UTC',
+		'Asia/Kolkata',
+		'Asia/Calcutta',
+		'America/New_York',
+		'America/Los_Angeles',
+		'Europe/London',
+		'Europe/Berlin',
+		'Australia/Sydney'
+	] as const;
+
 	const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
 		{ value: 'system', label: 'System', icon: 'monitor' },
 		{ value: 'light', label: 'Light', icon: 'sun' },
@@ -68,10 +84,43 @@
 			email = r.data.email || '';
 			totpConfirmed = !!r.data.totp_confirmed;
 			error = '';
+			const pr = await request<{
+				timezone?: string;
+				timezone_host?: string;
+				timezone_config?: string;
+			}>('/api/panel');
+			if (pr.ok) {
+				timezone = pr.data.timezone || '';
+				timezoneHost = pr.data.timezone_host || '';
+				timezoneDraft = pr.data.timezone_config || pr.data.timezone || '';
+			}
 		} catch (e) {
 			error = errorMessage(e);
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function saveTimezone(e: SubmitEvent) {
+		e.preventDefault();
+		timezoneBusy = true;
+		try {
+			const r = await request<{ timezone?: string; timezone_config?: string; timezone_host?: string }>(
+				'/api/panel/timezone',
+				{ method: 'PUT', json: { timezone: timezoneDraft.trim() } }
+			);
+			if (!r.ok) {
+				toasts.error(r.data.error || 'Could not save timezone');
+				return;
+			}
+			timezone = r.data.timezone || '';
+			timezoneHost = r.data.timezone_host || timezoneHost;
+			timezoneDraft = r.data.timezone_config || r.data.timezone || '';
+			toasts.success(`Schedules use ${timezone}`);
+		} catch (err) {
+			toasts.error(errorMessage(err));
+		} finally {
+			timezoneBusy = false;
 		}
 	}
 
@@ -292,6 +341,43 @@
 		{/if}
 	</Card>
 
+	<Card
+		title="Schedule timezone"
+		description="Cron and backup schedules use this zone (not the browser). Empty falls back to the server OS timezone."
+	>
+		{#if loading}
+			<Skeleton lines={2} />
+		{:else}
+			<form class="tz-form" onsubmit={saveTimezone}>
+				<label class="wbr-field">
+					<span>IANA timezone</span>
+					<input
+						list="webor-tz-presets"
+						bind:value={timezoneDraft}
+						placeholder={timezoneHost || 'UTC'}
+						disabled={timezoneBusy}
+						autocomplete="off"
+					/>
+					<datalist id="webor-tz-presets">
+						{#each TZ_PRESETS as z}
+							<option value={z}></option>
+						{/each}
+					</datalist>
+				</label>
+				<p class="wbr-muted small">
+					Active: <strong>{timezone || 'UTC'}</strong>
+					{#if timezoneHost}
+						· Host OS: <code>{timezoneHost}</code>
+					{/if}
+					· Clear the field to follow the host.
+				</p>
+				<button class="wbr-btn" type="submit" disabled={timezoneBusy}>
+					{timezoneBusy ? 'Saving…' : 'Save timezone'}
+				</button>
+			</form>
+		{/if}
+	</Card>
+
 	<Card title="Appearance">
 		<div class="themes" role="radiogroup" aria-label="Theme">
 			{#each THEMES as t (t.value)}
@@ -398,6 +484,12 @@
 		color: var(--accent-contrast);
 		font-weight: 800;
 		font-size: 1.1rem;
+	}
+
+	.tz-form {
+		display: grid;
+		gap: 0.75rem;
+		justify-items: start;
 	}
 
 	.small {

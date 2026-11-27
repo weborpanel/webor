@@ -8,6 +8,29 @@ import (
 
 var weekdayNames = []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
 
+// WithTimezone appends an IANA/UTC zone to each OnCalendar expression
+// (systemd expects the zone after the timestamp, e.g. "*-*-* 03:00:00 Asia/Kolkata").
+func WithTimezone(cals []string, tz string) []string {
+	tz = strings.TrimSpace(tz)
+	if tz == "" || len(cals) == 0 {
+		return cals
+	}
+	out := make([]string, len(cals))
+	for i, c := range cals {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			out[i] = c
+			continue
+		}
+		if strings.HasSuffix(c, " "+tz) {
+			out[i] = c
+			continue
+		}
+		out[i] = c + " " + tz
+	}
+	return out
+}
+
 // CronToOnCalendar converts a 5-field cron schedule to one or more systemd
 // OnCalendar expressions. When both day-of-month and day-of-week are restricted,
 // two expressions are returned (cron OR semantics).

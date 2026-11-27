@@ -21,6 +21,7 @@ import (
 func (s *Server) MountPanel(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/panel", s.handleGetPanel)
 	mux.HandleFunc("PUT /api/panel/domain", s.handlePutPanelDomain)
+	mux.HandleFunc("PUT /api/panel/timezone", s.handlePutPanelTimezone)
 	mux.HandleFunc("DELETE /api/panel/domain", s.handleDeletePanelDomain)
 	mux.HandleFunc("POST /api/panel/listen", s.handlePostPanelListen)
 	mux.HandleFunc("GET /api/panel/dns", s.handlePanelDNS)
@@ -125,14 +126,68 @@ func (s *Server) handleGetPanel(w http.ResponseWriter, r *http.Request) {
 	}
 	host := s.panelListenHost()
 	s.writeJSON(w, 200, map[string]any{
-		"ok":            true,
-		"domain":        cfg.Panel.Domain,
-		"port":          port,
-		"listen":        s.PanelListen,
-		"listen_host":   host,
-		"public_listen": s.panelPublicListen(),
-		"parent_site":   cfg.PanelParentSite(),
-		"upstream":      s.panelUpstreamDial(),
+		"ok":               true,
+		"domain":           cfg.Panel.Domain,
+		"port":             port,
+		"listen":           s.PanelListen,
+		"listen_host":      host,
+		"public_listen":    s.panelPublicListen(),
+		"parent_site":      cfg.PanelParentSite(),
+		"upstream":         s.panelUpstreamDial(),
+		"timezone":         config.EffectiveTimezone(cfg),
+		"timezone_config":  strings.TrimSpace(cfg.Panel.Timezone),
+		"timezone_host":    config.HostTimezone(),
+	})
+}
+
+func (s *Server) handlePutPanelTimezone(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAuth(w, r) {
+		return
+	}
+	var body struct {
+		Timezone string `json:"timezone"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.writeErr(w, 400, "invalid json")
+		return
+	}
+	tz := strings.TrimSpace(body.Timezone)
+	if tz != "" {
+		if err := config.ValidateTimezone(tz); err != nil {
+			s.writeErr(w, 400, err.Error())
+			return
+		}
+	}
+
+	sitesMu.Lock()
+	defer sitesMu.Unlock()
+	cfg, err := s.loadOrEmptyConfig()
+	if err != nil {
+		s.writeErr(w, 500, err.Error())
+		return
+	}
+	cfg.Panel.Timezone = tz
+	if err := config.Save(s.configPath(), cfg); err != nil {
+		s.writeErr(w, 500, err.Error())
+		return
+	}
+
+	// Refresh cron + backup timers so OnCalendar picks up the new zone.
+	for _, site := range cfg.Sites {
+		for _, job := range site.Cron {
+			if strings.TrimSpace(job.Schedule) == "" {
+				continue
+			}
+			_ = s.installCronJob(site, job)
+		}
+	}
+	_ = s.ensureBackupSchedule()
+
+	s.writeJSON(w, 200, map[string]any{
+		"ok":              true,
+		"timezone":        config.EffectiveTimezone(cfg),
+		"timezone_config": tz,
+		"timezone_host":   config.HostTimezone(),
 	})
 }
 
@@ -354,4 +409,23 @@ func (s *Server) handlePanelDNS(w http.ResponseWriter, r *http.Request) {
 		"expected_a":            expectedA,
 		"reports":               []*dnscheck.Report{rep},
 	})
+}
+
+func (s *Server) ensureBackupSchedule() error {
+	if s.HelperSocket != "" {
+		raw, _ := json.Marshal(ipc.EnsureBackupScheduleArgs{ConfigPath: s.configPath()})
+		resp, err := ipc.Call(s.HelperSocket, ipc.Request{ID: "panel", Operation: ipc.OpEnsureBackupSchedule, Args: raw})
+		if err != nil {
+			return err
+		}
+		if !resp.OK {
+			return fmt.Errorf("%s", resp.Error)
+		}
+		return nil
+	}
+	cfg, err := config.Load(s.configPath())
+	if err != nil {
+		return err
+	}
+	return s.ops().EnsureBackupSchedule(cfg)
 }

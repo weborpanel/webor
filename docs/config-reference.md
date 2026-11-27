@@ -7,6 +7,7 @@ version: 1
 panel:
   domain: ""          # e.g. panel.example.com — Caddy reverse-proxies to the panel listen port
   port: 0             # usually set from the panel -listen port when domain is enabled
+  timezone: ""        # IANA zone for cron/backup OnCalendar (e.g. Asia/Kolkata); empty = host OS local
 sites:
   - name: example.com
     aliases: [www.example.com]   # same docroot
@@ -35,6 +36,7 @@ sites:
     cron:
       - name: seed
         # schedule optional — omit for Run once only (seed/migrate)
+        # times use panel.timezone (IANA) or the host OS zone — not UTC unless set to UTC
         exec: ./crons/seed/server.js
         runtime:
           kind: node

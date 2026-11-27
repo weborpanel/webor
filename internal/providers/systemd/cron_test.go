@@ -18,7 +18,7 @@ func TestRenderCronUnits(t *testing.T) {
 		Name:     "nightly-cleanup",
 		Schedule: "0 3 * * *",
 		Exec:     "./bin/cleanup",
-	})
+	}, "Asia/Kolkata")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestRenderCronUnits(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"OnCalendar=*-*-* 03:00:00",
+		"OnCalendar=*-*-* 03:00:00 Asia/Kolkata",
 		"Persistent=true",
 		"Unit=" + units.ServiceName,
 		"WantedBy=timers.target",
@@ -60,7 +60,7 @@ func TestRenderCronUnitsOneshotOnly(t *testing.T) {
 	}, config.CronJob{
 		Name: "seed",
 		Exec: "./crons/seed/server",
-	})
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

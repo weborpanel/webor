@@ -97,36 +97,37 @@ export function matchPreset(expr: string): MatchedPreset {
 }
 
 /** Human-readable summary; falls back to the raw expression for unknown patterns. */
-export function describeCron(expr: string | undefined | null): string {
+export function describeCron(expr: string | undefined | null, timezone?: string): string {
 	const raw = (expr ?? '').trim();
 	if (!raw) return 'No schedule';
+	const tzNote = timezone ? ` (${timezone})` : '';
 
 	if (raw === HOURLY || raw === '0 * * * *') {
-		return 'Every hour';
+		return `Every hour${tzNote}`;
 	}
 
 	// Every N minutes: */N * * * *
 	const everyMin = raw.match(/^\*\/(\d+) \* \* \* \*$/);
 	if (everyMin) {
 		const n = Number(everyMin[1]);
-		return n === 1 ? 'Every minute' : `Every ${n} minutes`;
+		return (n === 1 ? 'Every minute' : `Every ${n} minutes`) + tzNote;
 	}
 
 	const matched = matchPreset(raw);
 	if (matched.preset === 'daily') {
-		return `Daily at ${formatTime(matched.hour, matched.minute)}`;
+		return `Daily at ${formatTime(matched.hour, matched.minute)}${tzNote}`;
 	}
 	if (matched.preset === 'weekdays') {
-		return `Weekdays at ${formatTime(matched.hour, matched.minute)}`;
+		return `Weekdays at ${formatTime(matched.hour, matched.minute)}${tzNote}`;
 	}
 	if (matched.preset === 'weekly') {
-		return `${DOW_NAMES[matched.weekday]}s at ${formatTime(matched.hour, matched.minute)}`;
+		return `${DOW_NAMES[matched.weekday]}s at ${formatTime(matched.hour, matched.minute)}${tzNote}`;
 	}
 	if (matched.preset === 'hourly') {
-		return 'Every hour';
+		return `Every hour${tzNote}`;
 	}
 
-	return raw;
+	return raw + tzNote;
 }
 
 export const PRESET_OPTIONS: { value: SchedulePreset; label: string }[] = [

@@ -34,6 +34,7 @@
 	let busy = $state(false);
 	let logUnit = $state('');
 	let nodeChoices = $state.raw<{ id: string; label: string }[]>([]);
+	let timezone = $state('');
 
 	let selectedItem = $derived(items.find((c) => c.name === selected) ?? null);
 	let logOptions = $derived(
@@ -44,6 +45,9 @@
 		loading = true;
 		loadError = '';
 		try {
+			void request<{ timezone?: string }>('/api/panel').then((pr) => {
+				if (pr.ok && pr.data.timezone) timezone = pr.data.timezone;
+			});
 			const r = await request<{ cron?: CronInfo[] }>(site.path('/cron'));
 			if (!r.ok) {
 				loadError = r.data.error || 'Could not load cron jobs';
@@ -195,7 +199,7 @@
 							<span class="name">{c.name}</span>
 							<span class="meta">
 								{#if c.schedule}
-									{describeCron(c.schedule)}
+									{describeCron(c.schedule, timezone || undefined)}
 									{#if c.timer_active}
 										· timer on
 									{:else}
@@ -234,7 +238,7 @@
 					</div>
 					{#if selectedItem.schedule}
 						<p class="hint">
-							{describeCron(selectedItem.schedule)}
+							{describeCron(selectedItem.schedule, timezone || undefined)}
 							<code class="cron-raw">{selectedItem.schedule}</code>
 						</p>
 					{/if}

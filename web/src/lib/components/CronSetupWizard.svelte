@@ -8,6 +8,7 @@
 	import { request, errorMessage } from '#lib/api.ts';
 	import { toasts } from '#lib/stores/toasts.svelte.ts';
 	import { isValidCron } from '#lib/schedule.ts';
+	import { onMount } from 'svelte';
 
 	type RuntimeMode = 'binary' | 'node' | 'custom';
 	type ArtifactKind = 'zip' | 'binary';
@@ -50,8 +51,18 @@
 	let showPicker = $state(true);
 
 	let schedule = $state('');
+	let timezone = $state('');
 
 	let ran = $state(false);
+
+	onMount(async () => {
+		try {
+			const r = await request<{ timezone?: string }>('/api/panel');
+			if (r.ok && r.data.timezone) timezone = r.data.timezone;
+		} catch {
+			/* ignore */
+		}
+	});
 	let logUnit = $state('');
 
 	let jobId = $derived(cron?.name || '');
@@ -394,7 +405,7 @@
 		<div class="pane">
 			<h3>Schedule</h3>
 			<p class="hint">Optional. Leave off for seed/migrate (Run once only).</p>
-			<ScheduleField bind:value={schedule} optional disabled={busy} />
+			<ScheduleField bind:value={schedule} optional disabled={busy} timezone={timezone} />
 		</div>
 	{:else}
 		<div class="pane">

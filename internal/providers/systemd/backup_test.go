@@ -34,6 +34,15 @@ func TestRenderBackupUnits(t *testing.T) {
 		t.Fatalf("%s", bodyT)
 	}
 
+	cfg.Panel.Timezone = "Asia/Kolkata"
+	_, _, _, bodyTZ, err := systemd.RenderBackupUnits(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(bodyTZ, "OnCalendar=*-*-* 03:00:00 Asia/Kolkata") {
+		t.Fatalf("expected timezone suffix:\n%s", bodyTZ)
+	}
+
 	_, _, emptyU, emptyT, err := systemd.RenderBackupUnits(&config.Config{Version: 1})
 	if err != nil {
 		t.Fatal(err)

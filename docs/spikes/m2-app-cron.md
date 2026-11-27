@@ -8,7 +8,7 @@ with `OnCalendar=` translated from a 5-field cron schedule.
 ```yaml
 cron:
   - name: nightly-cleanup
-    schedule: 0 3 * * *   # → OnCalendar=*-*-* 03:00:00
+    schedule: 0 3 * * *   # → OnCalendar=*-*-* 03:00:00 <panel.timezone|host>
     exec: ./bin/cleanup
 ```
 

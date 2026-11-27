@@ -28,7 +28,6 @@ const (
 	defaultBackupEnvPath      = restic.EnvFile
 	defaultBackupStagingRoot  = "/var/lib/webor/backup-staging"
 	defaultRestoreStagingRoot = "/var/lib/webor/restore-staging"
-	defaultConfigPath         = "/etc/webor/config.yaml"
 )
 
 func (o *Ops) backupEnvPath() string {

@@ -67,7 +67,7 @@ func (o *Ops) installCronJobUnits(site config.Site, job config.CronJob) (*system
 			return nil, err
 		}
 	}
-	units, err := systemd.RenderCronUnits(site, job)
+	units, err := systemd.RenderCronUnits(site, job, o.ScheduleTimezone())
 	if err != nil {
 		return nil, err
 	}
@@ -184,13 +184,14 @@ func (o *Ops) CronStatus(domain, jobName string) (*CronStatusResult, error) {
 		TimerActive: o.SystemctlIsActive(timer),
 	}
 
+	loc := scheduleLocation(o.ScheduleTimezone())
 	props, err := systemctlShow(timer, "ActiveState", "LastTriggerUSec", "NextElapseUSecRealtime", "Result", "UnitFileState")
 	if err == nil {
 		if v := props["LastTriggerUSec"]; v != "" && v != "0" {
-			res.LastTrigger = formatSystemdUsec(v)
+			res.LastTrigger = formatSystemdUsec(v, loc)
 		}
 		if v := props["NextElapseUSecRealtime"]; v != "" && v != "0" {
-			res.NextElapse = formatSystemdUsec(v)
+			res.NextElapse = formatSystemdUsec(v, loc)
 		}
 		if props["UnitFileState"] == "enabled" || props["ActiveState"] == "active" {
 			res.HasSchedule = true
@@ -434,11 +435,23 @@ func systemctlShow(unit string, props ...string) (map[string]string, error) {
 	return m, nil
 }
 
-func formatSystemdUsec(v string) string {
+func scheduleLocation(tz string) *time.Location {
+	if tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+	}
+	return time.Local
+}
+
+func formatSystemdUsec(v string, loc *time.Location) string {
 	usec, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 	if err != nil || usec <= 0 {
 		return v
 	}
+	if loc == nil {
+		loc = time.Local
+	}
 	sec := usec / 1_000_000
-	return time.Unix(sec, 0).UTC().Format(time.RFC3339)
+	return time.Unix(sec, 0).In(loc).Format(time.RFC3339)
 }

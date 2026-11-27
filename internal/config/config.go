@@ -33,6 +33,9 @@ type Config struct {
 type Panel struct {
 	Domain string `yaml:"domain"`
 	Port   int    `yaml:"port"` // 0 = random high port until a domain is set
+	// Timezone is an IANA name (e.g. Asia/Kolkata) for cron/backup OnCalendar.
+	// Empty = use the host timezone from /etc/localtime at unit render time.
+	Timezone string `yaml:"timezone,omitempty"`
 }
 
 // Site describes one hosted site or app.
@@ -148,6 +151,12 @@ func (c *Config) Validate() error {
 		if err := validateDomain(c.Panel.Domain); err != nil {
 			return fmt.Errorf("panel.domain: %w", err)
 		}
+	}
+	if tz := strings.TrimSpace(c.Panel.Timezone); tz != "" {
+		if err := ValidateTimezone(tz); err != nil {
+			return fmt.Errorf("panel.timezone: %w", err)
+		}
+		c.Panel.Timezone = tz
 	}
 	if c.Backup != nil {
 		NormalizeBackup(c.Backup)

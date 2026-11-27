@@ -48,6 +48,7 @@
 	let bucket = $state('');
 	let prefix = $state('');
 	let schedule = $state('0 3 * * *');
+	let timezone = $state('');
 	let keepDaily = $state(7);
 	let keepWeekly = $state(4);
 	let includeLogs = $state(false);
@@ -122,6 +123,9 @@
 	}
 
 	async function load() {
+		void request<{ timezone?: string }>('/api/panel').then((pr) => {
+			if (pr.ok && pr.data.timezone) timezone = pr.data.timezone;
+		});
 		loading = true;
 		try {
 			const r = await request<BackupSettings>('/api/backup');
@@ -339,7 +343,7 @@
 						<input bind:value={prefix} placeholder="prod/vps-1" spellcheck="false" />
 					</label>
 
-					<ScheduleField bind:value={schedule} />
+					<ScheduleField bind:value={schedule} timezone={timezone} />
 
 					<div class="row">
 						<label class="wbr-field">
@@ -431,7 +435,7 @@
 						<div>
 							<dt>Schedule</dt>
 							<dd>
-								{describeCron(settings.schedule)}
+								{describeCron(settings.schedule, timezone || undefined)}
 								{#if settings.schedule}
 									<code class="cron-raw">{settings.schedule}</code>
 								{/if}

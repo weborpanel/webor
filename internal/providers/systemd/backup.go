@@ -25,6 +25,7 @@ func RenderBackupUnits(cfg *config.Config) (unit, timer, bodyUnit, bodyTimer str
 	if err != nil {
 		return "", "", "", "", fmt.Errorf("backup.schedule: %w", err)
 	}
+	cals = WithTimezone(cals, config.EffectiveTimezone(cfg))
 
 	logFile := logging.HostCurrentPath(logging.StreamBackup)
 	var svc strings.Builder

@@ -55,12 +55,13 @@ func CronTimerUnitName(domain, job string) string {
 // RenderCronUnits builds a Type=oneshot service for a cron job.
 // When schedule is non-empty, also builds a matching OnCalendar timer.
 // Empty schedule = oneshot-only (Run now / seed); no timer unit.
-func RenderCronUnits(site config.Site, job config.CronJob) (CronUnits, error) {
-	return RenderCronUnitsWithNode(site, job, "")
+// timezone is an IANA name or UTC appended to OnCalendar (empty = host local at systemd parse time).
+func RenderCronUnits(site config.Site, job config.CronJob, timezone string) (CronUnits, error) {
+	return RenderCronUnitsWithNode(site, job, "", timezone)
 }
 
 // RenderCronUnitsWithNode is like RenderCronUnits but allows a test override for the node binary.
-func RenderCronUnitsWithNode(site config.Site, job config.CronJob, nodeBinOverride string) (CronUnits, error) {
+func RenderCronUnitsWithNode(site config.Site, job config.CronJob, nodeBinOverride, timezone string) (CronUnits, error) {
 	if strings.TrimSpace(job.Name) == "" {
 		return CronUnits{}, fmt.Errorf("cron job name is required")
 	}
@@ -103,6 +104,7 @@ func RenderCronUnitsWithNode(site config.Site, job config.CronJob, nodeBinOverri
 	if err != nil {
 		return CronUnits{}, fmt.Errorf("cron job %q schedule: %w", job.Name, err)
 	}
+	cals = WithTimezone(cals, timezone)
 
 	var tim strings.Builder
 	fmt.Fprintf(&tim, "[Unit]\n")
