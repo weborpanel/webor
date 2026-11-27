@@ -34,7 +34,25 @@ type CronStatusResult struct {
 
 // InstallCronJob writes the oneshot service. When schedule is set, also writes
 // and enables the matching timer. Empty schedule = oneshot-only (Run now).
+// Service + timer are written then a single daemon-reload runs before enable.
 func (o *Ops) InstallCronJob(site config.Site, job config.CronJob) (*systemd.CronUnits, error) {
+	units, err := o.installCronJobUnits(site, job)
+	if err != nil {
+		return nil, err
+	}
+	if err := o.SystemctlDaemonReload(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(job.Schedule) != "" && units.Timer != "" {
+		if err := o.SystemctlEnableNow(units.TimerName); err != nil {
+			return nil, err
+		}
+	}
+	return units, nil
+}
+
+// installCronJobUnits renders and writes cron service/timer files without daemon-reload.
+func (o *Ops) installCronJobUnits(site config.Site, job config.CronJob) (*systemd.CronUnits, error) {
 	if err := o.CreateSiteUser(site.Name); err != nil {
 		return nil, err
 	}
@@ -54,14 +72,12 @@ func (o *Ops) InstallCronJob(site config.Site, job config.CronJob) (*systemd.Cro
 		return nil, err
 	}
 	_ = logging.EnsureSiteStreamFile(site.Name, logging.CronStream(job.Name))
-	if err := o.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
-		return nil, err
-	}
+	files := map[string]string{units.ServiceName: units.Service}
 	if strings.TrimSpace(job.Schedule) != "" && units.Timer != "" {
-		if err := o.WriteUnitFile(site.Name, units.TimerName, units.Timer); err != nil {
-			return nil, err
-		}
-		if err := o.SystemctlEnableNow(units.TimerName); err != nil {
+		files[units.TimerName] = units.Timer
+	}
+	for name, body := range files {
+		if err := o.WriteUnitFileNoReload(site.Name, name, body); err != nil {
 			return nil, err
 		}
 	}
@@ -69,15 +85,34 @@ func (o *Ops) InstallCronJob(site config.Site, job config.CronJob) (*systemd.Cro
 }
 
 // InstallSiteCron installs every cron job declared on the site and removes orphans.
+// Unit files are written first, then a single daemon-reload, then timers are enabled.
 func (o *Ops) InstallSiteCron(site config.Site) error {
 	desired := make(map[string]struct{}, len(site.Cron))
+	var enableTimers []string
 	for _, job := range site.Cron {
 		desired[strings.ToLower(strings.TrimSpace(job.Name))] = struct{}{}
-		if _, err := o.InstallCronJob(site, job); err != nil {
+		units, err := o.installCronJobUnits(site, job)
+		if err != nil {
 			return fmt.Errorf("cron %q: %w", job.Name, err)
 		}
+		if strings.TrimSpace(job.Schedule) != "" && units != nil && units.Timer != "" {
+			enableTimers = append(enableTimers, units.TimerName)
+		}
 	}
-	return o.removeOrphanCronUnits(site.Name, desired)
+	if err := o.removeOrphanCronUnits(site.Name, desired); err != nil {
+		return err
+	}
+	if len(site.Cron) > 0 || len(enableTimers) > 0 {
+		if err := o.SystemctlDaemonReload(); err != nil {
+			return err
+		}
+	}
+	for _, timer := range enableTimers {
+		if err := o.SystemctlEnableNow(timer); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveCronJob stops/disables and deletes cron service + timer units.

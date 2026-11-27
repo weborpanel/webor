@@ -138,10 +138,7 @@ func (o *Ops) RotateAllLogs(cfg *config.Config) error {
 func (o *Ops) EnsureLogrotateSchedule() error {
 	_ = logging.EnsureHostDir()
 	unit, timer, bodyUnit, bodyTimer := systemd.RenderLogrotateUnits()
-	if err := o.WriteUnitFile("webor", unit, bodyUnit); err != nil {
-		return err
-	}
-	if err := o.WriteUnitFile("webor", timer, bodyTimer); err != nil {
+	if err := o.writeUnitFiles("webor", map[string]string{unit: bodyUnit, timer: bodyTimer}); err != nil {
 		return err
 	}
 	return o.SystemctlEnableNow(timer)

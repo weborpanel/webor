@@ -21,11 +21,19 @@ func (o *Ops) ApplySiteLimits(site config.Site) error {
 		return err
 	}
 
+	files := make(map[string]string)
+	var restart []string
+
 	switch site.Type {
 	case config.SiteTypeApp:
-		if err := o.applyAppUnitLimits(site); err != nil {
+		extra, toRestart, err := o.appUnitLimitFiles(site)
+		if err != nil {
 			return err
 		}
+		for k, v := range extra {
+			files[k] = v
+		}
+		restart = append(restart, toRestart...)
 	case config.SiteTypeStatic:
 		for _, b := range site.Backends {
 			if !b.Enabled {
@@ -36,15 +44,9 @@ func (o *Ops) ApplySiteLimits(site config.Site) error {
 			if err != nil {
 				return fmt.Errorf("backend %s: %w", b.ID, err)
 			}
-			wasActive := o.SystemctlIsActive(unit)
-			if err := o.WriteUnitFile(site.Name, unit, body); err != nil {
-				return fmt.Errorf("backend %s: %w", b.ID, err)
-			}
-			if wasActive {
-				_ = o.SystemctlResetFailed(unit)
-				if err := o.SystemctlRestart(unit); err != nil {
-					return fmt.Errorf("restart backend %s: %w", b.ID, err)
-				}
+			files[unit] = body
+			if o.SystemctlIsActive(unit) {
+				restart = append(restart, unit)
 			}
 		}
 	}
@@ -54,13 +56,9 @@ func (o *Ops) ApplySiteLimits(site config.Site) error {
 		if err != nil {
 			return fmt.Errorf("cron %q: %w", job.Name, err)
 		}
-		if err := o.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
-			return fmt.Errorf("cron %q: %w", job.Name, err)
-		}
+		files[units.ServiceName] = units.Service
 		if units.Timer != "" {
-			if err := o.WriteUnitFile(site.Name, units.TimerName, units.Timer); err != nil {
-				return fmt.Errorf("cron %q timer: %w", job.Name, err)
-			}
+			files[units.TimerName] = units.Timer
 		}
 	}
 	for _, job := range site.Jobs {
@@ -68,48 +66,45 @@ func (o *Ops) ApplySiteLimits(site config.Site) error {
 		if err != nil {
 			return fmt.Errorf("job %q: %w", job.Name, err)
 		}
-		wasActive := o.SystemctlIsActive(units.ServiceName)
-		if err := o.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
-			return fmt.Errorf("job %q: %w", job.Name, err)
+		files[units.ServiceName] = units.Service
+		if o.SystemctlIsActive(units.ServiceName) {
+			restart = append(restart, units.ServiceName)
 		}
-		if wasActive {
-			if err := o.SystemctlRestart(units.ServiceName); err != nil {
-				return fmt.Errorf("restart job %q: %w", job.Name, err)
-			}
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+	if err := o.writeUnitFiles(site.Name, files); err != nil {
+		return err
+	}
+	for _, unit := range restart {
+		_ = o.SystemctlResetFailed(unit)
+		if err := o.SystemctlRestart(unit); err != nil {
+			return fmt.Errorf("restart %s: %w", unit, err)
 		}
 	}
 	return nil
 }
 
-func (o *Ops) applyAppUnitLimits(site config.Site) error {
+func (o *Ops) appUnitLimitFiles(site config.Site) (files map[string]string, restart []string, err error) {
 	units, err := systemd.RenderAppUnits(site)
 	if err != nil {
 		// No exec yet — limits stay in config until first deploy/ensure.
-		return nil
+		return nil, nil, nil
 	}
+	files = map[string]string{units.ServiceName: units.Service}
 	if units.SocketName != "" {
-		if err := o.WriteUnitFile(site.Name, units.SocketName, units.Socket); err != nil {
-			return err
-		}
-	}
-	if err := o.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
-		return err
+		files[units.SocketName] = units.Socket
 	}
 	if units.BackendServiceName != "" {
-		wasActive := o.SystemctlIsActive(units.BackendServiceName)
-		if err := o.WriteUnitFile(site.Name, units.BackendServiceName, units.BackendService); err != nil {
-			return err
-		}
-		if wasActive {
-			if err := o.SystemctlRestart(units.BackendServiceName); err != nil {
-				return fmt.Errorf("restart backend: %w", err)
-			}
+		files[units.BackendServiceName] = units.BackendService
+		if o.SystemctlIsActive(units.BackendServiceName) {
+			restart = append(restart, units.BackendServiceName)
 		}
 	}
 	if o.SystemctlIsActive(units.ServiceName) {
-		if err := o.SystemctlRestart(units.ServiceName); err != nil {
-			return fmt.Errorf("restart app: %w", err)
-		}
+		restart = append(restart, units.ServiceName)
 	}
-	return nil
+	return files, restart, nil
 }

@@ -113,17 +113,21 @@ func applyOneApp(ctx context.Context, site config.Site, ops *helper.Ops, sampleB
 		if units.BackendServiceName != "" {
 			_ = ops.SystemctlStop(units.BackendServiceName)
 		}
-		if err := ops.WriteUnitFile(site.Name, units.SocketName, units.Socket); err != nil {
-			return err
-		}
 	}
-	if err := ops.WriteUnitFile(site.Name, units.ServiceName, units.Service); err != nil {
-		return err
+	unitFiles := map[string]string{units.ServiceName: units.Service}
+	if units.SocketName != "" {
+		unitFiles[units.SocketName] = units.Socket
 	}
 	if units.BackendServiceName != "" {
-		if err := ops.WriteUnitFile(site.Name, units.BackendServiceName, units.BackendService); err != nil {
+		unitFiles[units.BackendServiceName] = units.BackendService
+	}
+	for name, body := range unitFiles {
+		if err := ops.WriteUnitFileNoReload(site.Name, name, body); err != nil {
 			return err
 		}
+	}
+	if err := ops.SystemctlDaemonReload(); err != nil {
+		return err
 	}
 
 	u := sites.Username(site.Name)

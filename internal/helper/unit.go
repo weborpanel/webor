@@ -3,7 +3,6 @@ package helper
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -12,6 +11,15 @@ const unitDir = "/etc/systemd/system"
 
 // WriteUnitFile writes a systemd unit basename under /etc/systemd/system and runs daemon-reload.
 func (o *Ops) WriteUnitFile(domain, unit, content string) error {
+	if err := o.WriteUnitFileNoReload(domain, unit, content); err != nil {
+		return err
+	}
+	return o.SystemctlDaemonReload()
+}
+
+// WriteUnitFileNoReload writes the unit file without daemon-reload.
+// Call SystemctlDaemonReload once after a batch of writes.
+func (o *Ops) WriteUnitFileNoReload(domain, unit, content string) error {
 	_ = domain // reserved for future per-site unit path policy
 	name := filepath.Base(strings.TrimSpace(unit))
 	dest := filepath.Join(unitDir, name)
@@ -27,10 +35,18 @@ func (o *Ops) WriteUnitFile(domain, unit, content string) error {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("install unit: %w", err)
 	}
-
-	cmd := exec.Command("systemctl", "daemon-reload")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("daemon-reload: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
 	return nil
+}
+
+// writeUnitFiles writes several units then runs a single daemon-reload.
+func (o *Ops) writeUnitFiles(domain string, files map[string]string) error {
+	if len(files) == 0 {
+		return nil
+	}
+	for unit, content := range files {
+		if err := o.WriteUnitFileNoReload(domain, unit, content); err != nil {
+			return err
+		}
+	}
+	return o.SystemctlDaemonReload()
 }

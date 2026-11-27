@@ -471,13 +471,9 @@ func (o *Ops) EnsureBackupSchedule(cfg *config.Config) error {
 		_ = o.SystemctlDaemonReload()
 		return nil
 	}
-	if err := o.WriteUnitFile("webor", unit, bodyUnit); err != nil {
+	if err := o.writeUnitFiles("webor", map[string]string{unit: bodyUnit, timer: bodyTimer}); err != nil {
 		return err
 	}
-	if err := o.WriteUnitFile("webor", timer, bodyTimer); err != nil {
-		return err
-	}
-	_ = o.SystemctlDaemonReload()
 	cmd := exec.Command("systemctl", "enable", "--now", timer)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("enable %s: %w (%s)", timer, err, strings.TrimSpace(string(out)))
