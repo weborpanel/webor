@@ -200,6 +200,38 @@ func (s *Server) openSiteDB(domain, engine, id, access string) (*sql.DB, error) 
 	}
 }
 
+// findMount resolves a /db/ segment to a mount. The canonical key is AdminerSlug,
+// which is the instance id when that id already includes the hostname. The raw
+// instance id and the older doubled hostname prefix are accepted as well.
+func (g *globalDBAdminer) findMount(segment string) *adminerMount {
+	segment = strings.ToLower(strings.Trim(strings.TrimSpace(segment), "/"))
+	if segment == "" || g == nil || g.bySlug == nil {
+		return nil
+	}
+	if m := g.bySlug[segment]; m != nil {
+		return m
+	}
+	var match *adminerMount
+	seen := map[*adminerMount]struct{}{}
+	for _, m := range g.bySlug {
+		if m == nil {
+			continue
+		}
+		if _, ok := seen[m]; ok {
+			continue
+		}
+		seen[m] = struct{}{}
+		if !dbengine.MatchAdminerSegment(m.entry.Domain, m.entry.ID, segment) {
+			continue
+		}
+		if match != nil {
+			return nil
+		}
+		match = m
+	}
+	return match
+}
+
 func (s *Server) mountDBAdminer(mux *http.ServeMux) {
 	mux.Handle("GET /db", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/db/", http.StatusFound)
@@ -247,7 +279,7 @@ func (s *Server) handleDBAdminer(w http.ResponseWriter, r *http.Request) {
 	if g.bySlug == nil {
 		s.rebuildDBAdminerLocked()
 	}
-	m := g.bySlug[slug]
+	m := g.findMount(slug)
 	var h http.Handler
 	if m != nil {
 		if access == adminerAccessFull {

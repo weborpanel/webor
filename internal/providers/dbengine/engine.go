@@ -86,13 +86,38 @@ func AppUser(domain, id string) string {
 // DBName is the postgres/mariadb database name (same as AppUser).
 func DBName(domain, id string) string { return AppUser(domain, id) }
 
-// AdminerSlug is the path segment for per-DB Adminer mounts.
+// AdminerSlug is the /db/ path segment for one parent database.
+// The default id is used as-is. An id that already starts with the domain slug
+// (hostname_engine_n) is also used as-is, so the URL matches the instance id
+// instead of prefixing the hostname a second time. Other ids are prefixed with
+// the domain slug so the same short id on two sites does not collide.
 func AdminerSlug(domain, id string) string {
 	id = NormalizeID(domain, id)
 	if IsDefaultID(domain, id) {
 		return id
 	}
-	return Slug(domain) + "_" + id
+	prefix := Slug(domain) + "_"
+	if strings.HasPrefix(id, prefix) {
+		return id
+	}
+	return prefix + id
+}
+
+// MatchAdminerSegment reports whether a /db/ path segment refers to domain+id.
+// It accepts the canonical slug, the instance id, and the older doubled form
+// slug(domain)+"_"+id used before ids themselves included the hostname.
+func MatchAdminerSegment(domain, id, segment string) bool {
+	segment = strings.ToLower(strings.Trim(strings.TrimSpace(segment), "/"))
+	if segment == "" {
+		return false
+	}
+	id = NormalizeID(domain, id)
+	slug := AdminerSlug(domain, id)
+	if segment == id || segment == slug {
+		return true
+	}
+	prefix := Slug(domain) + "_"
+	return segment == prefix+id || segment == prefix+slug
 }
 
 // AdminerBrowsePath is the session-gated read-only explorer URL for a DB.

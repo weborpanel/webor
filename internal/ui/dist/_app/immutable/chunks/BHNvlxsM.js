@@ -1,1 +1,0 @@
-import{$ as e,ht as t,mt as n}from"./Cb_uo8E8.js";var r=new class{#e=t(!1);get addSiteOpen(){return e(this.#e)}set addSiteOpen(e){n(this.#e,e,!0)}#t=t(!1);get paletteOpen(){return e(this.#t)}set paletteOpen(e){n(this.#t,e,!0)}#n=t(!1);get drawerOpen(){return e(this.#n)}set drawerOpen(e){n(this.#n,e,!0)}};export{r as t};

@@ -1,1 +1,0 @@
-import{$ as e,ht as t,mt as n}from"./Cb_uo8E8.js";var r=new class{#e=t(null);get current(){return e(this.#e)}set current(e){n(this.#e,e,!0)}ask(e){return this.current?.resolve(!1),new Promise(t=>{this.current={...e,resolve:t}})}settle(e){let t=this.current;this.current=null,t?.resolve(e)}},i=e=>r.ask(e);export{r as n,i as t};

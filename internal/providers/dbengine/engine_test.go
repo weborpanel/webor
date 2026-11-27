@@ -44,6 +44,26 @@ func TestAdminerPathsAndSQLiteDSN(t *testing.T) {
 	if got := dbengine.AdminerEditPath(domain, "analytics"); got != "/db/app_example_com_analytics/edit/" {
 		t.Fatalf("edit secondary: %q", got)
 	}
+	// Instance ids that already include the hostname must not be prefixed again.
+	inst := "app_example_com_postgres_1"
+	if got := dbengine.AdminerSlug(domain, inst); got != inst {
+		t.Fatalf("instance slug: got %q want %q", got, inst)
+	}
+	if got := dbengine.AdminerBrowsePath(domain, inst); got != "/db/"+inst+"/" {
+		t.Fatalf("instance browse: %q", got)
+	}
+	if !dbengine.MatchAdminerSegment(domain, inst, inst) {
+		t.Fatal("instance id segment should match")
+	}
+	if !dbengine.MatchAdminerSegment(domain, inst, "app_example_com_"+inst) {
+		t.Fatal("legacy doubled slug should still match")
+	}
+	if dbengine.MatchAdminerSegment(domain, inst, "other") {
+		t.Fatal("unrelated segment matched")
+	}
+	if !dbengine.MatchAdminerSegment(domain, "analytics", "analytics") {
+		t.Fatal("short id segment should match")
+	}
 	ro := dbengine.SQLiteDSN(domain, def)
 	rw := dbengine.SQLiteRWDSN(domain, def)
 	if !strings.Contains(ro, "mode=ro") {
