@@ -69,6 +69,7 @@ const (
 	OpRotateCachePassword    = "RotateCachePassword"
 	OpPostgresStatus         = "PostgresStatus"
 	OpEnsurePostgresAuth     = "EnsurePostgresAuth"
+	OpEnsureMariaDBGrants    = "EnsureMariaDBGrants"
 	OpMariaDBStatus          = "MariaDBStatus"
 	OpValkeyStatus           = "ValkeyStatus"
 	OpEnsureHTTPBackend      = "EnsureHTTPBackend"
@@ -475,6 +476,19 @@ type PostgresAuthDB struct {
 type EnsurePostgresAuthArgs struct {
 	StateDir string           `json:"state_dir"`
 	DBs      []PostgresAuthDB `json:"dbs"`
+}
+
+// MariaDBGrantDB names one parent MariaDB database whose app user needs DDL.
+type MariaDBGrantDB struct {
+	Domain string `json:"domain"`
+	ID     string `json:"id"`
+}
+
+// EnsureMariaDBGrantsArgs asks the helper to grant full DDL/DML to existing
+// instance users on their own database.
+type EnsureMariaDBGrantsArgs struct {
+	StateDir string           `json:"state_dir"`
+	DBs      []MariaDBGrantDB `json:"dbs"`
 }
 
 // MariaDBStatusArgs is empty; status is returned in Message as JSON.

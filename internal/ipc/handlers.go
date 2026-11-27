@@ -81,6 +81,7 @@ func Handlers(ops *helper.Ops, store *auth.Store, log *audit.Logger) map[string]
 		OpRotateCachePassword:    makeRotateCachePassword(ops, log),
 		OpPostgresStatus:         makePostgresStatus(ops),
 		OpEnsurePostgresAuth:     makeEnsurePostgresAuth(ops),
+		OpEnsureMariaDBGrants:    makeEnsureMariaDBGrants(ops),
 		OpMariaDBStatus:          makeMariaDBStatus(ops),
 		OpValkeyStatus:           makeValkeyStatus(ops),
 		OpEnsureHTTPBackend:      makeEnsureHTTPBackend(ops),

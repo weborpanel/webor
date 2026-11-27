@@ -3,7 +3,7 @@ module github.com/weborpanel/webor
 go 1.27.4
 
 require (
-	github.com/dbadminer/dbadminer v0.5.0
+	github.com/dbadminer/dbadminer v0.5.1
 	github.com/go-sql-driver/mysql v1.10.2
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/miekg/dns v1.1.73

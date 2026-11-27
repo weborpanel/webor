@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/weborpanel/webor/internal/config"
 	"github.com/weborpanel/webor/internal/distro"
 	"github.com/weborpanel/webor/internal/providers/dbengine"
 	"github.com/weborpanel/webor/internal/providers/mariadb"
@@ -127,9 +128,14 @@ ALTER USER %s@'localhost' IDENTIFIED BY %s;
 GRANT ALL PRIVILEGES ON %s.* TO %s@'localhost';
 CREATE USER IF NOT EXISTS %s@'127.0.0.1' IDENTIFIED BY %s;
 ALTER USER %s@'127.0.0.1' IDENTIFIED BY %s;
+GRANT ALL PRIVILEGES ON %s.* TO %s@'127.0.0.1';
+CREATE USER IF NOT EXISTS %s@'127.0.0.1' IDENTIFIED BY %s;
+ALTER USER %s@'127.0.0.1' IDENTIFIED BY %s;
 GRANT SELECT ON %s.* TO %s@'127.0.0.1';
 FLUSH PRIVILEGES;
 `, mqIdent(dbName), mqIdent(peer), mqIdent(dbName), mqIdent(peer),
+			mqIdent(app), mqQuote(password), mqIdent(app), mqQuote(password),
+			mqIdent(dbName), mqIdent(app),
 			mqIdent(app), mqQuote(password), mqIdent(app), mqQuote(password),
 			mqIdent(dbName), mqIdent(app),
 			mqIdent(ro), mqQuote(password), mqIdent(ro), mqQuote(password),
@@ -215,14 +221,21 @@ func (o *Ops) rotateMariaDBPassword(domain, id, stateDir string) (*EnsureSiteDat
 		sql = fmt.Sprintf(`
 ALTER USER %s@'127.0.0.1' IDENTIFIED BY %s;
 ALTER USER %s@'127.0.0.1' IDENTIFIED BY %s;
+GRANT ALL PRIVILEGES ON %s.* TO %s@'127.0.0.1';
 FLUSH PRIVILEGES;
-`, mqIdent(ro), mqQuote(password), mqIdent(app), mqQuote(password))
+`, mqIdent(ro), mqQuote(password), mqIdent(app), mqQuote(password), mqIdent(dbName), mqIdent(app))
 	} else {
 		sql = fmt.Sprintf(`
 ALTER USER %s@'127.0.0.1' IDENTIFIED BY %s;
 ALTER USER %s@'localhost' IDENTIFIED BY %s;
+CREATE USER IF NOT EXISTS %s@'127.0.0.1' IDENTIFIED BY %s;
+ALTER USER %s@'127.0.0.1' IDENTIFIED BY %s;
+GRANT ALL PRIVILEGES ON %s.* TO %s@'localhost';
+GRANT ALL PRIVILEGES ON %s.* TO %s@'127.0.0.1';
 FLUSH PRIVILEGES;
-`, mqIdent(ro), mqQuote(password), mqIdent(app), mqQuote(password))
+`, mqIdent(ro), mqQuote(password), mqIdent(app), mqQuote(password),
+			mqIdent(app), mqQuote(password), mqIdent(app), mqQuote(password),
+			mqIdent(dbName), mqIdent(app), mqIdent(dbName), mqIdent(app))
 	}
 	if err := o.mysql(sql); err != nil {
 		return nil, err
@@ -249,6 +262,80 @@ FLUSH PRIVILEGES;
 		PeerURL:    mariadb.PeerURL(domain, id),
 		SecretPath: secretPath,
 	}, nil
+}
+
+// MariaDBGrantDB is one parent database whose app user should be able to
+// create and change tables from the panel editor.
+type MariaDBGrantDB struct {
+	Domain string
+	ID     string
+}
+
+// EnsureMariaDBAppGrants gives each instance's app user full DDL and DML on
+// its database at both localhost and 127.0.0.1. Edit connects over TCP with
+// that user; MariaDB also matches 127.0.0.1 to localhost when reverse DNS
+// says so. Existing databases are updated in place. The read-only role is
+// left SELECT-only. A missing MariaDB service is not an error.
+func (o *Ops) EnsureMariaDBAppGrants(dbs []MariaDBGrantDB, stateDir string) error {
+	st, err := o.MariaDBStatus()
+	if err != nil || st == nil || !st.Installed || !st.Active {
+		return nil
+	}
+	if stateDir == "" {
+		stateDir = config.DefaultStateDir
+	}
+	for _, db := range dbs {
+		if err := o.grantMariaDBApp(db.Domain, db.ID, stateDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o *Ops) grantMariaDBApp(domain, id, stateDir string) error {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	id = dbengine.NormalizeID(domain, id)
+	sec, err := mariadb.ReadSecret(mariadb.ResolveSecretPath(stateDir, domain, id))
+	if err != nil || sec.Password == "" {
+		return nil
+	}
+	app := mariadb.AppRole(domain, id)
+	peer := mariadb.PeerRole(domain)
+	names := []string{mariadb.DBName(domain, id)}
+	legacy := dbengine.LegacyAppUser(domain, id)
+	if legacy != names[0] {
+		names = append(names, legacy)
+	}
+	if sec.Database != "" && sec.Database != names[0] && sec.Database != legacy {
+		names = append(names, sec.Database)
+	}
+	var b strings.Builder
+	for _, name := range names {
+		b.WriteString(mariaAppGrantSQL(name, app, peer, sec.Password))
+	}
+	b.WriteString("FLUSH PRIVILEGES;\n")
+	return o.mysql(b.String())
+}
+
+// mariaAppGrantSQL grants DDL and DML on one database. The 127.0.0.1 account
+// is the panel TCP login. localhost is granted too, without changing the
+// unix-socket plugin when that account is the site user.
+func mariaAppGrantSQL(dbName, app, peer, password string) string {
+	db := mqIdent(dbName)
+	user := mqIdent(app)
+	pass := mqQuote(password)
+	var b strings.Builder
+	if app != peer {
+		fmt.Fprintf(&b, "CREATE USER IF NOT EXISTS %s@'localhost' IDENTIFIED BY %s;\n", user, pass)
+		fmt.Fprintf(&b, "ALTER USER %s@'localhost' IDENTIFIED BY %s;\n", user, pass)
+		fmt.Fprintf(&b, "GRANT ALL PRIVILEGES ON %s.* TO %s@'localhost';\n", db, user)
+	} else {
+		fmt.Fprintf(&b, "GRANT ALL PRIVILEGES ON %s.* TO %s@'localhost';\n", db, user)
+	}
+	fmt.Fprintf(&b, "CREATE USER IF NOT EXISTS %s@'127.0.0.1' IDENTIFIED BY %s;\n", user, pass)
+	fmt.Fprintf(&b, "ALTER USER %s@'127.0.0.1' IDENTIFIED BY %s;\n", user, pass)
+	fmt.Fprintf(&b, "GRANT ALL PRIVILEGES ON %s.* TO %s@'127.0.0.1';\n", db, user)
+	return b.String()
 }
 
 func (o *Ops) mysql(sql string) error {

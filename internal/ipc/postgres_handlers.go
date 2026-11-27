@@ -202,6 +202,28 @@ func makeEnsurePostgresAuth(ops *helper.Ops) HandlerFunc {
 	}
 }
 
+func makeEnsureMariaDBGrants(ops *helper.Ops) HandlerFunc {
+	return func(req Request, _ PeerCred) Response {
+		var args EnsureMariaDBGrantsArgs
+		if len(req.Args) > 0 {
+			if err := json.Unmarshal(req.Args, &args); err != nil {
+				return Response{ID: req.ID, OK: false, Error: "invalid args: " + err.Error()}
+			}
+		}
+		if err := ValidateEnsureMariaDBGrantsArgs(args); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		dbs := make([]helper.MariaDBGrantDB, 0, len(args.DBs))
+		for _, db := range args.DBs {
+			dbs = append(dbs, helper.MariaDBGrantDB{Domain: db.Domain, ID: db.ID})
+		}
+		if err := ops.EnsureMariaDBAppGrants(dbs, args.StateDir); err != nil {
+			return Response{ID: req.ID, OK: false, Error: err.Error()}
+		}
+		return Response{ID: req.ID, OK: true, Message: "ok"}
+	}
+}
+
 func makeMariaDBStatus(ops *helper.Ops) HandlerFunc {
 	return func(req Request, _ PeerCred) Response {
 		res, err := ops.MariaDBStatus()

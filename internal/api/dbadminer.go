@@ -79,6 +79,7 @@ func (s *Server) rebuildDBAdminerLocked() {
 		return
 	}
 	s.preparePostgresAdminer(cfg)
+	s.prepareMariaDBAdminer(cfg)
 	bySlug := make(map[string]*adminerMount)
 	var entries []adminerEntry
 	var parts []string
@@ -100,14 +101,21 @@ func (s *Server) rebuildDBAdminerLocked() {
 			}
 			roCfg := dbadminer.DefaultConfig()
 			roCfg.Access = dbadminer.AccessReadOnly
+			fullCfg := dbadminer.DefaultConfig()
+			fullCfg.Access = dbadminer.AccessFull
+			if schema := mariaAdminerSchema(s.stateDir(), site.Name, db.Engine, db.ID); schema != "" {
+				// Pin MariaDB to the site database. Otherwise the explorer
+				// lists every visible schema, including the server "test"
+				// database, and CREATE lands there.
+				roCfg.Schema = schema
+				fullCfg.Schema = schema
+			}
 			roEx, err := dbadminer.New(roDB, roCfg)
 			if err != nil {
 				_ = roDB.Close()
 				_ = fullDB.Close()
 				continue
 			}
-			fullCfg := dbadminer.DefaultConfig()
-			fullCfg.Access = dbadminer.AccessFull
 			fullEx, err := dbadminer.New(fullDB, fullCfg)
 			if err != nil {
 				_ = roDB.Close()
@@ -282,6 +290,67 @@ func (s *Server) ensurePostgresPanelAuth(dbs []helper.PostgresAuthDB) error {
 		return nil
 	}
 	return s.ops().EnsurePostgresPanelAuth(dbs, s.stateDir())
+}
+
+// prepareMariaDBAdminer re-grants DDL/DML to existing instance users before
+// Edit tries to create tables. A failure here leaves other engines mounted.
+func (s *Server) prepareMariaDBAdminer(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	var dbs []helper.MariaDBGrantDB
+	for _, site := range cfg.Sites {
+		if strings.TrimSpace(site.Parent) != "" {
+			continue
+		}
+		for _, db := range site.Databases {
+			if !strings.EqualFold(strings.TrimSpace(db.Engine), dbengine.MariaDB) {
+				continue
+			}
+			dbs = append(dbs, helper.MariaDBGrantDB{Domain: site.Name, ID: db.ID})
+		}
+	}
+	if len(dbs) == 0 {
+		return
+	}
+	_ = s.ensureMariaDBAppGrants(dbs)
+}
+
+func (s *Server) ensureMariaDBAppGrants(dbs []helper.MariaDBGrantDB) error {
+	args := ipc.EnsureMariaDBGrantsArgs{StateDir: s.stateDir()}
+	for _, db := range dbs {
+		args.DBs = append(args.DBs, ipc.MariaDBGrantDB{Domain: db.Domain, ID: db.ID})
+	}
+	if s.HelperSocket != "" {
+		raw, err := json.Marshal(args)
+		if err != nil {
+			return err
+		}
+		resp, err := ipc.Call(s.HelperSocket, ipc.Request{
+			ID: "panel", Operation: ipc.OpEnsureMariaDBGrants, Args: raw,
+		})
+		if err != nil {
+			return err
+		}
+		if !resp.OK {
+			return fmt.Errorf("%s", resp.Error)
+		}
+		return nil
+	}
+	return s.ops().EnsureMariaDBAppGrants(dbs, s.stateDir())
+}
+
+// mariaAdminerSchema is the MariaDB database Edit and Browse should stay inside.
+func mariaAdminerSchema(stateDir, domain, engine, id string) string {
+	if !strings.EqualFold(strings.TrimSpace(engine), dbengine.MariaDB) {
+		return ""
+	}
+	if sec, err := mariadb.ReadSecret(mariadb.ResolveSecretPath(stateDir, domain, id)); err == nil {
+		if name := strings.TrimSpace(sec.Database); name != "" {
+			return name
+		}
+	}
+	return mariadb.DBName(domain, id)
 }
 
 func (s *Server) mountDBAdminer(mux *http.ServeMux) {

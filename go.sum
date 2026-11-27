@@ -8,6 +8,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dbadminer/dbadminer v0.5.0 h1:rBuVQAqPW+4Kl4gLNWWtD7XR3OsXPvI4m2vK8gtCBMY=
 github.com/dbadminer/dbadminer v0.5.0/go.mod h1:B73xssbgVfqBCCCe36p1PFxEX++FtQygBqf43WQbnfY=
+github.com/dbadminer/dbadminer v0.5.1 h1:XsE5owTWeFgwjrTtmr4mfYFUTBim8bjHOHiVExATYuo=
+github.com/dbadminer/dbadminer v0.5.1/go.mod h1:aNB1aa5pB945LGdZFlebLU3rFnEkOUqsbTPDHtRRkwA=
 github.com/dustin/go-humanize v1.1.0 h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2xWg=
 github.com/dustin/go-humanize v1.1.0/go.mod h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=
 github.com/go-sql-driver/mysql v1.10.2 h1:5TRvGvczDohUMOCRA5aCAXgfSZOo/oNDSFD/2RrChS0=
