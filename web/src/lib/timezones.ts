@@ -40,3 +40,17 @@ export function listTimeZones(): string[] {
 	cached = [...set].sort((a, b) => a.localeCompare(b));
 	return cached;
 }
+
+export function filterTimeZones(query: string, limit = 80): string[] {
+	const all = listTimeZones();
+	const q = query.trim().toLowerCase().replace(/\s+/g, '_');
+	if (!q) return all.slice(0, limit);
+	const out: string[] = [];
+	for (const z of all) {
+		if (z.toLowerCase().includes(q)) {
+			out.push(z);
+			if (out.length >= limit) break;
+		}
+	}
+	return out;
+}
