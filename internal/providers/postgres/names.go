@@ -38,7 +38,30 @@ func AppRole(domain, id string) string {
 
 // ReadOnlyRole returns the panel browse role for a site database.
 func ReadOnlyRole(domain, id string) string {
-	return "webor_ro_" + dbengine.AppUser(domain, id)
+	return trimRole("webor_ro_" + dbengine.AppUser(domain, id))
+}
+
+// LegacyDBName is the doubled hostname form created before instance ids
+// were stripped of the domain slug when joined to the site user.
+func LegacyDBName(domain, id string) string {
+	return dbengine.LegacyAppUser(domain, id)
+}
+
+// LegacyAppRole is the app role name that matches LegacyDBName.
+func LegacyAppRole(domain, id string) string {
+	return dbengine.LegacyAppUser(domain, id)
+}
+
+// LegacyReadOnlyRole is the browse role for a doubled legacy database name.
+func LegacyReadOnlyRole(domain, id string) string {
+	return trimRole("webor_ro_" + dbengine.LegacyAppUser(domain, id))
+}
+
+func trimRole(name string) string {
+	if len(name) > 63 {
+		name = strings.TrimRight(name[:63], "_")
+	}
+	return name
 }
 
 // PeerDSN is the libpq keyword DSN for Unix peer auth as the site user.

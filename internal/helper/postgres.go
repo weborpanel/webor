@@ -177,6 +177,13 @@ func (o *Ops) ensurePostgres(domain, id, stateDir string) (*EnsureSiteDatabaseRe
 		}
 	}
 
+	if err := o.EnsurePostgresPanelAuth(nil, stateDir); err != nil {
+		return nil, fmt.Errorf("postgres panel auth: %w", err)
+	}
+	if err := o.migrateDoubledPostgres(domain, id, stateDir); err != nil {
+		return nil, err
+	}
+
 	dbName := postgres.DBName(domain, id)
 	peer := postgres.PeerRole(domain)
 	app := postgres.AppRole(domain, id)
@@ -336,6 +343,19 @@ SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pi
 		if app != peer {
 			_ = o.psql(fmt.Sprintf("DROP ROLE IF EXISTS %s;", pgIdent(app)))
 		}
+		legacyDB := postgres.LegacyDBName(domain, id)
+		legacyApp := postgres.LegacyAppRole(domain, id)
+		legacyRO := postgres.LegacyReadOnlyRole(domain, id)
+		if legacyDB != dbName {
+			_ = o.psql(fmt.Sprintf(`
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid();
+`, pgQuote(legacyDB)))
+			_ = o.psql(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", pgIdent(legacyDB)))
+			_ = o.psql(fmt.Sprintf("DROP ROLE IF EXISTS %s;", pgIdent(legacyRO)))
+			if legacyApp != peer && legacyApp != app {
+				_ = o.psql(fmt.Sprintf("DROP ROLE IF EXISTS %s;", pgIdent(legacyApp)))
+			}
+		}
 		// Do not drop peer role — it is the Linux site user shared across DBs.
 	}
 	_ = postgres.RemoveSecret(secretPath)
@@ -379,6 +399,9 @@ func (o *Ops) rotatePostgresPassword(domain, id, stateDir string) (*EnsureSiteDa
 	if !st.Installed || !st.Active {
 		return nil, fmt.Errorf("postgres not active")
 	}
+	if err := o.migrateDoubledPostgres(domain, id, stateDir); err != nil {
+		return nil, err
+	}
 	dbName := postgres.DBName(domain, id)
 	peer := postgres.PeerRole(domain)
 	app := postgres.AppRole(domain, id)
@@ -417,6 +440,161 @@ func (o *Ops) rotatePostgresPassword(domain, id, stateDir string) (*EnsureSiteDa
 		PeerURL:    postgres.PeerURL(domain, id),
 		SecretPath: secretPath,
 	}, nil
+}
+
+// PostgresAuthDB is one parent database the panel wants reachable over localhost.
+type PostgresAuthDB struct {
+	Domain string
+	ID     string
+}
+
+// EnsurePostgresPanelAuth lets the panel process log into site databases.
+// Distros that ship ident/peer for 127.0.0.1 reject the password DSN DBAdminer
+// uses, so Browse/Edit never mount and the UI reports database not found.
+// Existing doubled names (wbr_<host>_<host>_postgres_1) are renamed when dbs
+// is non-empty.
+func (o *Ops) EnsurePostgresPanelAuth(dbs []PostgresAuthDB, stateDir string) error {
+	st, err := o.PostgresStatus()
+	if err != nil || st == nil || !st.Installed || !st.Active {
+		return nil
+	}
+	if err := o.ensurePostgresListen(); err != nil {
+		return err
+	}
+	if err := o.ensurePostgresHBA(); err != nil {
+		return err
+	}
+	for _, db := range dbs {
+		if err := o.migrateDoubledPostgres(db.Domain, db.ID, stateDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o *Ops) ensurePostgresListen() error {
+	out, err := o.psqlOut("SHOW listen_addresses;")
+	if err != nil {
+		return err
+	}
+	v := strings.Trim(strings.TrimSpace(out), "'")
+	if v != "" {
+		return nil
+	}
+	if err := o.psql(`ALTER SYSTEM SET listen_addresses = 'localhost';`); err != nil {
+		return err
+	}
+	if unit, ok := postgresActiveUnit(); ok {
+		if err := exec.Command("systemctl", "restart", unit).Run(); err != nil {
+			return fmt.Errorf("restart %s: %w", unit, err)
+		}
+	}
+	return nil
+}
+
+func (o *Ops) ensurePostgresHBA() error {
+	out, err := o.psqlOut("SHOW hba_file;")
+	if err != nil {
+		return err
+	}
+	path := strings.TrimSpace(out)
+	if path == "" || strings.ContainsAny(path, "\n\r") {
+		return fmt.Errorf("unexpected hba_file %q", out)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	next, changed := postgres.MergePanelAuthHBA(string(raw))
+	if !changed {
+		return nil
+	}
+	mode := os.FileMode(0o640)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode()
+	}
+	if err := os.WriteFile(path, []byte(next), mode); err != nil {
+		return err
+	}
+	if err := o.psql("SELECT pg_reload_conf();"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *Ops) migrateDoubledPostgres(domain, id, stateDir string) error {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	id = dbengine.NormalizeID(domain, id)
+	canon := postgres.DBName(domain, id)
+	legacy := postgres.LegacyDBName(domain, id)
+	if legacy == canon {
+		return nil
+	}
+	canonApp := postgres.AppRole(domain, id)
+	legacyApp := postgres.LegacyAppRole(domain, id)
+	canonRO := postgres.ReadOnlyRole(domain, id)
+	legacyRO := postgres.LegacyReadOnlyRole(domain, id)
+	peer := postgres.PeerRole(domain)
+
+	if o.pgTrue("SELECT 1 FROM pg_database WHERE datname = "+pgQuote(legacy)) &&
+		!o.pgTrue("SELECT 1 FROM pg_database WHERE datname = "+pgQuote(canon)) {
+		_ = o.psql(fmt.Sprintf(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid();`, pgQuote(legacy)))
+		if err := o.psql(fmt.Sprintf("ALTER DATABASE %s RENAME TO %s;", pgIdent(legacy), pgIdent(canon))); err != nil {
+			return fmt.Errorf("rename database: %w", err)
+		}
+	}
+	if legacyApp != peer {
+		if err := o.renameRole(legacyApp, canonApp); err != nil {
+			return err
+		}
+	}
+	if err := o.renameRole(legacyRO, canonRO); err != nil {
+		return err
+	}
+
+	path := postgres.ResolveSecretPath(stateDir, domain, id)
+	sec, err := postgres.ReadSecret(path)
+	if err != nil {
+		return nil
+	}
+	changed := false
+	if sec.Database == legacy || sec.Database == legacyApp {
+		sec.Database = canon
+		changed = true
+	}
+	if sec.User == legacyRO {
+		sec.User = canonRO
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	if err := postgres.WriteSecret(path, sec); err != nil {
+		return err
+	}
+	_ = chownWebor(path)
+	return nil
+}
+
+func (o *Ops) renameRole(from, to string) error {
+	if from == "" || from == to {
+		return nil
+	}
+	if o.pgTrue("SELECT 1 FROM pg_roles WHERE rolname = "+pgQuote(from)) &&
+		!o.pgTrue("SELECT 1 FROM pg_roles WHERE rolname = "+pgQuote(to)) {
+		if err := o.psql(fmt.Sprintf("ALTER ROLE %s RENAME TO %s;", pgIdent(from), pgIdent(to))); err != nil {
+			return fmt.Errorf("rename role: %w", err)
+		}
+	}
+	return nil
+}
+
+func (o *Ops) pgTrue(sql string) bool {
+	out, err := o.psqlOut(sql)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(out) == "1"
 }
 
 func (o *Ops) psql(sql string) error {

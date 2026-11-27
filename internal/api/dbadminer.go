@@ -16,6 +16,8 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/weborpanel/webor/internal/config"
+	"github.com/weborpanel/webor/internal/helper"
+	"github.com/weborpanel/webor/internal/ipc"
 	"github.com/weborpanel/webor/internal/providers/dbengine"
 	"github.com/weborpanel/webor/internal/providers/mariadb"
 	"github.com/weborpanel/webor/internal/providers/postgres"
@@ -76,6 +78,7 @@ func (s *Server) rebuildDBAdminerLocked() {
 	if err != nil || cfg == nil {
 		return
 	}
+	s.preparePostgresAdminer(cfg)
 	bySlug := make(map[string]*adminerMount)
 	var entries []adminerEntry
 	var parts []string
@@ -230,6 +233,55 @@ func (g *globalDBAdminer) findMount(segment string) *adminerMount {
 		match = m
 	}
 	return match
+}
+
+// preparePostgresAdminer opens localhost password auth and renames doubled
+// Postgres database names before DBAdminer tries to connect. A failure here
+// leaves SQLite mounts working.
+func (s *Server) preparePostgresAdminer(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	var dbs []helper.PostgresAuthDB
+	for _, site := range cfg.Sites {
+		if strings.TrimSpace(site.Parent) != "" {
+			continue
+		}
+		for _, db := range site.Databases {
+			if !strings.EqualFold(strings.TrimSpace(db.Engine), dbengine.Postgres) {
+				continue
+			}
+			dbs = append(dbs, helper.PostgresAuthDB{Domain: site.Name, ID: db.ID})
+		}
+	}
+	if len(dbs) == 0 {
+		return
+	}
+	_ = s.ensurePostgresPanelAuth(dbs)
+}
+
+func (s *Server) ensurePostgresPanelAuth(dbs []helper.PostgresAuthDB) error {
+	args := ipc.EnsurePostgresAuthArgs{StateDir: s.stateDir()}
+	for _, db := range dbs {
+		args.DBs = append(args.DBs, ipc.PostgresAuthDB{Domain: db.Domain, ID: db.ID})
+	}
+	if s.HelperSocket != "" {
+		raw, err := json.Marshal(args)
+		if err != nil {
+			return err
+		}
+		resp, err := ipc.Call(s.HelperSocket, ipc.Request{
+			ID: "panel", Operation: ipc.OpEnsurePostgresAuth, Args: raw,
+		})
+		if err != nil {
+			return err
+		}
+		if !resp.OK {
+			return fmt.Errorf("%s", resp.Error)
+		}
+		return nil
+	}
+	return s.ops().EnsurePostgresPanelAuth(dbs, s.stateDir())
 }
 
 func (s *Server) mountDBAdminer(mux *http.ServeMux) {

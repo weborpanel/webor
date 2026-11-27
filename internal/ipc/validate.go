@@ -812,6 +812,22 @@ func ValidateEnsureSiteDatabaseArgs(a EnsureSiteDatabaseArgs) error {
 	return validateStateDir(a.StateDir)
 }
 
+// ValidateEnsurePostgresAuthArgs validates localhost-auth repair arguments.
+func ValidateEnsurePostgresAuthArgs(a EnsurePostgresAuthArgs) error {
+	if err := validateStateDir(a.StateDir); err != nil {
+		return err
+	}
+	for _, db := range a.DBs {
+		if err := ValidateDomain(db.Domain); err != nil {
+			return err
+		}
+		if err := validateDBID(db.Domain, db.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ValidateDropSiteDatabaseArgs validates DropSiteDatabase arguments.
 func ValidateDropSiteDatabaseArgs(a DropSiteDatabaseArgs) error {
 	return ValidateEnsureSiteDatabaseArgs(EnsureSiteDatabaseArgs{

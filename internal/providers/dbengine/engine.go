@@ -69,16 +69,41 @@ func IsDefaultID(domain, id string) bool {
 }
 
 // AppUser is the fixed DB username for a parent domain + db id.
+// The default id uses the site user alone (wbr_tbts_in). An extra id that
+// already starts with the domain slug (tbts_in_postgres_1) keeps only the
+// remainder, so the name is wbr_tbts_in_postgres_1 and not
+// wbr_tbts_in_tbts_in_postgres_1.
 func AppUser(domain, id string) string {
 	base := sites.Username(domain)
 	id = NormalizeID(domain, id)
 	if IsDefaultID(domain, id) {
 		return base
 	}
-	name := base + "_" + id
+	suffix := id
+	slug := Slug(domain)
+	if strings.HasPrefix(id, slug+"_") {
+		suffix = strings.TrimPrefix(id, slug+"_")
+	}
+	if suffix == "" {
+		suffix = id
+	}
+	return trimSQLIdent(base + "_" + suffix)
+}
+
+// LegacyAppUser is the previous extra-database name, base + "_" + full id.
+// That doubled the hostname once instance ids themselves included the slug.
+func LegacyAppUser(domain, id string) string {
+	base := sites.Username(domain)
+	id = NormalizeID(domain, id)
+	if IsDefaultID(domain, id) {
+		return base
+	}
+	return trimSQLIdent(base + "_" + id)
+}
+
+func trimSQLIdent(name string) string {
 	if len(name) > 63 {
-		name = name[:63]
-		name = strings.TrimRight(name, "_")
+		name = strings.TrimRight(name[:63], "_")
 	}
 	return name
 }

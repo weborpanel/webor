@@ -35,6 +35,21 @@ func TestNames(t *testing.T) {
 	if !strings.Contains(extra, "notes") {
 		t.Fatalf("extra app role %q", extra)
 	}
+	// Instance ids already include the hostname. Do not append it twice.
+	got := postgres.DBName("tbts.in", "tbts_in_postgres_1")
+	if got != "wbr_tbts_in_postgres_1" {
+		t.Fatalf("db name %q", got)
+	}
+	if postgres.AppRole("tbts.in", "tbts_in_postgres_1") != got {
+		t.Fatalf("app role %q", postgres.AppRole("tbts.in", "tbts_in_postgres_1"))
+	}
+	legacy := postgres.LegacyDBName("tbts.in", "tbts_in_postgres_1")
+	if legacy != "wbr_tbts_in_tbts_in_postgres_1" {
+		t.Fatalf("legacy db name %q", legacy)
+	}
+	if postgres.DBName("tbts.in", "") != "wbr_tbts_in" {
+		t.Fatalf("default db %q", postgres.DBName("tbts.in", ""))
+	}
 }
 
 func TestROSecretDSNAs(t *testing.T) {

@@ -12,52 +12,52 @@ const DefaultSocketPath = "/run/webor/helper.sock"
 
 // Operation names for the helper allowlist surface.
 const (
-	OpCreateSiteUser  = "CreateSiteUser"
-	OpDeleteSiteUser  = "DeleteSiteUser"
-	OpWritePublicFile       = "WritePublicFile"
-	OpListPublicDir         = "ListPublicDir"
-	OpMkdirPublic           = "MkdirPublic"
-	OpRenamePublic          = "RenamePublic"
-	OpDeletePublicPath      = "DeletePublicPath"
-	OpReadPublicFile        = "ReadPublicFile"
-	OpExtractPublicArchive  = "ExtractPublicArchive"
-	OpDeployStaticZip       = "DeployStaticZip"
-	OpDeployAppBinary = "DeployAppBinary"
-	OpDeployAppZip    = "DeployAppZip"
-	OpDeployAppGit    = "DeployAppGit"
-	OpRunBuild        = "RunBuild"
-	OpWriteUnitFile   = "WriteUnitFile"
-	OpReloadCaddy     = "ReloadCaddy"
-	OpRunCronNow      = "RunCronNow"
-	OpCronStatus      = "CronStatus"
-	OpInstallCronJob  = "InstallCronJob"
-	OpRemoveCronJob   = "RemoveCronJob"
-	OpEnableCronTimer = "EnableCronTimer"
-	OpDisableCronTimer = "DisableCronTimer"
-	OpDeployCronBinary = "DeployCronBinary"
-	OpDeployCronZip    = "DeployCronZip"
-	OpListCronDir      = "ListCronDir"
-	OpInstallJob       = "InstallJob"
-	OpRemoveJob        = "RemoveJob"
-	OpJobStatus        = "JobStatus"
-	OpStartJob         = "StartJob"
-	OpStopJob          = "StopJob"
-	OpRestartJob       = "RestartJob"
-	OpDeployProcessBinary = "DeployProcessBinary"
-	OpDeployProcessZip    = "DeployProcessZip"
-	OpListProcessDir      = "ListProcessDir"
-	OpJournalTail     = "JournalTail"
-	OpListSiteLogFiles = "ListSiteLogFiles"
-	OpReadSiteLogFile  = "ReadSiteLogFile"
-	OpListHostLogFiles = "ListHostLogFiles"
-	OpReadHostLogFile  = "ReadHostLogFile"
-	OpRotateLogs       = "RotateLogs"
-	OpEnsureLogrotate  = "EnsureLogrotate"
-	OpRequestApproval = "RequestApproval"
-	OpApprove         = "Approve" // console / root only
-	OpListApprovals   = "ListApprovals"
-	OpGetApproval     = "GetApproval" // panel may poll status by id
-	OpDangerousDemo   = "DangerousDemo"
+	OpCreateSiteUser         = "CreateSiteUser"
+	OpDeleteSiteUser         = "DeleteSiteUser"
+	OpWritePublicFile        = "WritePublicFile"
+	OpListPublicDir          = "ListPublicDir"
+	OpMkdirPublic            = "MkdirPublic"
+	OpRenamePublic           = "RenamePublic"
+	OpDeletePublicPath       = "DeletePublicPath"
+	OpReadPublicFile         = "ReadPublicFile"
+	OpExtractPublicArchive   = "ExtractPublicArchive"
+	OpDeployStaticZip        = "DeployStaticZip"
+	OpDeployAppBinary        = "DeployAppBinary"
+	OpDeployAppZip           = "DeployAppZip"
+	OpDeployAppGit           = "DeployAppGit"
+	OpRunBuild               = "RunBuild"
+	OpWriteUnitFile          = "WriteUnitFile"
+	OpReloadCaddy            = "ReloadCaddy"
+	OpRunCronNow             = "RunCronNow"
+	OpCronStatus             = "CronStatus"
+	OpInstallCronJob         = "InstallCronJob"
+	OpRemoveCronJob          = "RemoveCronJob"
+	OpEnableCronTimer        = "EnableCronTimer"
+	OpDisableCronTimer       = "DisableCronTimer"
+	OpDeployCronBinary       = "DeployCronBinary"
+	OpDeployCronZip          = "DeployCronZip"
+	OpListCronDir            = "ListCronDir"
+	OpInstallJob             = "InstallJob"
+	OpRemoveJob              = "RemoveJob"
+	OpJobStatus              = "JobStatus"
+	OpStartJob               = "StartJob"
+	OpStopJob                = "StopJob"
+	OpRestartJob             = "RestartJob"
+	OpDeployProcessBinary    = "DeployProcessBinary"
+	OpDeployProcessZip       = "DeployProcessZip"
+	OpListProcessDir         = "ListProcessDir"
+	OpJournalTail            = "JournalTail"
+	OpListSiteLogFiles       = "ListSiteLogFiles"
+	OpReadSiteLogFile        = "ReadSiteLogFile"
+	OpListHostLogFiles       = "ListHostLogFiles"
+	OpReadHostLogFile        = "ReadHostLogFile"
+	OpRotateLogs             = "RotateLogs"
+	OpEnsureLogrotate        = "EnsureLogrotate"
+	OpRequestApproval        = "RequestApproval"
+	OpApprove                = "Approve" // console / root only
+	OpListApprovals          = "ListApprovals"
+	OpGetApproval            = "GetApproval" // panel may poll status by id
+	OpDangerousDemo          = "DangerousDemo"
 	OpInstallPostgres        = "InstallPostgres"
 	OpInstallMariaDB         = "InstallMariaDB"
 	OpInstallValkey          = "InstallValkey"
@@ -68,6 +68,7 @@ const (
 	OpDropSiteCache          = "DropSiteCache"
 	OpRotateCachePassword    = "RotateCachePassword"
 	OpPostgresStatus         = "PostgresStatus"
+	OpEnsurePostgresAuth     = "EnsurePostgresAuth"
 	OpMariaDBStatus          = "MariaDBStatus"
 	OpValkeyStatus           = "ValkeyStatus"
 	OpEnsureHTTPBackend      = "EnsureHTTPBackend"
@@ -122,12 +123,12 @@ type DropDatabaseRef struct {
 // CascadeDomains and DropDatabases are applied in the same approved purge
 // (subdomain site trees + parent databases).
 type DeleteSiteUserArgs struct {
-	Domain          string            `json:"domain"`
-	DeleteData      bool              `json:"delete_data"`
-	ApprovalID      string            `json:"approval_id,omitempty"`
-	CascadeDomains  []string          `json:"cascade_domains,omitempty"`
-	DropDatabases   []DropDatabaseRef `json:"drop_databases,omitempty"`
-	StateDir        string            `json:"state_dir,omitempty"`
+	Domain         string            `json:"domain"`
+	DeleteData     bool              `json:"delete_data"`
+	ApprovalID     string            `json:"approval_id,omitempty"`
+	CascadeDomains []string          `json:"cascade_domains,omitempty"`
+	DropDatabases  []DropDatabaseRef `json:"drop_databases,omitempty"`
+	StateDir       string            `json:"state_dir,omitempty"`
 }
 
 // WritePublicFileArgs writes a file under /srv/sites/<domain>/public/.
@@ -463,6 +464,19 @@ type RotateDatabasePasswordArgs struct {
 // PostgresStatusArgs is empty; status is returned in Message as JSON.
 type PostgresStatusArgs struct{}
 
+// PostgresAuthDB names one parent Postgres database to make reachable.
+type PostgresAuthDB struct {
+	Domain string `json:"domain"`
+	ID     string `json:"id"`
+}
+
+// EnsurePostgresAuthArgs asks the helper to allow localhost password logins
+// and rename doubled hostname database/role names.
+type EnsurePostgresAuthArgs struct {
+	StateDir string           `json:"state_dir"`
+	DBs      []PostgresAuthDB `json:"dbs"`
+}
+
 // MariaDBStatusArgs is empty; status is returned in Message as JSON.
 type MariaDBStatusArgs struct{}
 
@@ -613,12 +627,12 @@ type CheckUpdateArgs struct {
 
 // ApplyUpdateArgs installs a release tarball (approval-gated for non-root panel).
 type ApplyUpdateArgs struct {
-	Channel         string `json:"channel"`
-	BaseURL         string `json:"base_url,omitempty"`
-	Version         string `json:"version"` // expected VERSION from check (bound)
-	Force           bool   `json:"force,omitempty"`
-	SaveChannel     bool   `json:"save_channel,omitempty"`
-	ApprovalID      string `json:"approval_id,omitempty"`
+	Channel     string `json:"channel"`
+	BaseURL     string `json:"base_url,omitempty"`
+	Version     string `json:"version"` // expected VERSION from check (bound)
+	Force       bool   `json:"force,omitempty"`
+	SaveChannel bool   `json:"save_channel,omitempty"`
+	ApprovalID  string `json:"approval_id,omitempty"`
 }
 
 // SetPanelListenHostArgs rewrites panel.env -listen host and restarts webor.
