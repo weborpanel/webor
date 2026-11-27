@@ -7,6 +7,7 @@
 	import Skeleton from '#lib/components/Skeleton.svelte';
 	import StatusPill from '#lib/components/StatusPill.svelte';
 	import CopyField from '#lib/components/CopyField.svelte';
+	import TimezonePicker from '#lib/components/TimezonePicker.svelte';
 	import type { IconName } from '#lib/icons/paths.ts';
 	import { request, errorMessage } from '#lib/api.ts';
 	import { toasts } from '#lib/stores/toasts.svelte.ts';
@@ -47,17 +48,6 @@
 	let timezoneHost = $state('');
 	let timezoneDraft = $state('');
 	let timezoneBusy = $state(false);
-
-	const TZ_PRESETS = [
-		'UTC',
-		'Asia/Kolkata',
-		'Asia/Calcutta',
-		'America/New_York',
-		'America/Los_Angeles',
-		'Europe/London',
-		'Europe/Berlin',
-		'Australia/Sydney'
-	] as const;
 
 	const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
 		{ value: 'system', label: 'System', icon: 'monitor' },
@@ -350,26 +340,19 @@
 		{:else}
 			<form class="tz-form" onsubmit={saveTimezone}>
 				<label class="wbr-field">
-					<span>IANA timezone</span>
-					<input
-						list="webor-tz-presets"
+					<span>Timezone</span>
+					<TimezonePicker
 						bind:value={timezoneDraft}
-						placeholder={timezoneHost || 'UTC'}
 						disabled={timezoneBusy}
-						autocomplete="off"
+						hostLabel={timezoneHost ? `Host OS (${timezoneHost})` : 'Host OS timezone'}
 					/>
-					<datalist id="webor-tz-presets">
-						{#each TZ_PRESETS as z}
-							<option value={z}></option>
-						{/each}
-					</datalist>
 				</label>
 				<p class="wbr-muted small">
 					Active: <strong>{timezone || 'UTC'}</strong>
 					{#if timezoneHost}
 						· Host OS: <code>{timezoneHost}</code>
 					{/if}
-					· Clear the field to follow the host.
+					· Pick “Host OS” to follow the server zone.
 				</p>
 				<button class="wbr-btn" type="submit" disabled={timezoneBusy}>
 					{timezoneBusy ? 'Saving…' : 'Save timezone'}
