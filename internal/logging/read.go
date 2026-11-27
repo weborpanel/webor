@@ -19,7 +19,40 @@ type FileInfo struct {
 	Date   string `json:"date,omitempty"`
 	Index  int    `json:"index,omitempty"`
 	Size   int64  `json:"size"`
-	Mtime  string `json:"mtime"` // RFC3339
+	Mtime  string `json:"mtime"` // RFC3339 (UTC from disk; LocalizeMtimes may rewrite for panel TZ)
+}
+
+// LocalizeMtimes rewrites FileInfo.Mtime into tz (IANA). Unknown tz leaves values unchanged.
+func LocalizeMtimes(files []FileInfo, tz string) {
+	tz = strings.TrimSpace(tz)
+	if tz == "" || len(files) == 0 {
+		return
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return
+	}
+	for i := range files {
+		files[i].Mtime = localizeRFC3339(files[i].Mtime, loc)
+	}
+}
+
+// LocalizeFileMtime rewrites one FileInfo.Mtime into tz.
+func LocalizeFileMtime(info FileInfo, tz string) FileInfo {
+	files := []FileInfo{info}
+	LocalizeMtimes(files, tz)
+	return files[0]
+}
+
+func localizeRFC3339(s string, loc *time.Location) string {
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(s))
+	if err != nil {
+		t, err = time.Parse(time.RFC3339Nano, strings.TrimSpace(s))
+		if err != nil {
+			return s
+		}
+	}
+	return t.In(loc).Format(time.RFC3339)
 }
 
 // ListDir lists allowlisted log files in dir, newest first.

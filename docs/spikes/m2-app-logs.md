@@ -22,6 +22,8 @@ GET /api/system/log-files/{file}?lines=200
 ```
 
 UI: site **Logs** (stream + date/file browser); host **Logs** (backup).
+Timestamps are shown in `panel.timezone` (Account); on-disk file bytes stay
+as written. Journal tails (`GET …/logs`) render `short-iso` in that zone via `TZ=`.
 `backup.include_logs` (default false) optionally stages site `logs/` and
 `/var/log/webor` into restic snapshots.
 

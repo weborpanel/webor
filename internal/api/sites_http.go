@@ -38,6 +38,15 @@ func (s *Server) ops() *helper.Ops {
 	return helper.DefaultOps()
 }
 
+// scheduleTimezone returns panel.timezone or the host OS zone.
+func (s *Server) scheduleTimezone() string {
+	cfg, err := s.loadOrEmptyConfig()
+	if err != nil {
+		return config.HostTimezone()
+	}
+	return config.EffectiveTimezone(cfg)
+}
+
 // siteFS returns IPC-backed Ops when HelperSocket is set (production panel user).
 func (s *Server) siteFS() helper.SiteFS {
 	if s.HelperSocket != "" {

@@ -12,6 +12,14 @@ import (
 	"github.com/weborpanel/webor/internal/sites"
 )
 
+func (s *Server) writeLogJSON(w http.ResponseWriter, status int, payload map[string]any) {
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	payload["timezone"] = s.scheduleTimezone()
+	s.writeJSON(w, status, payload)
+}
+
 func (s *Server) handleSiteLogs(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAuth(w, r) {
 		return
@@ -64,11 +72,11 @@ func (s *Server) handleSiteLogs(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 500, err.Error())
 		return
 	}
-	s.writeJSON(w, 200, map[string]any{
+	s.writeLogJSON(w, 200, map[string]any{
 		"ok":    true,
 		"unit":  unit,
 		"lines": lines,
-		"text":  text,
+		"text":  text, // journalctl short-iso already rendered in panel timezone
 	})
 }
 
@@ -97,7 +105,9 @@ func (s *Server) handleListSiteLogFiles(w http.ResponseWriter, r *http.Request) 
 		s.writeErr(w, 500, err.Error())
 		return
 	}
-	s.writeJSON(w, 200, map[string]any{"ok": true, "files": files})
+	tz := s.scheduleTimezone()
+	logging.LocalizeMtimes(files, tz)
+	s.writeLogJSON(w, 200, map[string]any{"ok": true, "files": files})
 }
 
 func (s *Server) handleReadSiteLogFile(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +145,14 @@ func (s *Server) handleReadSiteLogFile(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 500, err.Error())
 		return
 	}
-	s.writeJSON(w, 200, map[string]any{"ok": true, "file": info, "text": text, "lines": lines})
+	tz := s.scheduleTimezone()
+	info = logging.LocalizeFileMtime(info, tz)
+	s.writeLogJSON(w, 200, map[string]any{
+		"ok":    true,
+		"file":  info,
+		"text":  text, // raw on-disk bytes; UI remaps timestamps for display
+		"lines": lines,
+	})
 }
 
 func (s *Server) handleListHostLogFiles(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +164,9 @@ func (s *Server) handleListHostLogFiles(w http.ResponseWriter, r *http.Request) 
 		s.writeErr(w, 500, err.Error())
 		return
 	}
-	s.writeJSON(w, 200, map[string]any{"ok": true, "files": files})
+	tz := s.scheduleTimezone()
+	logging.LocalizeMtimes(files, tz)
+	s.writeLogJSON(w, 200, map[string]any{"ok": true, "files": files})
 }
 
 func (s *Server) handleReadHostLogFile(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +192,14 @@ func (s *Server) handleReadHostLogFile(w http.ResponseWriter, r *http.Request) {
 		s.writeErr(w, 500, err.Error())
 		return
 	}
-	s.writeJSON(w, 200, map[string]any{"ok": true, "file": info, "text": text, "lines": lines})
+	tz := s.scheduleTimezone()
+	info = logging.LocalizeFileMtime(info, tz)
+	s.writeLogJSON(w, 200, map[string]any{
+		"ok":    true,
+		"file":  info,
+		"text":  text, // raw on-disk bytes; UI remaps timestamps for display
+		"lines": lines,
+	})
 }
 
 func (s *Server) siteLogTail(domain, selector string, lines int, apiIDs []string) (unit, text string, err error) {

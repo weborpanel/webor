@@ -343,7 +343,7 @@
 
 	<Card
 		title="Schedule timezone"
-		description="Cron and backup schedules use this zone (not the browser). Empty falls back to the server OS timezone."
+		description="Cron, backup schedules, and log timestamps in the panel use this zone (not the browser or OS clock). Empty falls back to the server OS timezone."
 	>
 		{#if loading}
 			<Skeleton lines={2} />

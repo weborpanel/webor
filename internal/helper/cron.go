@@ -403,6 +403,8 @@ func (o *Ops) JournalTail(unit string, lines int) (string, error) {
 		lines = 500
 	}
 	cmd := exec.Command("journalctl", "--system", "-u", unit, "-n", strconv.Itoa(lines), "--no-pager", "-o", "short-iso", "-q")
+	// Force short-iso wall times into the panel schedule zone (independent of host TZ).
+	cmd.Env = append(os.Environ(), "TZ="+o.ScheduleTimezone())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))

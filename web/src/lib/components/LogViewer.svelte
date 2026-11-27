@@ -5,6 +5,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import { request, errorMessage } from '#lib/api.ts';
 	import { formatBytes } from '#lib/format.ts';
+	import { formatInTimeZone, remapLogText } from '#lib/logtime.ts';
 	import { poll } from '#lib/stores/metrics.svelte.ts';
 
 	type LogFile = {
@@ -52,15 +53,30 @@
 	let filter = $state('');
 	let wrap = $state(true);
 	let lastLoaded = $state<Date | null>(null);
+	let timezone = $state('');
 	let pre: HTMLPreElement | undefined;
 
 	let streamFiles = $derived(allFiles.filter((f) => f.stream === stream));
 
-	let allLines = $derived(text ? text.replace(/\n$/, '').split('\n') : []);
+	/** Raw file text kept for download; display remaps timestamps into panel TZ. */
+	let displayText = $derived(remapLogText(text, timezone || undefined));
+	let allLines = $derived(displayText ? displayText.replace(/\n$/, '').split('\n') : []);
 	let shown = $derived.by(() => {
 		const q = filter.trim().toLowerCase();
 		return q ? allLines.filter((l) => l.toLowerCase().includes(q)) : allLines;
 	});
+	let updatedLabel = $derived(
+		lastLoaded
+			? timezone
+				? formatInTimeZone(lastLoaded, timezone, {
+						hour: '2-digit',
+						minute: '2-digit',
+						second: '2-digit',
+						hourCycle: 'h23'
+					})
+				: lastLoaded.toLocaleTimeString()
+			: ''
+	);
 
 	function pickDefaultStream(list: StreamOpt[]) {
 		return list.find((s) => s.value !== 'access')?.value ?? list[0]?.value ?? '';
@@ -113,7 +129,7 @@
 		if (!listUrl) return;
 		listing = true;
 		try {
-			const r = await request<{ files?: LogFile[] }>(listUrl);
+			const r = await request<{ files?: LogFile[]; timezone?: string }>(listUrl);
 			if (!r.ok) {
 				error = r.data.error || 'Could not list log files';
 				allFiles = [];
@@ -121,6 +137,7 @@
 				return;
 			}
 			error = '';
+			if (r.data.timezone) timezone = r.data.timezone;
 			allFiles = r.data.files ?? [];
 			const filtered = allFiles.filter((f) => f.stream === stream);
 			ensureFile(filtered);
@@ -142,7 +159,9 @@
 		const atBottom = !pre || pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
 		loading = true;
 		try {
-			const r = await request<{ text?: string; file?: LogFile }>(readUrl(file, lines));
+			const r = await request<{ text?: string; file?: LogFile; timezone?: string }>(
+				readUrl(file, lines)
+			);
 			if (!r.ok) {
 				error = r.data.error || 'Could not load logs';
 				text = '';
@@ -151,6 +170,7 @@
 			}
 			error = '';
 			text = r.data.text || '';
+			if (r.data.timezone) timezone = r.data.timezone;
 			activeFile = r.data.file ?? null;
 			lastLoaded = new Date();
 			if (atBottom) {
@@ -199,6 +219,9 @@
 
 	onMount(() => {
 		ensureStream();
+		void request<{ timezone?: string }>('/api/panel').then((pr) => {
+			if (pr.ok && pr.data.timezone) timezone = pr.data.timezone;
+		});
 		void (async () => {
 			await loadFiles();
 			await load();
@@ -257,6 +280,9 @@
 				<input type="checkbox" bind:checked={wrap} />
 				Wrap
 			</label>
+			{#if timezone}
+				<span class="tz-badge" title="Panel schedule timezone (Account)">Times · {timezone}</span>
+			{/if}
 			<button type="button" class="wbr-btn wbr-btn-ghost sm" disabled={loading || listing} onclick={refresh}>
 				<Icon name="refresh" size={14} />
 				{loading || listing ? 'Loading…' : 'Refresh'}
@@ -278,7 +304,7 @@
 				{#if activeFile}<code>{activeFile.name}</code>{:else if file}<code>{file}</code>{/if}
 				<span>
 					{shown.length}{filter ? ` of ${allLines.length}` : ''} lines
-					{#if lastLoaded}· updated {lastLoaded.toLocaleTimeString()}{/if}
+					{#if updatedLabel}· updated {updatedLabel}{#if timezone} {timezone}{/if}{/if}
 				</span>
 			</span>
 		{/snippet}
@@ -345,6 +371,13 @@
 		border-radius: 50%;
 		background: var(--ok);
 		animation: pulse 1.4s ease-in-out infinite;
+	}
+
+	.tz-badge {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--subtle);
+		white-space: nowrap;
 	}
 
 	.pad {

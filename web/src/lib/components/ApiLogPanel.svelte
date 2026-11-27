@@ -3,6 +3,7 @@
 	import Icon from './Icon.svelte';
 	import { getSite } from '#lib/site/context.svelte.ts';
 	import { request, errorMessage } from '#lib/api.ts';
+	import { remapLogText } from '#lib/logtime.ts';
 	import { poll } from '#lib/stores/metrics.svelte.ts';
 
 	type UnitOpt = { value: string; label: string };
@@ -26,12 +27,14 @@
 	const site = getSite();
 
 	let text = $state('');
+	let timezone = $state('');
 	let unitName = $state('');
 	let loading = $state(false);
 	let error = $state('');
 	let pre: HTMLPreElement | undefined = $state();
 
-	let allLines = $derived(text ? text.replace(/\n$/, '').split('\n') : []);
+	let displayText = $derived(remapLogText(text, timezone || undefined));
+	let allLines = $derived(displayText ? displayText.replace(/\n$/, '').split('\n') : []);
 
 	function lineTone(l: string) {
 		if (/\b(error|fatal|panic|fail(ed)?|exception)\b/i.test(l)) return 'err';
@@ -45,7 +48,9 @@
 		loading = true;
 		try {
 			const q = new URLSearchParams({ unit, lines: String(lines) });
-			const r = await request<{ text?: string; unit?: string }>(site.path(`/logs?${q}`));
+			const r = await request<{ text?: string; unit?: string; timezone?: string }>(
+				site.path(`/logs?${q}`)
+			);
 			if (!r.ok) {
 				error = r.data.error || 'Could not load logs';
 				text = '';
@@ -53,6 +58,7 @@
 			}
 			error = '';
 			text = r.data.text || '';
+			if (r.data.timezone) timezone = r.data.timezone;
 			unitName = r.data.unit || '';
 			if (atBottom) {
 				await tick();
@@ -66,6 +72,9 @@
 	}
 
 	onMount(() => {
+		void request<{ timezone?: string }>('/api/panel').then((pr) => {
+			if (pr.ok && pr.data.timezone) timezone = pr.data.timezone;
+		});
 		void load();
 		return poll(() => {
 			if (follow && !loading) void load();
@@ -86,6 +95,9 @@
 			</label>
 		{:else if unitName}
 			<code class="unit">{unitName}</code>
+		{/if}
+		{#if timezone}
+			<span class="tz-badge" title="Panel schedule timezone">Times · {timezone}</span>
 		{/if}
 		<label class="toggle">
 			<input type="checkbox" bind:checked={follow} onchange={() => follow && load()} />
@@ -130,6 +142,13 @@
 		color: var(--muted);
 	}
 
+	.tz-badge {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--subtle);
+		margin-left: auto;
+	}
+
 	.toggle {
 		display: inline-flex;
 		align-items: center;
@@ -138,6 +157,10 @@
 		font-weight: 600;
 		color: var(--muted);
 		margin-left: auto;
+	}
+
+	.tz-badge + .toggle {
+		margin-left: 0;
 	}
 
 	.live {
